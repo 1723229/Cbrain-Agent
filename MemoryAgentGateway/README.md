@@ -1,4 +1,4 @@
-# Memory Agent Gateway
+# Cbrain Agent Gateway
 
 Model-independent Gateway for Codex. Codex continues to call OpenAI directly;
 this service only handles memory lifecycle hooks and read-only MCP tools.
@@ -6,18 +6,18 @@ this service only handles memory lifecycle hooks and read-only MCP tools.
 Required service configuration:
 
 ```text
-HIPER_CORE_URL=http://memory-core:8420
-HIPER_KNOWLEDGE_URL=http://memory-knowledge:8424
-HIPER_SERVICE_ID=<service id>
-HIPER_SERVICE_TOKEN=<service token, when enabled>
+CBRAIN_CORE_URL=http://memory-core:8420
+CBRAIN_KNOWLEDGE_URL=http://memory-knowledge:8424
+CBRAIN_SERVICE_ID=<service id>
+CBRAIN_SERVICE_TOKEN=<internal service token, when enabled>
 ```
 
 Clients authenticate with the regular API Key created on the Cbrain API Key
 page. The Gateway verifies it through Core `/v3/meta/auth/verify`; per-user
-Gateway tokens and server restarts are not required.
+Gateway Tokens and per-user server configuration do not exist: clients send the
+page API Key directly and the Gateway validates it through Core.
 
-`HIPER_TEAM_ID` and `HIPER_AGENT_ID` are optional defaults for backward
-compatibility. New Codex clients resolve a portable workspace key through
+Codex and Claude Code clients resolve a portable workspace key through
 `/v1/workspaces/resolve`, then complete an unbound selection through
 `/v1/workspaces/bind` or the bootstrap `workspace_bind` MCP tool. The Gateway
 stores this mapping centrally and verifies that the Agent is active, belongs to
@@ -29,14 +29,12 @@ Workspace bindings can be inspected, reselected, or removed through
 returns a fresh short-lived binding request and still completes through the same
 validated `workspace_bind` path.
 
-During migration, legacy clients may still use `HIPER_AGENT_GATEWAY_TOKEN` plus
-`HIPER_USER_ID`, or `HIPER_GATEWAY_PRINCIPALS_JSON`. New deployments should not
-create those per-user settings. Page API Keys are request-scoped and are never
-persisted in Gateway SQLite; legacy `session_contexts.user_key` values are
-cleared at startup.
+Page API Keys are request-scoped and are never persisted in Gateway SQLite.
+`CBRAIN_SERVICE_TOKEN` is an optional internal service-to-service credential;
+it is never exposed to plugins or users.
 
 The Gateway stores opaque session contexts and durable capture/extraction queues
-in `HIPER_AGENT_GATEWAY_DB` (default `./data/gateway.sqlite`). It sends each
+in `CBRAIN_AGENT_GATEWAY_DB` (default `./data/gateway.sqlite`). It sends each
 completed root prompt/final answer pair independently to Core L0 and Skill
 conversation accumulation until both acknowledge it. Codex `PostToolUse` events
 are sanitized and joined to their turn. `SessionEnd` then queues the complete
@@ -52,13 +50,13 @@ and enough work content; the native per-session accumulation path remains active
 Recall-specific controls are independent from the longer Core worker timeout:
 
 ```text
-HIPER_RECALL_TIMEOUT_MS=800
-HIPER_RECALL_MIN_SCORE=0.75
-HIPER_SESSION_CONTEXT_TIMEOUT_MS=1500
-HIPER_KNOWLEDGE_CACHE_TTL_MS=30000
-HIPER_SKILL_SETTLE_MS=5000
-HIPER_CAPTURE_CONCURRENCY=4
-HIPER_CAPTURE_MAX_ATTEMPTS=8
+CBRAIN_RECALL_TIMEOUT_MS=800
+CBRAIN_RECALL_MIN_SCORE=0.75
+CBRAIN_SESSION_CONTEXT_TIMEOUT_MS=1500
+CBRAIN_KNOWLEDGE_CACHE_TTL_MS=30000
+CBRAIN_SKILL_SETTLE_MS=5000
+CBRAIN_CAPTURE_CONCURRENCY=4
+CBRAIN_CAPTURE_MAX_ATTEMPTS=8
 ```
 
 Each prompt fetches L1, L2, and L3 in parallel. A slow layer degrades independently

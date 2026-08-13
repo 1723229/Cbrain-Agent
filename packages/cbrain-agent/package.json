@@ -1,0 +1,28 @@
+{
+  "name": "cbrain-agent",
+  "version": "0.1.0",
+  "description": "One-command Cbrain plugin installer for Codex and Claude Code",
+  "type": "module",
+  "bin": {
+    "cbrain-agent": "./bin/cbrain-agent.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/installer.test.mjs",
+    "pack:check": "npm pack --dry-run",
+    "build:offline": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-offline-bundle.ps1"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1723229/TencentDB-Agent-Memory.git",
+    "directory": "packages/cbrain-agent"
+  }
+}

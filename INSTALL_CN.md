@@ -4,12 +4,12 @@
 
 本文覆盖三种安装形态：
 1. **完整三件套**：`memory-core` + `memory-hub` + `proxy` 一键起（推荐，能让 Claude Code 之类的 coding agent 直接用上团队记忆 / 知识 / skill 注入）
-2. **只装 Memory Hub**：已有 Memory Core 运行在本机时的轻量部署
+2. **只装 Cbrain**：已有 Memory Core 运行在本机时的轻量部署
 3. **通过 Proxy 使用 Claude Code**：把 coding agent 挂到 proxy 上
 
 ---
 
-## 完整三件套：Memory Core + Memory Hub + Proxy（推荐）
+## 完整三件套：Memory Core + Cbrain + Proxy（推荐）
 
 一次拉起 `memory-core` + `memory-hub` + `proxy`，并通过 `proxy` 让 Claude Code
 之类的 coding agent 直接用上团队记忆 / 知识 / skill 注入：
@@ -208,9 +208,9 @@ curl -s http://localhost:8420/health | jq .services.pipelineWorker
 
 ---
 
-## 只装 Memory Hub
+## 只装 Cbrain
 
-已有 Memory Core 运行在本机 `8420` 端口时，一条命令拉取 Memory Hub，打开团队记忆面板：
+已有 Memory Core 运行在本机 `8420` 端口时，一条命令拉取 Cbrain，打开团队记忆面板：
 
 ```bash
 docker pull docker.io/agentmemory/memory-hub:latest
@@ -243,8 +243,8 @@ docker run -d --name tdai-memory-hub \
 在 Panel 的 **API Key** 页面创建普通用户 Key，然后复制页面显示的一条命令：
 
 ```bash
-npx --yes cbrain-agent-memory install codex --gateway https://cbrain.example
-npx --yes cbrain-agent-memory install claude-code --gateway https://cbrain.example
+npx --yes cbrain-agent install codex --gateway https://cbrain.example
+npx --yes cbrain-agent install claude-code --gateway https://cbrain.example
 ```
 
 安装器会隐藏提示输入页面 Key。无需下载本仓库，也无需管理员额外创建 Gateway Token。

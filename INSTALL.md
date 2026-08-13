@@ -7,12 +7,12 @@ This document covers three installation modes:
 1. **Full three-in-one stack**: `memory-core` + `memory-hub` + `proxy` in one
    shot (recommended — lets coding agents like Claude Code plug directly into
    your team memory / knowledge / skill injection).
-2. **Memory Hub only**: lightweight deploy when Memory Core is already running.
+2. **Cbrain only**: lightweight deploy when Memory Core is already running.
 3. **Using Proxy with Claude Code**: point a coding agent at the proxy.
 
 ---
 
-## Full three-in-one stack: Memory Core + Memory Hub + Proxy (recommended)
+## Full three-in-one stack: Memory Core + Cbrain + Proxy (recommended)
 
 Boot `memory-core` + `memory-hub` + `proxy` in one command so coding agents can
 consume team memory / knowledge / skills through the proxy:
@@ -231,10 +231,10 @@ runs again.
 
 ---
 
-## Memory Hub only
+## Cbrain only
 
 When Memory Core is already running on port `8420`, one command pulls the
-Memory Hub image so you get the team memory panel:
+Cbrain image so you get the team memory panel:
 
 ```bash
 docker pull docker.io/agentmemory/memory-hub:latest

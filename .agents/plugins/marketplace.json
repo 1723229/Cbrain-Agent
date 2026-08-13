@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "codex-agent-memory",
+      "name": "cbrain-agent",
       "source": {
         "source": "local",
-        "path": "./plugins/codex-agent-memory"
+        "path": "./plugins/codex/cbrain-agent"
       },
       "policy": {
         "installation": "AVAILABLE",

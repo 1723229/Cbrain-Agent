@@ -35,7 +35,7 @@ export const enUS = {
   'header.profile.username': 'Username',
   'header.profile.userIdHint': 'Share with your team admin to get invited to a Team',
   'header.profile.close': 'Close',
-  'header.brand': 'Memory Hub',
+  'header.brand': 'Cbrain',
 
   // ===== TeamSwitcher =====
   'teamSwitcher.selectTeam': 'Select Team',
@@ -756,7 +756,7 @@ export const enUS = {
   'createTeam.caption': 'Create Team',
   'createTeam.name': 'Name',
   'createTeam.name.extra': 'Teams are the primary boundary for assets, agents, and tasks.',
-  'createTeam.name.placeholder': 'e.g. tdai-memory · backend team',
+  'createTeam.name.placeholder': 'e.g. Cbrain · backend team',
   'createTeam.desc': 'Description',
   'createTeam.desc.placeholder': 'Briefly describe the team scope and goals',
   'createTeam.submit': 'Create',

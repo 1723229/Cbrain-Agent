@@ -42,7 +42,7 @@ $EDITOR .env       # Fill in two sets of LLM parameters (memory group + proxy gr
 
 Open the panel: [http://localhost:8125](http://localhost:8125).
 
-Complete installation documentation (standalone Memory Hub deployment, Proxy + Claude Code / CodeBuddy usage, stop and cleanup, port reference, etc.) is available in [**INSTALL.md**](./INSTALL.md) (中文: [INSTALL_CN.md](./INSTALL_CN.md)).
+Complete installation documentation (standalone Cbrain deployment, Proxy + Claude Code / CodeBuddy usage, stop and cleanup, port reference, etc.) is available in [**INSTALL.md**](./INSTALL.md) (中文: [INSTALL_CN.md](./INSTALL_CN.md)).
 
 ### Migrating data from an older version
 
@@ -64,7 +64,7 @@ Existing information → Reusable memory assets → Fewer turns → Less rework 
 
 ### Let experience accumulate, flow, and pass on to the next Agent
 
-**Memory Hub** for Agent teams closes the loop across the entire experience lifecycle: work produces assets, assets circulate through the team, and new members can load the team's save file on day one.
+**Cbrain** for Agent teams closes the loop across the entire experience lifecycle: work produces assets, assets circulate through the team, and new members can load the team's save file on day one.
 
 1. **Automatic asset extraction**: Extract Chat Memory and Skills from conversations and tasks; convert documents and code into Wiki and CodeGraph; then manage, review, and route them consistently.
 2. **Portable & multi-Agent compatible**: Memory assets are decoupled from Agent frameworks — they can move across frameworks and be shared and maintained by multiple Agents and team members.
@@ -105,7 +105,7 @@ Existing information → Reusable memory assets → Fewer turns → Less rework 
 
 ### 🛡️ A team memory panel controlled by humans
 
-- Create teams and Agents in Memory Hub; review, share, and equip memory assets.
+- Create teams and Agents in Cbrain; review, share, and equip memory assets.
 - Manage ownership, versions, status, visibility, usage counts, and Agent bindings in one place.
 - `private` belongs strictly to the Owner; `team` is visible to all team members; `restricted` grants precise access via User / Role / Agent ACLs.
 - Two role layers: **global System Admin** manages users and teams (creating teams, adding members) and can also use Wiki, CodeGraph, Skill, and other asset management features; **Team-level roles** include Admin (team manager) and Member (regular member), responsible for asset collaboration and access control within a team. Asset ownership is tracked via Owner — the Owner automatically has management permissions for their assets.
@@ -117,7 +117,7 @@ Existing information → Reusable memory assets → Fewer turns → Less rework 
 
 Most Agents' first task is re-learning your project. TencentDB Agent Memory turns the learning cost you've already paid into a save file:
 
-<img alt="Cold Start: import codebase, docs, and history into Memory Hub" src="assets/images/flowchart3.png" />
+<img alt="Cold Start: import codebase, docs, and history into Cbrain" src="assets/images/flowchart3.png" />
 
 Specifically, these existing assets can be imported directly and processed automatically in the panel:
 
@@ -129,7 +129,7 @@ Specifically, these existing assets can be imported directly and processed autom
 
 ## One Play Style: Build a Growing Agent Team for a One-Person Company
 
-Open Memory Hub and create a team:
+Open Cbrain and create a team:
 
 ```text
 Tiny but Serious Inc.
@@ -179,7 +179,7 @@ RAG answers "what can be found?" Team Memory also answers "who can use it, which
 | Team sharing & Agent loadout | — | — | ✅ |
 | Private / Team / ACL | — | △ | ✅ |
 
-## Memory Hub Is Not a Display Board — It's a Control Panel
+## Cbrain Is Not a Display Board — It's a Control Panel
 
 | Play Style | What you do in the Hub |
 | :--- | :--- |
@@ -216,7 +216,7 @@ You can assign the "Release Skill" to the Release Agent, the "Architecture Wiki"
 
 TencentDB Agent Memory doesn't aim to "store everything." It solves three problems: **what's worth keeping, who can use it, and how to retrieve less while retrieving the right things next time.**
 
-<img alt="Technical overview: layering (L0–L3), Memory Assets, Memory Hub, identity-based assembly for Agents" src="assets/images/flowchart5.png" />
+<img alt="Technical overview: layering (L0–L3), Memory Assets, Cbrain, identity-based assembly for Agents" src="assets/images/flowchart5.png" />
 
 ### 1. Memory isn't flat records — it grows in layers
 
@@ -233,7 +233,7 @@ Both generation and retrieval are layered: normally, L2/L3 provide a quick conte
 
 ### 2. Memory isn't a global prompt — it's the Agent's loadout
 
-Chat Memory, Skills, Wiki, and CodeGraph are all registered uniformly as Memory Assets. Memory Hub uses **Fixed Binding + ACL** to determine which assets a given Agent can use: first narrow the permission scope by Team, User, Agent, and visibility, then retrieve based on the current query.
+Chat Memory, Skills, Wiki, and CodeGraph are all registered uniformly as Memory Assets. Cbrain uses **Fixed Binding + ACL** to determine which assets a given Agent can use: first narrow the permission scope by Team, User, Agent, and visibility, then retrieve based on the current query.
 
 This lets teams share experience without exposing all their private information; switching Agents or frameworks only requires re-equipping, not retraining.
 
@@ -265,7 +265,7 @@ PersonaMem tests whether an Agent can correctly understand and apply user inform
 - [Knowledge OpenAPI](./MemoryKnowledge/openapi.yaml)
 - [Contributing Guide](./CONTRIBUTING.md)
 
-Agent Memory doesn't have a settled standard yet. Bug reports, documentation, benchmarks, new framework adapters, and more creative Memory Hub use cases are all welcome.
+Agent Memory doesn't have a settled standard yet. Bug reports, documentation, benchmarks, new framework adapters, and more creative Cbrain use cases are all welcome.
 
 ---
 ## Acknowledgements

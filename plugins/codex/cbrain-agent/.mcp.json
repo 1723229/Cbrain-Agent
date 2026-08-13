@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "cbrain-agent": {
+      "cwd": ".",
+      "command": "node",
+      "args": ["./scripts/mcp-bridge.mjs"],
+      "default_tools_approval_mode": "approve"
+    }
+  }
+}

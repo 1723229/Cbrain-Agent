@@ -850,5 +850,5 @@ Hook 只向当前客户端环境按 Gateway 配置共享的本机 Event Relay �
 - [CodeGraph Bridge](../../../MemoryKnowledge/src/engines/code/bridge.ts)
 - [Gateway Store](../../../MemoryAgentGateway/src/gateway-store.ts)
 - [Gateway Service](../../../MemoryAgentGateway/src/service.ts)
-- [Codex Plugin README](../../../plugins/codex-agent-memory/README.md)
-- [Claude Code Plugin README](../../../plugins/claude-code-agent-memory/README.md)
+- [Codex Plugin README](../../../plugins/codex/cbrain-agent/README.md)
+- [Claude Code Plugin README](../../../plugins/claude-code/cbrain-agent/README.md)

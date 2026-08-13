@@ -1,5 +1,5 @@
 {
-  "name": "@tencentdb-agent-memory/agent-gateway",
+  "name": "@cbrain/agent-gateway",
   "version": "0.1.0",
   "private": true,
   "type": "module",

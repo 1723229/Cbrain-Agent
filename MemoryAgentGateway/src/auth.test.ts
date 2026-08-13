@@ -22,13 +22,6 @@ describe("GatewayAuthenticator", () => {
     expect(directory.verifyUserKey).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps legacy static principals available during migration", async () => {
-    const directory = { verifyUserKey: vi.fn() };
-    const auth = new GatewayAuthenticator({ directory, staticPrincipals: [{ id: "legacy", token: "gateway-token", userId: "usr-legacy" }] });
-    await expect(auth.authenticate("Bearer gateway-token")).resolves.toMatchObject({ id: "legacy", userId: "usr-legacy" });
-    expect(directory.verifyUserKey).not.toHaveBeenCalled();
-  });
-
   it("revalidates after expiry and keeps bindings stable across key rotation", async () => {
     let now = 1_000;
     const directory = { verifyUserKey: vi.fn().mockResolvedValue("usr-1") };

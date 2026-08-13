@@ -16,7 +16,7 @@ export function createMcpServer(
   resolveService: (contextId: string) => AgentGatewayService,
   workspaceActions: WorkspaceActions,
 ): Server {
-  const server = new Server({ name: "hiper-agent-memory-gateway", version: "0.2.0" }, { capabilities: { tools: {} } });
+  const server = new Server({ name: "cbrain-agent-gateway", version: "0.2.0" }, { capabilities: { tools: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [
     ...WORKSPACE_TOOLS.map((tool)=>({ ...tool, annotations: { ...GATEWAY_TOOL_ANNOTATIONS, readOnlyHint: tool.name==="workspace_status" } })),
     ...GATEWAY_TOOLS.map(withContextSchema),

@@ -43,7 +43,7 @@ $EDITOR .env       # 填入两组 LLM 参数（memory 组 + proxy 组）
 
 打开 Panel：[http://localhost:8125](http://localhost:8125)。
 
-完整安装文档（Memory Hub 单独部署 / Proxy + Claude Code / CodeBuddy 用法 / 停止清理 / 端口
+完整安装文档（Cbrain 单独部署 / Proxy + Claude Code / CodeBuddy 用法 / 停止清理 / 端口
 说明等）见 [**INSTALL_CN.md**](./INSTALL_CN.md)（English: [INSTALL.md](./INSTALL.md)）。
 
 ### Codex / Claude Code 插件接入
@@ -53,8 +53,8 @@ $EDITOR .env       # 填入两组 LLM 参数（memory 组 + proxy 组）
 用户在页面创建普通 API Key 后，无需下载本仓库，也无需管理员配置额外 Gateway Token：
 
 ```bash
-npx --yes cbrain-agent-memory install codex --gateway https://cbrain.example
-npx --yes cbrain-agent-memory install claude-code --gateway https://cbrain.example
+npx --yes cbrain-agent install codex --gateway https://cbrain.example
+npx --yes cbrain-agent install claude-code --gateway https://cbrain.example
 ```
 
 安装器会隐藏读取页面 API Key、验证身份、安装远程插件并保存用户级配置。
@@ -78,7 +78,7 @@ npx --yes cbrain-agent-memory install claude-code --gateway https://cbrain.examp
 
 ### 让经验沉淀、流动，然后被下一位 Agent 直接继承
 
-面向 Agent 团队的 **Memory Hub**，让经验完成一个完整循环：工作中产生资产，资产在团队中流动，新成员进来直接读档。
+面向 Agent 团队的 **Cbrain**，让经验完成一个完整循环：工作中产生资产，资产在团队中流动，新成员进来直接读档。
 
 1. **自动沉淀资产**：从对话和任务中生成 Chat Memory 与 Skill，把文档和代码变成 Wiki 与 CodeGraph，再统一管理、审核和路由。
 2. **可迁移、兼容多Agent**：记忆资产与 Agent 框架解耦，可以跨框架迁移，也可以由 Team 内的多个 Agent、多个成员共享和维护。
@@ -120,7 +120,7 @@ npx --yes cbrain-agent-memory install claude-code --gateway https://cbrain.examp
 
 ### 🛡️ 一个由人掌握的团队记忆面板
 
-- 在 Memory Hub 里创建 Team 和 Agent，审核、分享并配装记忆资产。
+- 在 Cbrain 里创建 Team 和 Agent，审核、分享并配装记忆资产。
 - 统一管理 Owner、版本、状态、可见性、使用次数与 Agent 绑定。
 - `private` 严格属于 Owner；`team` 面向全队；`restricted` 通过 User / Role / Agent ACL 精确授权。
 - 角色分两层：**全局 System Admin** 管理用户与团队（建团队、录入成员），也可使用 Wiki、CodeGraph、Skill 等资产管理功能；**Team 内角色** 分为 Admin（团队管理员）和 Member（普通成员），负责团队内的资产协作与权限控制。资产归属通过 Owner 标记，Owner 自动获得对应资产的管理权限。
@@ -143,7 +143,7 @@ npx --yes cbrain-agent-memory install claude-code --gateway https://cbrain.examp
 
 ## 一种玩法：给一个人的公司组一支会成长的 Agent 队伍
 
-打开 Memory Hub，建一个 Team：
+打开 Cbrain，建一个 Team：
 
 ```text
 Tiny but Serious Inc.
@@ -193,7 +193,7 @@ RAG 解决“能查到什么”。Team Memory 还要解决“谁可以用、哪�
 | 团队分享与 Agent 配装 | — | — | ✅ |
 | 私有 / 团队 / ACL | — | △ | ✅ |
 
-## Memory Hub 不是展板，是操作台
+## Cbrain 不是展板，是操作台
 
 | 玩法 | 在 Hub 里做什么 |
 | :--- | :--- |
@@ -230,7 +230,7 @@ RAG 解决“能查到什么”。Team Memory 还要解决“谁可以用、哪�
 
 TencentDB Agent Memory 不追求“存下所有东西”，而是解决三个问题：**什么值得留下、谁可以使用、下一次怎样少拿但拿对。**
 
-<img alt="技术实现总览：沉淀（L0–L3）、记忆资产、Memory Hub、按身份装配到 Agent" src="assets/images/flowchart5.cn.png" />
+<img alt="技术实现总览：沉淀（L0–L3）、记忆资产、Cbrain、按身份装配到 Agent" src="assets/images/flowchart5.cn.png" />
 
 
 ### 1. 记忆不是平铺记录，而是逐层生长
@@ -248,7 +248,7 @@ TencentDB Agent Memory 不追求“存下所有东西”，而是解决三个问
 
 ### 2. 记忆不是全局 Prompt，而是 Agent 的 Loadout
 
-Chat Memory、Skill、Wiki 和 CodeGraph 都被统一登记为 Memory Asset。Memory Hub 通过 **Fixed Binding + ACL** 决定某个 Agent 能带走哪些资产：先按 Team、User、Agent 和可见性缩小权限范围，再按当前问题召回。
+Chat Memory、Skill、Wiki 和 CodeGraph 都被统一登记为 Memory Asset。Cbrain 通过 **Fixed Binding + ACL** 决定某个 Agent 能带走哪些资产：先按 Team、User、Agent 和可见性缩小权限范围，再按当前问题召回。
 
 因此团队可以共享经验，却不必共享全部隐私；换 Agent 或换框架，也只需重新装配，不必重新训练。
 
@@ -280,7 +280,7 @@ PersonaMem 检验 Agent 能否在长期交互后正确理解和运用用户信�
 - [Knowledge OpenAPI](./MemoryKnowledge/openapi.yaml)
 - [贡献指南](./CONTRIBUTING_CN.md)
 
-Agent Memory 还没有标准答案。Bug、文档、Benchmark、新框架适配，或者一个你觉得更好玩的 Memory Hub 用法，都欢迎。
+Agent Memory 还没有标准答案。Bug、文档、Benchmark、新框架适配，或者一个你觉得更好玩的 Cbrain 用法，都欢迎。
 
 ---
 ## 致谢

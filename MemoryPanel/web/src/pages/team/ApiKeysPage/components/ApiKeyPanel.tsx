@@ -351,7 +351,7 @@ export default function ApiKeyPanel() {
               {t('apiKey.plugin.desc')}
             </Text>
             {(['codex', 'claude-code'] as const).map((client) => {
-              const command = `npx --yes cbrain-agent-memory install ${client} --gateway ${agentGatewayUrl.replace(/\/+$/, '')}`;
+              const command = `npx --yes cbrain-agent install ${client} --gateway ${agentGatewayUrl.replace(/\/+$/, '')}`;
               return (
                 <div className="_memory-apikey-endpoint" key={client}>
                   <Text theme="label" parent="div" style={{ marginBottom: 4 }}>

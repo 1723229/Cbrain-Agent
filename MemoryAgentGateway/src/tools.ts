@@ -9,33 +9,33 @@ const text = (description: string) => ({ type: "string", description });
 const id = (kind: string) => text(`Accessible ${kind} resource ID`);
 export const WORKSPACE_BIND_TOOL: GatewayTool = {
   name: "workspace_bind",
-  description: "Bind the current unbound workspace to a Team and Agent using the opaque binding request supplied by Hiper.",
+  description: "Bind the current unbound workspace to a Team and Agent using the opaque binding request supplied by Cbrain.",
   inputSchema: objectSchema({
-    binding_request_id: text("Opaque binding request ID supplied by the Hiper workspace prompt"),
+    binding_request_id: text("Opaque binding request ID supplied by the Cbrain workspace prompt"),
     team_id: text("Selected Team ID"),
     agent_id: text("Selected Agent ID"),
   }, ["binding_request_id", "team_id", "agent_id"]),
 };
 export const WORKSPACE_STATUS_TOOL: GatewayTool = {
   name: "workspace_status",
-  description: "Show the current Hiper Team and Agent binding for a workspace. Use when the user asks which memory scope is active.",
-  inputSchema: objectSchema({ workspace_key: text("Opaque workspace key supplied by Hiper context") }, ["workspace_key"]),
+  description: "Show the current Cbrain Team and Agent binding for a workspace. Use when the user asks which memory scope is active.",
+  inputSchema: objectSchema({ workspace_key: text("Opaque workspace key supplied by Cbrain context") }, ["workspace_key"]),
 };
 export const WORKSPACE_REBIND_TOOL: GatewayTool = {
   name: "workspace_rebind",
   description: "Start an explicit Team and Agent reselection for the current workspace. Call only when the user asks to change its binding.",
   inputSchema: objectSchema({
-    workspace_key: text("Opaque workspace key supplied by Hiper context"),
-    workspace_label: text("Workspace label supplied by Hiper context"),
-    host: text("Host supplied by Hiper context"),
-    session_id: text("Session ID supplied by Hiper context"),
-    workspace: text("Workspace path supplied by Hiper context"),
+    workspace_key: text("Opaque workspace key supplied by Cbrain context"),
+    workspace_label: text("Workspace label supplied by Cbrain context"),
+    host: text("Host supplied by Cbrain context"),
+    session_id: text("Session ID supplied by Cbrain context"),
+    workspace: text("Workspace path supplied by Cbrain context"),
   }, ["workspace_key","workspace_label","host","session_id","workspace"]),
 };
 export const WORKSPACE_UNBIND_TOOL: GatewayTool = {
   name: "workspace_unbind",
   description: "Remove the current workspace binding. Call only after the user explicitly asks to unbind it.",
-  inputSchema: objectSchema({ workspace_key: text("Opaque workspace key supplied by Hiper context") }, ["workspace_key"]),
+  inputSchema: objectSchema({ workspace_key: text("Opaque workspace key supplied by Cbrain context") }, ["workspace_key"]),
 };
 export const WORKSPACE_TOOLS = [WORKSPACE_BIND_TOOL, WORKSPACE_STATUS_TOOL, WORKSPACE_REBIND_TOOL, WORKSPACE_UNBIND_TOOL] as const;
 export const GATEWAY_TOOLS: GatewayTool[] = [

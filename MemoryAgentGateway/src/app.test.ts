@@ -3,18 +3,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createAgentGatewayApp } from "./app.js";
+import { GatewayAuthenticationError } from "./auth.js";
 import { GatewayStore } from "./gateway-store.js";
 import type { AgentGatewayService } from "./service.js";
 
-const principal={id:"user-1",token:"secret",userId:"usr-1",userKey:"uk-test"};
+const principal={id:"user-1",userId:"usr-1",userKey:"uk-test"};
 function fixture(){
   const store=new GatewayStore(join(mkdtempSync(join(tmpdir(),"gateway-test-")),"gateway.sqlite"));
   const service={renderSessionContext:vi.fn(async()=>"profile"),renderRecallContext:vi.fn(async()=>"recall")} as unknown as AgentGatewayService;
   const directory={options:vi.fn(async()=>({teams:[{team_id:"team-1",name:"Team One"}],agents:[{agent_id:"agent-1",team_id:"team-1",name:"Agent"}]})),validate:vi.fn(async()=>({identity:{teamId:"team-1",userId:"usr-1",userKey:"uk-test",agentId:"agent-1",agentName:"Agent"},agent:{}}))};
-  const app=createAgentGatewayApp({principals:[principal],store,directory:directory as never,serviceFactory:()=>service});
+  const app=createAgentGatewayApp({authenticate:async(authorization)=>{if(authorization!=="Bearer page-api-key")throw new GatewayAuthenticationError("unauthorized");return principal},store,directory:directory as never,serviceFactory:()=>service});
   return{app,store,service,directory};
 }
-const headers={"Content-Type":"application/json",Authorization:"Bearer secret"};
+const headers={"Content-Type":"application/json",Authorization:"Bearer page-api-key"};
 describe("agent gateway lifecycle",()=>{
   it("rejects unauthenticated requests",async()=>{const{app}=fixture();expect((await app.request("http://localhost/v1/bindings/options",{method:"POST"})).status).toBe(401)});
   it("reports the authenticated identity without exposing its credential",async()=>{const{app}=fixture();const response=await app.request("http://localhost/v1/auth/me",{headers});expect(response.status).toBe(200);expect(await response.json()).toEqual({principal_id:"user-1",user_id:"usr-1"})});

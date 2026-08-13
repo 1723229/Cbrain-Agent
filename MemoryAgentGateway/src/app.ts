@@ -8,8 +8,7 @@ import type { AgentGatewayService } from "./service.js";
 import type { GatewayPrincipal } from "./types.js";
 
 export interface CreateAppOptions {
-  principals?: GatewayPrincipal[];
-  authenticate?: (authorization: string | undefined) => Promise<GatewayPrincipal>;
+  authenticate: (authorization: string | undefined) => Promise<GatewayPrincipal>;
   store: GatewayStore; directory: CoreDirectoryClient;
   serviceFactory: (contextId: string, principal: GatewayPrincipal) => AgentGatewayService;
   contextTtlMs?: number;
@@ -18,7 +17,7 @@ export interface CreateAppOptions {
 
 export function createAgentGatewayApp(options: CreateAppOptions): Hono {
   const app = new Hono();
-  const authenticate = options.authenticate ?? ((authorization: string | undefined) => Promise.resolve(staticAuth(authorization, options.principals ?? [])));
+  const authenticate = options.authenticate;
   const recordHookEvent = (principal:GatewayPrincipal,type:"tool_use"|"stop"|"session_end",body:Record<string,unknown>) => {
     const contextId=requiredField(body,"context_id");options.serviceFactory(contextId,principal);
     if(type==="tool_use"){
@@ -63,7 +62,7 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
     const key=bounded(workspaceKey,"workspace_key",256);return{status:"unbound" as const,removed:options.store.removeWorkspaceBinding(principal.id,key),workspace_key:key};
   };
   app.onError((error,c)=>{console.error(`[gateway] request rejected: ${message(error)}`);const status=error instanceof GatewayAuthenticationError?401:error instanceof HttpError?error.status:error instanceof UpstreamRequestError?(error.retryable?503:502):400;return c.json({error:message(error)},status as 400|401|502|503)});
-  app.get("/health",(c)=>c.json({status:"ok",service:"memory-agent-gateway"}));
+  app.get("/health",(c)=>c.json({status:"ok",service:"cbrain-agent-gateway"}));
   app.get("/health/live",(c)=>c.json({status:"ok"}));
   app.get("/health/ready",(c)=>c.json({
     status:"ok",
@@ -103,7 +102,7 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
   app.post("/v1/workspaces/unbind",async(c)=>{const principal=await authenticate(c.req.header("authorization")),body=await jsonBody(c.req.raw);return c.json(await unbindWorkspace(principal,requiredField(body,"workspace_key")))});
   app.post("/v1/sessions/open",async(c)=>{
     const principal=await authenticate(c.req.header("authorization"));const body=await jsonBody(c.req.raw);
-    const teamId=optionalField(body,"team_id")||principal.defaultTeamId;const agentId=optionalField(body,"agent_id")||principal.defaultAgentId;
+    const teamId=optionalField(body,"team_id");const agentId=optionalField(body,"agent_id");
     if(!teamId||!agentId)throw new Error("team_id and agent_id are required");
     const checked=await options.directory.validate(principal,teamId,agentId);
     const context=options.store.openContext(principal,checked.identity,{host:requiredField(body,"host"),sessionId:requiredField(body,"session_id"),workspace:requiredField(body,"workspace")},options.contextTtlMs??24*60*60_000);
@@ -155,7 +154,6 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
   return app;
 }
 
-function staticAuth(header:string|undefined,principals:GatewayPrincipal[]):GatewayPrincipal{const token=header?.match(/^Bearer\s+(.+)$/i)?.[1];const principal=principals.find((item)=>item.token===token);if(!principal)throw new GatewayAuthenticationError("unauthorized");return principal}
 class HttpError extends Error{constructor(message:string,readonly status:400|401|502|503){super(message)}}
 async function jsonBody(request:Request,maxBytes?:number):Promise<Record<string,unknown>>{
   if(maxBytes){const declared=Number(request.headers.get("content-length"));if(Number.isFinite(declared)&&declared>maxBytes)throw new Error("request body is too large")}
@@ -168,4 +166,4 @@ function requiredBoundedField(body:Record<string,unknown>,key:string,maxLength:n
 function bounded(value:string,key:string,maxLength:number):string{const result=value.trim();if(!result)throw new Error(`${key} is required`);if(result.length>maxLength)throw new Error(`${key} is too long`);return result}
 function turnId(body:Record<string,unknown>):string{return optionalField(body,"turn_id")||"current"}
 function message(error:unknown):string{return error instanceof Error?error.message:String(error)}
-async function renderSessionContext(options:CreateAppOptions,contextId:string,principal:GatewayPrincipal):Promise<string>{return options.serviceFactory(contextId,principal).renderSessionContext(contextId).catch((error)=>{console.error(`[gateway] session context degraded: ${message(error)}`);return `<hiper_agent_context>\n${JSON.stringify({context_id:contextId,instructions:"Every hiper-agent-memory MCP tool call must include this context_id."})}\n</hiper_agent_context>`})}
+async function renderSessionContext(options:CreateAppOptions,contextId:string,principal:GatewayPrincipal):Promise<string>{return options.serviceFactory(contextId,principal).renderSessionContext(contextId).catch((error)=>{console.error(`[gateway] session context degraded: ${message(error)}`);return `<cbrain_agent_context>\n${JSON.stringify({context_id:contextId,instructions:"Every cbrain-agent MCP tool call must include this context_id."})}\n</cbrain_agent_context>`})}

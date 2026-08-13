@@ -35,7 +35,7 @@ export const zhCN = {
   'header.profile.username': '用户名',
   'header.profile.userIdHint': '发给团队管理员用于邀请你加入 Team',
   'header.profile.close': '关闭',
-  'header.brand': 'Memory Hub',
+  'header.brand': 'Cbrain',
 
   // ===== TeamSwitcher =====
   'teamSwitcher.selectTeam': '选择 team',
@@ -572,7 +572,7 @@ export const zhCN = {
   'memory.confirm.unbind.ok': '解绑',
   'memory.notify.unbound': '已解绑',
   'memory.notify.unbindFailed': '解绑失败',
-  'memory.notify.importSuccess': '导入成功 · {{count}} 条消息，tdai 后台正在蒸馏 L1/L2/L3',
+  'memory.notify.importSuccess': '导入成功 · {{count}} 条消息，Cbrain 后台正在蒸馏 L1/L2/L3',
   'memory.notify.importFailed': '导入失败',
   'memory.notify.selectAgent': '请先选择一个 Agent',
   'memory.notify.allocated': '已分配到 Agent',
@@ -727,7 +727,7 @@ export const zhCN = {
   'createTeam.caption': '创建 Team',
   'createTeam.name': '名称',
   'createTeam.name.extra': 'Team 是资产、agent 和 task 的主要边界。',
-  'createTeam.name.placeholder': '例如 tdai-memory · 后端组',
+  'createTeam.name.placeholder': '例如 Cbrain · 后端组',
   'createTeam.desc': '描述',
   'createTeam.desc.placeholder': '一句话说明 team 范围与目标',
   'createTeam.submit': '创建',

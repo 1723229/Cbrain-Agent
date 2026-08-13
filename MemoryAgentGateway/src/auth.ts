@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { CoreDirectoryClient } from "./core-client.js";
 import type { GatewayPrincipal } from "./types.js";
 
@@ -6,7 +6,6 @@ interface CacheEntry { userId: string | null; expiresAt: number }
 
 export interface GatewayAuthenticatorOptions {
   directory: Pick<CoreDirectoryClient, "verifyUserKey">;
-  staticPrincipals?: GatewayPrincipal[];
   cacheTtlMs?: number;
   negativeCacheTtlMs?: number;
   maxEntries?: number;
@@ -26,9 +25,6 @@ export class GatewayAuthenticator {
   async authenticate(authorization: string | undefined): Promise<GatewayPrincipal> {
     const credential = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
     if (!credential) throw new GatewayAuthenticationError("unauthorized");
-    const configured = this.options.staticPrincipals?.find((item) => item.token && equalSecret(item.token, credential));
-    if (configured) return configured;
-
     const cacheKey = createHash("sha256").update(credential).digest("hex");
     const cached = this.cache.get(cacheKey);
     const now = this.now();
@@ -50,9 +46,4 @@ export class GatewayAuthenticator {
     while (this.cache.size >= maxEntries) this.cache.delete(this.cache.keys().next().value as string);
     this.cache.set(key, { userId, expiresAt: now + (userId ? this.options.cacheTtlMs ?? 30_000 : this.options.negativeCacheTtlMs ?? 3_000) });
   }
-}
-
-function equalSecret(left: string, right: string): boolean {
-  const a = Buffer.from(left); const b = Buffer.from(right);
-  return a.length === b.length && timingSafeEqual(a, b);
 }
