@@ -923,6 +923,8 @@ export const zhCN = {
   'apiKey.endpoint.current': '当前实例：',
   'apiKey.endpoint.loading': '正在加载接入地址…',
   'apiKey.endpoint.copy': '复制',
+  'apiKey.plugin.title': 'Codex / Claude Code 插件接入',
+  'apiKey.plugin.desc': '复制一条命令即可安装。安装器会提示输入本页面创建的 API Key，不需要下载源码或申请额外 Gateway Token。',
   'apiKey.create.caption': '新建 User_Key',
   'apiKey.create.expiresAt': '过期时间',
   'apiKey.create.expiresAt.extra': '留空表示永不过期',

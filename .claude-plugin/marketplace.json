@@ -1,8 +1,8 @@
 {
-  "name": "hiper-memory-local",
-  "description": "Hiper memory and knowledge integrations for coding agents",
+  "name": "cbrain",
+  "description": "Cbrain memory and knowledge integrations for coding agents",
   "owner": {
-    "name": "TencentDB Agent Memory"
+    "name": "Cbrain"
   },
   "plugins": [
     {

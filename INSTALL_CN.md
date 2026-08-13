@@ -235,7 +235,22 @@ docker run -d --name tdai-memory-hub \
 
 打开 [http://localhost:8125](http://localhost:8125)。
 
-## 通过 Proxy 使用 Claude Code
+## Codex / Claude Code 插件接入（模型保持直连）
+
+这是推荐的新接入方式。Codex 仍直连 OpenAI，Claude Code 仍直连 Anthropic；
+只有记忆、Wiki/RAG、CodeGraph、Skill 与项目绑定请求进入 Cbrain Agent Gateway。
+
+在 Panel 的 **API Key** 页面创建普通用户 Key，然后复制页面显示的一条命令：
+
+```bash
+npx --yes cbrain-agent-memory install codex --gateway https://cbrain.example
+npx --yes cbrain-agent-memory install claude-code --gateway https://cbrain.example
+```
+
+安装器会隐藏提示输入页面 Key。无需下载本仓库，也无需管理员额外创建 Gateway Token。
+Windows 与 WSL 是两个独立环境，需要分别执行一次。首次进入未绑定项目时，插件会让用户选择 Team 和 Agent。
+
+## 通过 Proxy 使用 Claude Code（模型代理方式）
 
 `start-all.sh` 已经把 admin user_key 写在 `deploy/global-images/.admin-key`；
 让 Claude Code 直接走 proxy：

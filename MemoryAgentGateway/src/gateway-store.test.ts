@@ -2,6 +2,10 @@ import { mkdtempSync } from "node:fs";import { tmpdir } from "node:os";import { 
 import { DatabaseSync } from "node:sqlite";
 describe("GatewayStore",()=>{it("isolates contexts by principal and persists independent sink state",()=>{const store=new GatewayStore(join(mkdtempSync(join(tmpdir(),"store-test-")),"db.sqlite"));const principal={id:"p1",token:"x",userId:"u1"};const ctx=store.openContext(principal,{teamId:"t1",userId:"u1",agentId:"a1"},{host:"codex",sessionId:"s1",workspace:"/repo"},60000);expect(store.getContext(ctx.contextId,"p2")).toBeNull();store.beginTurn(ctx.contextId,"turn","hello");const queued=store.enqueueCapture(ctx.contextId,"turn","world");expect(queued.duplicate).toBe(false);store.markSink(queued.eventId,"core");expect(store.dueCaptures()[0]).toMatchObject({coreStatus:"done",skillStatus:"pending"});expect(store.enqueueCapture(ctx.contextId,"turn","world","hello").duplicate).toBe(true)})});
 
+describe("GatewayStore credential safety",()=>{
+  it("never persists the page API key and clears legacy values",()=>{const path=join(mkdtempSync(join(tmpdir(),"credential-store-test-")),"db.sqlite");const store=new GatewayStore(path);const ctx=store.openContext({id:"user:u",userId:"u",userKey:"page-secret"},{teamId:"t",userId:"u",userKey:"page-secret",agentId:"a"},{host:"codex",sessionId:"s",workspace:"/repo"},60_000);expect(store.getContext(ctx.contextId,"user:u")?.userKey).toBeUndefined();const db=new DatabaseSync(path);expect(db.prepare("SELECT user_key FROM session_contexts WHERE context_id=?").get(ctx.contextId)).toEqual({user_key:null});db.prepare("UPDATE session_contexts SET user_key='legacy-secret' WHERE context_id=?").run(ctx.contextId);db.close();new GatewayStore(path);const migrated=new DatabaseSync(path);expect(migrated.prepare("SELECT user_key FROM session_contexts WHERE context_id=?").get(ctx.contextId)).toEqual({user_key:null});migrated.close()});
+});
+
 describe("GatewayStore workspace bindings",()=>{
   it("persists a principal-scoped binding through a one-time request",()=>{
     const store=new GatewayStore(join(mkdtempSync(join(tmpdir(),"workspace-binding-test-")),"db.sqlite"));

@@ -54,11 +54,13 @@ export default function ApiKeyPanel() {
   // 优先取 proxy_endpoint —— 开源本地部署 core+proxy 分开时客户端要接的是 proxy；
   // 未配置时回落 gateway_endpoint，等同老行为（线上 gateway 前置 proxy，两者合一）。
   const [clientBaseUrl, setClientBaseUrl] = useState<string | null>(null);
+  const [agentGatewayUrl, setAgentGatewayUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     if (!auth?.instance_id) {
       setClientBaseUrl(null);
+      setAgentGatewayUrl(null);
       return;
     }
     void metaInstancesApi
@@ -67,9 +69,10 @@ export default function ApiKeyPanel() {
         if (cancelled) return;
         const hit = list.find((i) => i.instance_id === auth.instance_id);
         setClientBaseUrl(hit?.proxy_endpoint ?? hit?.gateway_endpoint ?? null);
+        setAgentGatewayUrl(hit?.agent_gateway_endpoint ?? null);
       })
       .catch(() => {
-        if (!cancelled) setClientBaseUrl(null);
+        if (!cancelled) { setClientBaseUrl(null); setAgentGatewayUrl(null); }
       });
     return () => {
       cancelled = true;
@@ -340,6 +343,32 @@ export default function ApiKeyPanel() {
           </div>
         </Card.Body>
       </Card>
+
+      {agentGatewayUrl && (
+        <Card>
+          <Card.Body title={t('apiKey.plugin.title')}>
+            <Text theme="weak" parent="div" style={{ marginBottom: 12 }}>
+              {t('apiKey.plugin.desc')}
+            </Text>
+            {(['codex', 'claude-code'] as const).map((client) => {
+              const command = `npx --yes cbrain-agent-memory install ${client} --gateway ${agentGatewayUrl.replace(/\/+$/, '')}`;
+              return (
+                <div className="_memory-apikey-endpoint" key={client}>
+                  <Text theme="label" parent="div" style={{ marginBottom: 4 }}>
+                    {client === 'codex' ? 'Codex' : 'Claude Code Plugin'}
+                  </Text>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <code style={{ flex: 1, fontSize: 11, wordBreak: 'break-all', background: 'var(--tea-color-bg-secondary-default)', padding: '4px 8px', borderRadius: 4 }}>
+                      {command}
+                    </code>
+                    <Copy text={command}><Button>{t('apiKey.endpoint.copy')}</Button></Copy>
+                  </div>
+                </div>
+              );
+            })}
+          </Card.Body>
+        </Card>
+      )}
       {/* ===== 新建弹窗：只需设置「过期时间」（可留空＝永不过期），不再需要名称 ===== */}
       {showCreate && (
         <Modal

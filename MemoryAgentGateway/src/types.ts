@@ -13,7 +13,7 @@ export interface SessionIdentity extends AgentIdentity {
 
 export interface GatewayPrincipal {
   id: string;
-  token: string;
+  token?: string;
   userId: string;
   userKey?: string;
   defaultTeamId?: string;

@@ -17,6 +17,7 @@ function fixture(){
 const headers={"Content-Type":"application/json",Authorization:"Bearer secret"};
 describe("agent gateway lifecycle",()=>{
   it("rejects unauthenticated requests",async()=>{const{app}=fixture();expect((await app.request("http://localhost/v1/bindings/options",{method:"POST"})).status).toBe(401)});
+  it("reports the authenticated identity without exposing its credential",async()=>{const{app}=fixture();const response=await app.request("http://localhost/v1/auth/me",{headers});expect(response.status).toBe(200);expect(await response.json()).toEqual({principal_id:"user-1",user_id:"usr-1"})});
   it("opens a validated context, recalls, and durably deduplicates capture",async()=>{
     const{app,store,directory}=fixture();
     const opened=await app.request("http://localhost/v1/sessions/open",{method:"POST",headers,body:JSON.stringify({host:"codex",session_id:"s1",workspace:"C:/repo",team_id:"team-1",agent_id:"agent-1"})});

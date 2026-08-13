@@ -98,6 +98,7 @@ export class GatewayStore {
       CREATE INDEX IF NOT EXISTS idx_workspace_binding_requests ON workspace_binding_requests(principal_id, workspace_key, expires_at);
     `);
     this.ensureColumn("capture_events", "turn_id", "TEXT NOT NULL DEFAULT 'current'");
+    this.db.exec("UPDATE session_contexts SET user_key=NULL WHERE user_key IS NOT NULL");
   }
 
   openContext(principal: GatewayPrincipal, identity: AgentIdentity, input: { host: string; sessionId: string; workspace: string }, ttlMs: number): SessionContext {
@@ -106,8 +107,9 @@ export class GatewayStore {
       .get(principal.id, input.host, input.sessionId, input.workspace, identity.teamId, identity.agentId, now) as ContextRow | undefined;
     if (existing) return fromContextRow(existing);
     const context: SessionContext = { ...identity, contextId: randomUUID(), principalId: principal.id, host: input.host, sessionId: input.sessionId, workspace: input.workspace, createdAt: now, expiresAt: now + ttlMs };
+    delete context.userKey;
     this.db.prepare(`INSERT INTO session_contexts(context_id,principal_id,team_id,user_id,user_key,agent_id,agent_name,host,session_id,workspace,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(context.contextId, context.principalId, context.teamId, context.userId, context.userKey ?? null, context.agentId, context.agentName ?? null, context.host, context.sessionId, context.workspace, context.createdAt, context.expiresAt);
+      .run(context.contextId, context.principalId, context.teamId, context.userId, null, context.agentId, context.agentName ?? null, context.host, context.sessionId, context.workspace, context.createdAt, context.expiresAt);
     return context;
   }
 

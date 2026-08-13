@@ -5,6 +5,9 @@ export interface GatewayConfig {
   host: string;
   port: number;
   principals: GatewayPrincipal[];
+  authCacheTtlMs: number;
+  authNegativeCacheTtlMs: number;
+  authCacheMaxEntries: number;
   core: CoreClientConfig;
   knowledgeBaseUrl: string;
   knowledgeServiceId: string;
@@ -30,6 +33,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     host: env.HIPER_AGENT_GATEWAY_HOST?.trim() || "0.0.0.0",
     port: integer(env.HIPER_AGENT_GATEWAY_PORT, 8430),
     principals: loadPrincipals(env),
+    authCacheTtlMs: integer(env.HIPER_AUTH_CACHE_TTL_MS, 30_000),
+    authNegativeCacheTtlMs: integer(env.HIPER_AUTH_NEGATIVE_CACHE_TTL_MS, 3_000),
+    authCacheMaxEntries: integer(env.HIPER_AUTH_CACHE_MAX_ENTRIES, 1_000),
     core: {
       baseUrl: env.HIPER_CORE_URL?.trim() || "http://127.0.0.1:8420",
       serviceId,
@@ -63,9 +69,11 @@ function loadPrincipals(env: NodeJS.ProcessEnv): GatewayPrincipal[] {
     if (new Set(principals.map((item) => item.token)).size !== principals.length) throw new Error("gateway principal tokens must be unique");
     return principals;
   }
+  const token = optionalEither(env, ["HIPER_AGENT_GATEWAY_TOKEN", "HIPER_AGENT_MEMORY_MCP_TOKEN"]);
+  if (!token) return [];
   return [{
     id: "default",
-    token: requiredEither(env, ["HIPER_AGENT_GATEWAY_TOKEN", "HIPER_AGENT_MEMORY_MCP_TOKEN"]),
+    token,
     userId: required(env, "HIPER_USER_ID"),
     userKey: optional(env, "HIPER_USER_KEY"),
     defaultTeamId: optional(env, "HIPER_TEAM_ID"),
@@ -86,7 +94,7 @@ function normalizePrincipal(value: unknown, index: number): GatewayPrincipal {
 
 function required(env: NodeJS.ProcessEnv, key: string): string { const value = optional(env, key); if (!value) throw new Error(`${key} is required`); return value; }
 function optional(env: NodeJS.ProcessEnv, key: string): string | undefined { const value = env[key]?.trim(); return value || undefined; }
-function requiredEither(env: NodeJS.ProcessEnv, keys: string[]): string { for (const key of keys) { const value = optional(env, key); if (value) return value; } throw new Error(`${keys.join(" or ")} is required`); }
+function optionalEither(env: NodeJS.ProcessEnv, keys: string[]): string | undefined { for (const key of keys) { const value = optional(env, key); if (value) return value; } return undefined; }
 function integer(value: string | undefined, fallback: number): number { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }
 function split(value: string | undefined): string[] { return value ? [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))] : []; }
 function decimal(value:string|undefined,fallback:number,min:number,max:number):number{const parsed=Number(value);return Number.isFinite(parsed)&&parsed>=min&&parsed<=max?parsed:fallback}

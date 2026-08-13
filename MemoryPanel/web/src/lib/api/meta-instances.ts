@@ -18,6 +18,7 @@ export interface MetadataInstance {
   name: string;
   gateway_endpoint: string;
   proxy_endpoint?: string;
+  agent_gateway_endpoint?: string;
 }
 
 export const metaInstancesApi = {

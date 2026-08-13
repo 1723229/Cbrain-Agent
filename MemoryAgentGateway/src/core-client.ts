@@ -7,6 +7,7 @@ export interface SceneData { entries?: Array<{ path: string; summary?: string }>
 export interface SceneFile { path?: string; content?: string; [key: string]: unknown }
 interface FixedAssetDetail { agent?: { prompt?: string | null }; items?: Array<{ asset_id: string; asset_type: string; status?: string }> }
 interface AgentRecord { agent_id: string; team_id: string; owner_user_id: string; name: string; prompt?: string | null; status: string }
+interface AuthVerification { valid: boolean; user: { user_id?: string } | null }
 
 export class UpstreamRequestError extends Error { constructor(message:string,readonly status:number,readonly retryable:boolean){super(message)} }
 export class AgentBindingInvalidError extends Error {}
@@ -95,6 +96,18 @@ export class CoreDirectoryClient {
   private readonly baseUrl: string;
   private readonly fetcher: typeof fetch;
   constructor(private readonly config: CoreClientConfig, fetcher?: typeof fetch) { this.baseUrl = config.baseUrl.replace(/\/+$/, "").replace(/\/v3$/, ""); this.fetcher = fetcher ?? globalThis.fetch.bind(globalThis); }
+
+  async verifyUserKey(userKey: string): Promise<string | null> {
+    const headers: Record<string, string> = { "Content-Type": "application/json", "x-tdai-service-id": this.config.serviceId };
+    if (this.config.token) headers.Authorization = `Bearer ${this.config.token}`;
+    const response = await this.fetcher(`${this.baseUrl}/v3/meta/auth/verify`, {
+      method: "POST", headers, body: JSON.stringify({ user_key: userKey }), signal: AbortSignal.timeout(this.config.timeoutMs),
+    });
+    const envelope = await response.json().catch(() => null) as Envelope<AuthVerification> | null;
+    if (!response.ok || !envelope || envelope.code !== 0) throw new UpstreamRequestError(envelope?.message || `Core authentication failed (HTTP ${response.status})`, response.status, response.status === 408 || response.status === 429 || response.status >= 500);
+    const userId = envelope.data?.valid ? envelope.data.user?.user_id?.trim() : "";
+    return userId || null;
+  }
 
   async options(principal: GatewayPrincipal): Promise<unknown> {
     const [teams,agents]=await Promise.all([this.metaPages("/team/list", identityField(principal), principal),this.metaPages("/agent/list", principal.userKey ? { owner_user_key: principal.userKey } : { owner_user_id: principal.userId }, principal)]);

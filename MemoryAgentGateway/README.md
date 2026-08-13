@@ -3,17 +3,18 @@
 Model-independent Gateway for Codex. Codex continues to call OpenAI directly;
 this service only handles memory lifecycle hooks and read-only MCP tools.
 
-Required configuration:
+Required service configuration:
 
 ```text
-HIPER_AGENT_GATEWAY_TOKEN=<client bearer token>
 HIPER_CORE_URL=http://memory-core:8420
 HIPER_KNOWLEDGE_URL=http://memory-knowledge:8424
 HIPER_SERVICE_ID=<service id>
 HIPER_SERVICE_TOKEN=<service token, when enabled>
-HIPER_USER_ID=<bearer principal user id>
-HIPER_USER_KEY=<bearer principal user key, recommended>
 ```
+
+Clients authenticate with the regular API Key created on the Cbrain API Key
+page. The Gateway verifies it through Core `/v3/meta/auth/verify`; per-user
+Gateway tokens and server restarts are not required.
 
 `HIPER_TEAM_ID` and `HIPER_AGENT_ID` are optional defaults for backward
 compatibility. New Codex clients resolve a portable workspace key through
@@ -28,9 +29,11 @@ Workspace bindings can be inspected, reselected, or removed through
 returns a fresh short-lived binding request and still completes through the same
 validated `workspace_bind` path.
 
-For multiple users, replace the single bearer/user variables with
-`HIPER_GATEWAY_PRINCIPALS_JSON`, an array of objects containing `id`, `token`,
-`userId`, optional `userKey`, and optional default Team/Agent IDs.
+During migration, legacy clients may still use `HIPER_AGENT_GATEWAY_TOKEN` plus
+`HIPER_USER_ID`, or `HIPER_GATEWAY_PRINCIPALS_JSON`. New deployments should not
+create those per-user settings. Page API Keys are request-scoped and are never
+persisted in Gateway SQLite; legacy `session_contexts.user_key` values are
+cleared at startup.
 
 The Gateway stores opaque session contexts and durable capture/extraction queues
 in `HIPER_AGENT_GATEWAY_DB` (default `./data/gateway.sqlite`). It sends each

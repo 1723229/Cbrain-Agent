@@ -966,6 +966,8 @@ export const enUS = {
   'apiKey.endpoint.current': 'Current instance: ',
   'apiKey.endpoint.loading': 'Loading access endpoint…',
   'apiKey.endpoint.copy': 'Copy',
+  'apiKey.plugin.title': 'Codex / Claude Code Plugin Access',
+  'apiKey.plugin.desc': 'Copy one command to install. The installer prompts for an API Key created on this page; no source checkout or separate Gateway Token is required.',
   'apiKey.create.caption': 'New User_Key',
   'apiKey.create.expiresAt': 'Expires At',
   'apiKey.create.expiresAt.extra': 'Leave empty for never expires',

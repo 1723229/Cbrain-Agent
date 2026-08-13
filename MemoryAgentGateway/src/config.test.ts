@@ -4,6 +4,9 @@ import { loadConfig } from "./config.js";
 const required = { HIPER_AGENT_GATEWAY_TOKEN: "token", HIPER_USER_ID: "user" };
 
 describe("gateway recall and ordering configuration", () => {
+  it("starts without per-user gateway principals", () => {
+    expect(loadConfig({})).toMatchObject({ principals: [], authCacheTtlMs: 30_000, authNegativeCacheTtlMs: 3_000, authCacheMaxEntries: 1_000 });
+  });
   it("uses bounded low-latency defaults", () => {
     const config = loadConfig(required);
     expect(config.recallTimeoutMs).toBe(800);

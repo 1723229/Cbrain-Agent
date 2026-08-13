@@ -1,7 +1,7 @@
 {
-  "name": "hiper-memory-local",
+  "name": "cbrain",
   "interface": {
-    "displayName": "Hiper Memory Local"
+    "displayName": "Cbrain"
   },
   "plugins": [
     {

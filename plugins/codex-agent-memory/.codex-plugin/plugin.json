@@ -1,16 +1,16 @@
 {
   "name": "codex-agent-memory",
   "version": "0.2.3+codex.20260813140000",
-  "description": "Direct TencentDB Agent Memory, Wiki, and CodeGraph tools for Codex",
+  "description": "Cbrain memory, Wiki/RAG, and CodeGraph tools for Codex",
   "mcpServers": "./.mcp.json",
   "author": {
-    "name": "TencentDB Agent Memory"
+    "name": "Cbrain"
   },
   "interface": {
-    "displayName": "Hiper Agent Memory",
+    "displayName": "Cbrain",
     "shortDescription": "Direct memory, Wiki, and CodeGraph context",
-    "longDescription": "Connect Codex to TencentDB Agent Memory without changing Codex's official model endpoint.",
-    "developerName": "TencentDB Agent Memory",
+    "longDescription": "Connect Codex to Cbrain without changing Codex's official model endpoint.",
+    "developerName": "Cbrain",
     "category": "Developer Tools",
     "capabilities": [
       "Read"

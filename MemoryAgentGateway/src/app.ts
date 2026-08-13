@@ -3,11 +3,14 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { AgentBindingInvalidError, CoreDirectoryClient, UpstreamRequestError } from "./core-client.js";
 import { GatewayStore } from "./gateway-store.js";
 import { createMcpServer } from "./mcp-server.js";
+import { GatewayAuthenticationError } from "./auth.js";
 import type { AgentGatewayService } from "./service.js";
 import type { GatewayPrincipal } from "./types.js";
 
 export interface CreateAppOptions {
-  principals: GatewayPrincipal[]; store: GatewayStore; directory: CoreDirectoryClient;
+  principals?: GatewayPrincipal[];
+  authenticate?: (authorization: string | undefined) => Promise<GatewayPrincipal>;
+  store: GatewayStore; directory: CoreDirectoryClient;
   serviceFactory: (contextId: string, principal: GatewayPrincipal) => AgentGatewayService;
   contextTtlMs?: number;
   skillSettleMs?: number;
@@ -15,6 +18,7 @@ export interface CreateAppOptions {
 
 export function createAgentGatewayApp(options: CreateAppOptions): Hono {
   const app = new Hono();
+  const authenticate = options.authenticate ?? ((authorization: string | undefined) => Promise.resolve(staticAuth(authorization, options.principals ?? [])));
   const recordHookEvent = (principal:GatewayPrincipal,type:"tool_use"|"stop"|"session_end",body:Record<string,unknown>) => {
     const contextId=requiredField(body,"context_id");options.serviceFactory(contextId,principal);
     if(type==="tool_use"){
@@ -58,7 +62,7 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
   const unbindWorkspace = async (principal:GatewayPrincipal,workspaceKey:string) => {
     const key=bounded(workspaceKey,"workspace_key",256);return{status:"unbound" as const,removed:options.store.removeWorkspaceBinding(principal.id,key),workspace_key:key};
   };
-  app.onError((error,c)=>{console.error(`[gateway] request rejected: ${message(error)}`);const status=error instanceof HttpError?error.status:error instanceof UpstreamRequestError?(error.retryable?503:502):400;return c.json({error:message(error)},status as 400|401|502|503)});
+  app.onError((error,c)=>{console.error(`[gateway] request rejected: ${message(error)}`);const status=error instanceof GatewayAuthenticationError?401:error instanceof HttpError?error.status:error instanceof UpstreamRequestError?(error.retryable?503:502):400;return c.json({error:message(error)},status as 400|401|502|503)});
   app.get("/health",(c)=>c.json({status:"ok",service:"memory-agent-gateway"}));
   app.get("/health/live",(c)=>c.json({status:"ok"}));
   app.get("/health/ready",(c)=>c.json({
@@ -69,9 +73,10 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
     dead_skill_extractions:options.store.deadSkillExtractionCount(),
     oldest_pending_age_ms:options.store.oldestPendingAgeMs(),
   }));
-  app.post("/v1/bindings/options",async(c)=>c.json(await options.directory.options(auth(c.req.header("authorization"),options.principals))));
+  app.get("/v1/auth/me",async(c)=>{const principal=await authenticate(c.req.header("authorization"));return c.json({principal_id:principal.id,user_id:principal.userId})});
+  app.post("/v1/bindings/options",async(c)=>c.json(await options.directory.options(await authenticate(c.req.header("authorization")))));
   app.post("/v1/workspaces/resolve",async(c)=>{
-    const principal=auth(c.req.header("authorization"),options.principals);const body=await jsonBody(c.req.raw);
+    const principal=await authenticate(c.req.header("authorization"));const body=await jsonBody(c.req.raw);
     const workspaceKey=requiredBoundedField(body,"workspace_key",256);
     const workspaceLabel=requiredBoundedField(body,"workspace_label",256);
     const host=requiredBoundedField(body,"host",64);const sessionId=requiredBoundedField(body,"session_id",512);
@@ -90,14 +95,14 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
     return c.json(await beginWorkspaceSelection(principal,{workspaceKey,workspaceLabel,host,sessionId,workspace}));
   });
   app.post("/v1/workspaces/bind",async(c)=>{
-    const principal=auth(c.req.header("authorization"),options.principals);const body=await jsonBody(c.req.raw);
+    const principal=await authenticate(c.req.header("authorization"));const body=await jsonBody(c.req.raw);
     return c.json(await openBoundWorkspace(principal,requiredField(body,"binding_request_id"),requiredField(body,"team_id"),requiredField(body,"agent_id")));
   });
-  app.post("/v1/workspaces/status",async(c)=>{const principal=auth(c.req.header("authorization"),options.principals),body=await jsonBody(c.req.raw);return c.json(await workspaceStatus(principal,requiredField(body,"workspace_key")))});
-  app.post("/v1/workspaces/rebind",async(c)=>{const principal=auth(c.req.header("authorization"),options.principals),body=await jsonBody(c.req.raw);return c.json(await beginWorkspaceSelection(principal,{workspaceKey:requiredField(body,"workspace_key"),workspaceLabel:requiredField(body,"workspace_label"),host:requiredField(body,"host"),sessionId:requiredField(body,"session_id"),workspace:requiredField(body,"workspace")},true))});
-  app.post("/v1/workspaces/unbind",async(c)=>{const principal=auth(c.req.header("authorization"),options.principals),body=await jsonBody(c.req.raw);return c.json(await unbindWorkspace(principal,requiredField(body,"workspace_key")))});
+  app.post("/v1/workspaces/status",async(c)=>{const principal=await authenticate(c.req.header("authorization")),body=await jsonBody(c.req.raw);return c.json(await workspaceStatus(principal,requiredField(body,"workspace_key")))});
+  app.post("/v1/workspaces/rebind",async(c)=>{const principal=await authenticate(c.req.header("authorization")),body=await jsonBody(c.req.raw);return c.json(await beginWorkspaceSelection(principal,{workspaceKey:requiredField(body,"workspace_key"),workspaceLabel:requiredField(body,"workspace_label"),host:requiredField(body,"host"),sessionId:requiredField(body,"session_id"),workspace:requiredField(body,"workspace")},true))});
+  app.post("/v1/workspaces/unbind",async(c)=>{const principal=await authenticate(c.req.header("authorization")),body=await jsonBody(c.req.raw);return c.json(await unbindWorkspace(principal,requiredField(body,"workspace_key")))});
   app.post("/v1/sessions/open",async(c)=>{
-    const principal=auth(c.req.header("authorization"),options.principals);const body=await jsonBody(c.req.raw);
+    const principal=await authenticate(c.req.header("authorization"));const body=await jsonBody(c.req.raw);
     const teamId=optionalField(body,"team_id")||principal.defaultTeamId;const agentId=optionalField(body,"agent_id")||principal.defaultAgentId;
     if(!teamId||!agentId)throw new Error("team_id and agent_id are required");
     const checked=await options.directory.validate(principal,teamId,agentId);
@@ -106,24 +111,24 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
     return c.json({context_id:context.contextId,additionalContext});
   });
   app.post("/v1/hooks/prompt",async(c)=>{
-    const principal=auth(c.req.header("authorization"),options.principals);const body=await jsonBody(c.req.raw);const contextId=requiredField(body,"context_id");
+    const principal=await authenticate(c.req.header("authorization"));const body=await jsonBody(c.req.raw);const contextId=requiredField(body,"context_id");
     const service=options.serviceFactory(contextId,principal);const prompt=requiredField(body,"prompt");options.store.beginTurn(contextId,turnId(body),prompt);
     try{return c.json({additionalContext:await service.renderRecallContext(prompt)})}catch(error){console.error(`[gateway] prompt recall degraded: ${message(error)}`);return c.json({additionalContext:""})}
   });
   app.post("/v1/hooks/stop",async(c)=>{
-    const principal=auth(c.req.header("authorization"),options.principals);const body=await jsonBody(c.req.raw);const queued=recordHookEvent(principal,"stop",body);
+    const principal=await authenticate(c.req.header("authorization"));const body=await jsonBody(c.req.raw);const queued=recordHookEvent(principal,"stop",body);
     return c.json({accepted:queued.duplicate?0:1,duplicate:queued.duplicate,pending:options.store.pendingCaptureCount()},202);
   });
   app.post("/v1/hooks/tool-use",async(c)=>{
-    const principal=auth(c.req.header("authorization"),options.principals);const body=await jsonBody(c.req.raw);const recorded=recordHookEvent(principal,"tool_use",body);
+    const principal=await authenticate(c.req.header("authorization"));const body=await jsonBody(c.req.raw);const recorded=recordHookEvent(principal,"tool_use",body);
     return c.json({accepted:recorded.duplicate?0:1,duplicate:recorded.duplicate});
   });
   app.post("/v1/hooks/session-end",async(c)=>{
-    const principal=auth(c.req.header("authorization"),options.principals);const body=await jsonBody(c.req.raw);const queued=recordHookEvent(principal,"session_end",body);
+    const principal=await authenticate(c.req.header("authorization"));const body=await jsonBody(c.req.raw);const queued=recordHookEvent(principal,"session_end",body);
     return c.json({accepted:queued.duplicate?0:1,duplicate:queued.duplicate,pending:options.store.pendingSkillExtractionCount()},202);
   });
   app.post("/v1/hooks/batch",async(c)=>{
-    const principal=auth(c.req.header("authorization"),options.principals);const body=await jsonBody(c.req.raw,512*1024);const events=body.events;
+    const principal=await authenticate(c.req.header("authorization"));const body=await jsonBody(c.req.raw,512*1024);const events=body.events;
     if(!Array.isArray(events)||events.length<1||events.length>32)throw new Error("events must contain between 1 and 32 items");
     let accepted=0,duplicates=0,rejected=0;
     for(const event of events){
@@ -138,7 +143,7 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
     return c.json({accepted,duplicates,rejected},202);
   });
   app.all("/mcp",async(c)=>{
-    const principal=auth(c.req.header("authorization"),options.principals);
+    const principal=await authenticate(c.req.header("authorization"));
     const transport=new WebStandardStreamableHTTPServerTransport({enableJsonResponse:true});
     const server=createMcpServer((contextId)=>options.serviceFactory(contextId,principal),{
       bind:(input)=>openBoundWorkspace(principal,input.bindingRequestId,input.teamId,input.agentId),
@@ -150,7 +155,7 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
   return app;
 }
 
-function auth(header:string|undefined,principals:GatewayPrincipal[]):GatewayPrincipal{const token=header?.match(/^Bearer\s+(.+)$/i)?.[1];const principal=principals.find((item)=>item.token===token);if(!principal)throw new HttpError("unauthorized",401);return principal}
+function staticAuth(header:string|undefined,principals:GatewayPrincipal[]):GatewayPrincipal{const token=header?.match(/^Bearer\s+(.+)$/i)?.[1];const principal=principals.find((item)=>item.token===token);if(!principal)throw new GatewayAuthenticationError("unauthorized");return principal}
 class HttpError extends Error{constructor(message:string,readonly status:400|401|502|503){super(message)}}
 async function jsonBody(request:Request,maxBytes?:number):Promise<Record<string,unknown>>{
   if(maxBytes){const declared=Number(request.headers.get("content-length"));if(Number.isFinite(declared)&&declared>maxBytes)throw new Error("request body is too large")}

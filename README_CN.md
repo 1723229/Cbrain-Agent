@@ -46,6 +46,19 @@ $EDITOR .env       # 填入两组 LLM 参数（memory 组 + proxy 组）
 完整安装文档（Memory Hub 单独部署 / Proxy + Claude Code / CodeBuddy 用法 / 停止清理 / 端口
 说明等）见 [**INSTALL_CN.md**](./INSTALL_CN.md)（English: [INSTALL.md](./INSTALL.md)）。
 
+### Codex / Claude Code 插件接入
+
+插件不会代理模型请求：Codex 仍直连 OpenAI，Claude Code 仍直连 Anthropic；
+只有记忆、Wiki/RAG、CodeGraph、Skill 和项目绑定请求进入 Cbrain Gateway。
+用户在页面创建普通 API Key 后，无需下载本仓库，也无需管理员配置额外 Gateway Token：
+
+```bash
+npx --yes cbrain-agent-memory install codex --gateway https://cbrain.example
+npx --yes cbrain-agent-memory install claude-code --gateway https://cbrain.example
+```
+
+安装器会隐藏读取页面 API Key、验证身份、安装远程插件并保存用户级配置。
+
 ### 从旧版本迁移数据
 
 如果你已经在用旧版（v1.x / v0.x），希望把存量数据迁到 v2.0.0+，我们提供了一个数据迁移工具：

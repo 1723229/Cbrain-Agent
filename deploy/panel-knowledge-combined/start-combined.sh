@@ -39,6 +39,10 @@ PROXY_ENDPOINT_LINE=""
 if [[ -n "${REMOTE_INSTANCE_PROXY_URL:-}" ]]; then
   PROXY_ENDPOINT_LINE="    'proxy_endpoint': '${REMOTE_INSTANCE_PROXY_URL}',"
 fi
+AGENT_GATEWAY_ENDPOINT_LINE=""
+if [[ -n "${REMOTE_AGENT_GATEWAY_URL:-}" ]]; then
+  AGENT_GATEWAY_ENDPOINT_LINE="    'agent_gateway_endpoint': '${REMOTE_AGENT_GATEWAY_URL}',"
+fi
 python3 - <<PY
 import json
 from pathlib import Path
@@ -49,6 +53,7 @@ p.write_text(json.dumps({
     'name': '${INSTANCE_NAME}',
     'gateway_endpoint': '${REMOTE_INSTANCE_URL}',
 ${PROXY_ENDPOINT_LINE}
+${AGENT_GATEWAY_ENDPOINT_LINE}
     'api_key': '${REMOTE_INSTANCE_KEY}',
   }]
 }, ensure_ascii=False, indent=2) + '\n')

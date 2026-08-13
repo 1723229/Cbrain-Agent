@@ -11,17 +11,17 @@ export function statePath(env=process.env,home=homedir()){return env.HIPER_AGENT
 export async function loadGatewayConfig(options={}){
   const env=options.env||process.env;if(env.HIPER_AGENT_MEMORY_DISABLE==="1")return options.optional?null:(()=>{throw new Error("gateway is disabled")})();const path=options.path||configPath(env,options.home);const file=await readJson(path);
   const configuredUrl=env.HIPER_AGENT_GATEWAY_URL||env.HIPER_AGENT_GATEWAY_MCP_URL||env.HIPER_AGENT_MEMORY_MCP_URL||file.gatewayUrl||file.mcpUrl;
-  const configuredToken=env.HIPER_AGENT_GATEWAY_TOKEN||env.HIPER_AGENT_MEMORY_MCP_TOKEN||file.token;
+  const configuredToken=env.HIPER_AGENT_GATEWAY_TOKEN||env.HIPER_AGENT_MEMORY_MCP_TOKEN||file.apiKey||file.token;
   const legacy=configuredUrl&&configuredToken?{}:await readLegacyUserEnvironment(options);
   const gatewayUrl=normalizeGatewayUrl(configuredUrl||legacy.gatewayUrl||legacy.mcpUrl);
   const token=clean(configuredToken||legacy.token);
   if(!gatewayUrl||!token){if(options.optional)return null;throw new Error("gateway is not configured; run agent-memory-setup.mjs")}
-  return{gatewayUrl,mcpUrl:`${gatewayUrl}/mcp`,token,path};
+  return{gatewayUrl,mcpUrl:`${gatewayUrl}/mcp`,apiKey:token,token,path};
 }
 
-export async function saveGatewayConfig({gatewayUrl,token},options={}){
-  const path=options.path||configPath(options.env,options.home);const value={gatewayUrl:normalizeGatewayUrl(gatewayUrl),token:clean(token)};
-  if(!value.gatewayUrl||!value.token)throw new Error("gateway URL and token are required");await writePrivateJson(path,value,options);return path;
+export async function saveGatewayConfig({gatewayUrl,apiKey,token},options={}){
+  const path=options.path||configPath(options.env,options.home);const value={gatewayUrl:normalizeGatewayUrl(gatewayUrl),apiKey:clean(apiKey||token)};
+  if(!value.gatewayUrl||!value.apiKey)throw new Error("gateway URL and Cbrain API Key are required");await writePrivateJson(path,value,options);return path;
 }
 
 export async function readRuntimeState(options={}){const value=await readJson(options.path||statePath(options.env,options.home));return value&&typeof value==="object"?value:{}}

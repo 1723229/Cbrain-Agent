@@ -15,9 +15,11 @@ test("normalizes MCP URL and round-trips user config", async () => {
   const directory = await mkdtemp(join(tmpdir(), "hiper-memory-"));
   const path = join(directory, "config.json");
   try {
-    await saveGatewayConfig({ gatewayUrl: "http://127.0.0.1:8430/mcp/", token: "secret" }, { path });
+    await saveGatewayConfig({ gatewayUrl: "http://127.0.0.1:8430/mcp/", apiKey: "secret" }, { path });
     const value = await loadGatewayConfig({ path, env: {}, platform: "linux" });
     assert.equal(value.gatewayUrl, "http://127.0.0.1:8430");
+    assert.equal(value.apiKey, "secret");
+    assert.deepEqual(JSON.parse(await readFile(path,"utf8")),{gatewayUrl:"http://127.0.0.1:8430",apiKey:"secret"});
     assert.equal("profiles" in value, false);
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -47,7 +49,7 @@ test("does not launch the legacy environment reader when the config file is comp
   const path = join(directory, "config.json");
   let calls = 0;
   try {
-    await saveGatewayConfig({ gatewayUrl: "http://127.0.0.1:8430", token: "secret" }, { path });
+    await saveGatewayConfig({ gatewayUrl: "http://127.0.0.1:8430", apiKey: "secret" }, { path });
     const value = await loadGatewayConfig({ path, env: {}, platform: "win32", execFile: async () => { calls++; throw new Error("must not run"); } });
     assert.equal(value.token, "secret");
     assert.equal(calls, 0);
