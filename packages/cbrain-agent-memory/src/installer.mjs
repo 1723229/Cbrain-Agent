@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
-import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 
 const MARKETPLACE = "cbrain";
+const OFFLINE_MARKETPLACE = "cbrain-offline";
 const REPOSITORY = "1723229/TencentDB-Agent-Memory";
 
 export function parseArguments(values) {
@@ -31,15 +32,20 @@ export async function install(options) {
   const fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
   const identity = await verifyIdentity(gatewayUrl, apiKey, fetcher);
   const runner = options.runner ?? runCommand;
-  if (options.client === "codex") await installCodex(runner, options.ref);
-  else await installClaudeCode(runner, options.ref);
+  if (options.client === "codex") await installCodex(runner, options.ref, options.sourceRoot);
+  else await installClaudeCode(runner, options.ref, options.sourceRoot);
   const path = await saveConfig({ gatewayUrl, apiKey }, options);
   output(`Cbrain connected as ${identity.user_id}.`);
   output(`Configuration saved to ${path}. Restart ${options.client === "codex" ? "Codex" : "Claude Code"}.`);
   return { path, identity };
 }
 
-async function installCodex(run, ref) {
+async function installCodex(run, ref, sourceRoot) {
+  if (sourceRoot) {
+    await replaceLocalMarketplace(run, "codex", sourceRoot);
+    await run("codex", ["plugin", "add", `codex-agent-memory@${OFFLINE_MARKETPLACE}`]);
+    return;
+  }
   const marketplaces = await jsonCommand(run, "codex", ["plugin", "marketplace", "list", "--json"]);
   if (marketplaces.marketplaces?.some((item) => item.name === MARKETPLACE)) {
     await run("codex", ["plugin", "marketplace", "upgrade", MARKETPLACE]);
@@ -55,8 +61,13 @@ async function installCodex(run, ref) {
   }
 }
 
-async function installClaudeCode(run, ref) {
+async function installClaudeCode(run, ref, sourceRoot) {
   if (ref) throw new Error("--ref is only supported by the Codex marketplace command");
+  if (sourceRoot) {
+    await replaceLocalMarketplace(run, "claude-code", sourceRoot);
+    await run("claude", ["plugin", "install", `claude-code-agent-memory@${OFFLINE_MARKETPLACE}`, "--scope", "user"]);
+    return;
+  }
   const marketplaces = await jsonCommand(run, "claude", ["plugin", "marketplace", "list", "--json"]);
   if (marketplaces.some?.((item) => item.name === MARKETPLACE)) {
     await run("claude", ["plugin", "marketplace", "update", MARKETPLACE]);
@@ -68,6 +79,22 @@ async function installClaudeCode(run, ref) {
   if (plugins.some?.((item) => item.id === "claude-code-agent-memory@hiper-memory-local")) {
     await run("claude", ["plugin", "uninstall", "claude-code-agent-memory@hiper-memory-local", "--scope", "user"]);
   }
+}
+
+async function replaceLocalMarketplace(run, client, sourceRoot) {
+  if (client === "codex") {
+    const marketplaces = await jsonCommand(run, "codex", ["plugin", "marketplace", "list", "--json"]);
+    if (marketplaces.marketplaces?.some((item) => item.name === OFFLINE_MARKETPLACE)) {
+      await run("codex", ["plugin", "marketplace", "remove", OFFLINE_MARKETPLACE]);
+    }
+    await run("codex", ["plugin", "marketplace", "add", sourceRoot]);
+    return;
+  }
+  const marketplaces = await jsonCommand(run, "claude", ["plugin", "marketplace", "list", "--json"]);
+  if (marketplaces.some?.((item) => item.name === OFFLINE_MARKETPLACE)) {
+    await run("claude", ["plugin", "marketplace", "remove", OFFLINE_MARKETPLACE]);
+  }
+  await run("claude", ["plugin", "marketplace", "add", sourceRoot, "--scope", "user"]);
 }
 
 async function jsonCommand(run, command, args) {
@@ -116,15 +143,43 @@ export function normalizeGatewayUrl(value) {
 }
 
 export function runCommand(command, args, options = {}) {
-  const executable = process.platform === "win32" && !command.endsWith(".exe") ? `${command}.cmd` : command;
+  const platform = options.platform || process.platform;
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(executable, args, { windowsHide: true, stdio: options.capture ? ["ignore", "pipe", "pipe"] : "inherit" });
-    let stdoutText = "", stderrText = "";
-    child.stdout?.on("data", (chunk) => { stdoutText += chunk; });
-    child.stderr?.on("data", (chunk) => { stderrText += chunk; });
-    child.on("error", (error) => reject(new Error(`cannot run ${command}: ${error.message}`)));
-    child.on("close", (code) => code === 0 ? resolvePromise({ stdout: stdoutText, stderr: stderrText }) : reject(new Error(`${command} exited with code ${code}${stderrText ? `: ${stderrText.trim()}` : ""}`)));
+    Promise.resolve(platform === "win32" && !command.endsWith(".exe") ? resolveWindowsCommand(command, options) : { executable: command, args })
+      .then(({ executable, prefix = [] }) => {
+        const child = spawn(executable, [...prefix, ...args], { windowsHide: true, stdio: options.capture ? ["ignore", "pipe", "pipe"] : "inherit" });
+        let stdoutText = "", stderrText = "";
+        child.stdout?.on("data", (chunk) => { stdoutText += chunk; });
+        child.stderr?.on("data", (chunk) => { stderrText += chunk; });
+        child.on("error", (error) => reject(new Error(`cannot run ${command}: ${error.message}`)));
+        child.on("close", (code) => code === 0 ? resolvePromise({ stdout: stdoutText, stderr: stderrText }) : reject(new Error(`${command} exited with code ${code}${stderrText ? `: ${stderrText.trim()}` : ""}`)));
+      }, reject);
   });
+}
+
+export async function resolveWindowsCommand(command, options = {}) {
+  if (!/^[A-Za-z0-9._-]+$/.test(command)) throw new Error("Windows command name is invalid");
+  const pathValue = options.pathValue ?? process.env.PATH ?? "";
+  const finder = options.finder ?? findWindowsShim;
+  const shim = await finder(`${command}.cmd`, pathValue);
+  if (!shim) throw new Error(`cannot find ${command}.cmd on PATH`);
+  const content = await (options.readText ?? readFile)(shim, "utf8");
+  const matches = [...content.matchAll(/"%dp0%\\([^"\r\n]+\.(?:js|exe))"/gi)];
+  const target = matches.at(-1)?.[1];
+  if (!target || target.includes("..")) throw new Error(`cannot resolve the executable behind ${command}.cmd`);
+  const targetPath = resolve(dirname(shim), target);
+  await (options.ensureExists ?? access)(targetPath);
+  return target.toLowerCase().endsWith(".js")
+    ? { executable: process.execPath, prefix: [targetPath] }
+    : { executable: targetPath, prefix: [] };
+}
+
+async function findWindowsShim(name, pathValue) {
+  for (const directory of pathValue.split(delimiter).filter(Boolean)) {
+    const candidate = join(directory.replace(/^"|"$/g, ""), name);
+    try { await access(candidate); return candidate; } catch { /* Continue searching PATH. */ }
+  }
+  return null;
 }
 
 export function promptSecret(label, input = stdin, output = stdout) {

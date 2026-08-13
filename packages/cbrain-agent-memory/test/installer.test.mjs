@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { install, parseArguments } from "../src/installer.mjs";
+import { install, parseArguments, resolveWindowsCommand } from "../src/installer.mjs";
 
 describe("cbrain-agent-memory installer", () => {
   it("installs Codex from the remote marketplace and writes only apiKey", async () => {
@@ -34,5 +34,33 @@ describe("cbrain-agent-memory installer", () => {
     await install({client:"codex",gatewayUrl:"https://cbrain.example",apiKey:"key",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
     assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace upgrade cbrain"));
     assert.ok(!calls.some(([,args])=>args.includes("add")&&args.includes("1723229/TencentDB-Agent-Memory")));
+  });
+
+  it("installs Codex only from the bundled offline marketplace", async () => {
+    const calls=[];const home=await mkdtemp(join(tmpdir(),"cbrain-offline-"));
+    const runner=async(command,args,options={})=>{calls.push([command,args]);if(options.capture&&args.includes("marketplace"))return{stdout:JSON.stringify({marketplaces:[{name:"cbrain-offline"}]})};return{stdout:options.capture?JSON.stringify({installed:[]}):""}};
+    await install({client:"codex",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/media/cbrain",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
+    assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace remove cbrain-offline"));
+    assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace add /media/cbrain"));
+    assert.ok(calls.some(([,args])=>args.includes("codex-agent-memory@cbrain-offline")));
+    assert.ok(!calls.some(([,args])=>args.includes("1723229/TencentDB-Agent-Memory")));
+  });
+
+  it("installs Claude Code only from the bundled offline marketplace", async () => {
+    const calls=[];const home=await mkdtemp(join(tmpdir(),"cbrain-offline-"));
+    const runner=async(command,args,options={})=>{calls.push([command,args]);return{stdout:options.capture?"[]":""}};
+    await install({client:"claude-code",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/media/cbrain",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
+    assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace add /media/cbrain --scope user"));
+    assert.ok(calls.some(([,args])=>args.includes("claude-code-agent-memory@cbrain-offline")));
+    assert.ok(!calls.some(([,args])=>args.includes("1723229/TencentDB-Agent-Memory")));
+  });
+
+  it("resolves standard Windows npm shims without invoking cmd.exe", async () => {
+    const codex=await resolveWindowsCommand("codex",{finder:async()=>"C:\\npm\\codex.cmd",readText:async()=>`"%dp0%\\node_modules\\@openai\\codex\\bin\\codex.js" %*`,ensureExists:async()=>{}});
+    assert.equal(codex.executable,process.execPath);
+    assert.equal(codex.prefix[0],"C:\\npm\\node_modules\\@openai\\codex\\bin\\codex.js");
+    const claude=await resolveWindowsCommand("claude",{finder:async()=>"C:\\npm\\claude.cmd",readText:async()=>`"%dp0%\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe" %*`,ensureExists:async()=>{}});
+    assert.equal(claude.executable,"C:\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe");
+    await assert.rejects(()=>resolveWindowsCommand("bad command",{}),/name is invalid/);
   });
 });
