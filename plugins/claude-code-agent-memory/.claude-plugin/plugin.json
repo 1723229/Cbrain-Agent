@@ -1,0 +1,8 @@
+{
+  "name": "claude-code-agent-memory",
+  "version": "0.2.4",
+  "description": "Hiper Agent Memory, Wiki/RAG, and CodeGraph integration for Claude Code",
+  "author": {
+    "name": "TencentDB Agent Memory"
+  }
+}

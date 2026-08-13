@@ -1,0 +1,16 @@
+{
+  "name": "hiper-memory-local",
+  "description": "Hiper memory and knowledge integrations for coding agents",
+  "owner": {
+    "name": "TencentDB Agent Memory"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-agent-memory",
+      "source": "./plugins/claude-code-agent-memory",
+      "description": "Memory, Wiki/RAG, CodeGraph, and workspace binding for Claude Code",
+      "category": "developer-tools",
+      "keywords": ["memory", "wiki", "rag", "codegraph", "mcp"]
+    }
+  ]
+}
