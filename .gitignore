@@ -38,6 +38,9 @@ test-offload.sh
 test-offload-mmd.sh
 test-offload-sessions.sh
 
+# Memory Agent Gateway is built independently and its CI requires a frozen lockfile
+!MemoryAgentGateway/pnpm-lock.yaml
+
 # npm pack / release tarballs (never commit packaged outputs)
 dist-pack/
 *.tgz
@@ -74,6 +77,9 @@ scripts/eval-report.json
 # OS files
 .DS_Store
 
+# IDE-local project state
+.idea/
+
 # Generated binaries
 vectors.db
 
@@ -86,6 +92,7 @@ docs/*.pdf
 docs/*.png
 docs/*.pptx
 docs/*.mmd
+docs/*.zip
 
 # Log files
 *.log
