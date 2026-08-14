@@ -129,6 +129,11 @@ export class GatewayStore {
     return row ? fromWorkspaceBindingRow(row) : null;
   }
 
+  updateWorkspaceBindingLabel(principalId: string, workspaceKey: string, workspaceLabel: string): boolean {
+    return this.db.prepare("UPDATE workspace_bindings SET workspace_label=?, updated_at=? WHERE principal_id=? AND workspace_key=? AND workspace_label<>?")
+      .run(workspaceLabel, Date.now(), principalId, workspaceKey, workspaceLabel).changes > 0;
+  }
+
   removeWorkspaceBinding(principalId: string, workspaceKey: string): boolean {
     const removed=this.db.prepare("DELETE FROM workspace_bindings WHERE principal_id=? AND workspace_key=?").run(principalId, workspaceKey).changes > 0;
     this.db.prepare("DELETE FROM workspace_binding_requests WHERE principal_id=? AND workspace_key=?").run(principalId,workspaceKey);

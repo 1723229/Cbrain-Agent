@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -9,11 +10,19 @@ export async function workspaceIdentity(cwd,options={}){
   const env=options.env||process.env;
   const explicit=clean(env.CBRAIN_AGENT_WORKSPACE_KEY);
   const root=await gitValue(cwd,["rev-parse","--show-toplevel"],options)||resolve(cwd);
-  const label=basename(root)||root;
+  const label=clean(env.CBRAIN_AGENT_WORKSPACE_LABEL)||await configuredLabel(root,options)||basename(root)||root;
   if(explicit)return{key:explicit,label,root};
   const remote=normalizeRemote(await gitValue(root,["config","--get","remote.origin.url"],options));
   if(remote)return{key:`git:${digest(remote)}`,label,root};
   return{key:`path:${digest(portablePathKey(root,options.platform||process.platform))}`,label,root};
+}
+
+async function configuredLabel(root,options){
+  const read=options.readFile||readFile;
+  try{
+    const config=JSON.parse(await read(resolve(root,".cbrain.json"),"utf8"));
+    return clean(config?.workspaceLabel);
+  }catch{return""}
 }
 
 export function normalizeRemote(value){

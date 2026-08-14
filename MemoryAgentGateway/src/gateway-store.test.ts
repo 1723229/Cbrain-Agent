@@ -15,6 +15,9 @@ describe("GatewayStore workspace bindings",()=>{
     expect(completed.request).toMatchObject({workspaceKey:"git:abc",sessionId:"s1"});
     expect(store.getWorkspaceBinding("p1","git:abc")).toMatchObject({teamId:"team-1",agentId:"agent-1",agentName:"Codex"});
     expect(store.getWorkspaceBinding("p2","git:abc")).toBeNull();
+    expect(store.updateWorkspaceBindingLabel("p1","git:abc","Cbrain")).toBe(true);
+    expect(store.updateWorkspaceBindingLabel("p1","git:abc","Cbrain")).toBe(false);
+    expect(store.getWorkspaceBinding("p1","git:abc")?.workspaceLabel).toBe("Cbrain");
     expect(()=>store.completeWorkspaceBinding(request.requestId,"p2",{teamId:"team-1",userId:"user-2",agentId:"agent-1"})).toThrow("binding request");
     expect(store.removeWorkspaceBinding("p1","git:abc")).toBe(true);
     expect(store.removeWorkspaceBinding("p1","git:abc")).toBe(false);

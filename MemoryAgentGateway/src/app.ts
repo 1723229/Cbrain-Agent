@@ -84,6 +84,7 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
     if(binding){
       try{
         const checked=await options.directory.validate(principal,binding.teamId,binding.agentId);
+        options.store.updateWorkspaceBindingLabel(principal.id,workspaceKey,workspaceLabel);
         const context=options.store.openContext(principal,checked.identity,{host,sessionId,workspace},options.contextTtlMs??24*60*60_000);
         return c.json({status:"bound",workspace_key:workspaceKey,workspace_label:workspaceLabel,team_id:checked.identity.teamId,agent_id:checked.identity.agentId,agent_name:checked.identity.agentName,context_id:context.contextId,additionalContext:await renderSessionContext(options,context.contextId,principal)});
       }catch(error){

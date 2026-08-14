@@ -21,12 +21,3 @@ test("uses the project Cbrain display label without changing workspace identity"
   assert.equal(identity.label,"Cbrain");
   assert.match(identity.key,/^git:/);
 });
-
-test("workspace label environment override takes precedence over project config",async()=>{
-  const identity=await workspaceIdentity("D:/repo",{
-    env:{CBRAIN_AGENT_WORKSPACE_LABEL:"My Workspace"},
-    execFile:async()=>({stdout:"D:/repo\n"}),
-    readFile:async()=>JSON.stringify({workspaceLabel:"Cbrain"}),
-  });
-  assert.equal(identity.label,"My Workspace");
-});

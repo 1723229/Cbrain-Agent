@@ -34,7 +34,9 @@ test("write hooks return before the Gateway response and forward the active cont
   const relay=await startEventRelay({gatewayUrl:`http://127.0.0.1:${port}`,apiKey:"test"},{directory:bridgeDirectory,batchWindowMs:20});
   try{
     const env={CBRAIN_AGENT_CONFIG:config,CBRAIN_AGENT_STATE:state,CBRAIN_AGENT_BRIDGE_DIR:bridgeDirectory};
-    await runHook(config,"session-start",{session_id:"s1",cwd:directory,hook_event_name:"SessionStart"},env);
+    const sessionStarted=await runHook(config,"session-start",{session_id:"s1",cwd:directory,hook_event_name:"SessionStart"},env);
+    const sessionContext=JSON.parse(sessionStarted.stdout).hookSpecificOutput.additionalContext;
+    assert.doesNotMatch(sessionContext,/"workspace":/);
     await runHook(config,"user-prompt",{session_id:"s1",turn_id:"t1",cwd:directory,prompt:"implement it",hook_event_name:"UserPromptSubmit"},env);
     const started=Date.now();
     await runHook(config,"tool-use",{session_id:"s1",turn_id:"t1",cwd:directory,tool_use_id:"call-1",tool_name:"Bash",tool_input:{command:"pnpm test"},tool_response:{ok:true}},env);

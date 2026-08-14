@@ -70,9 +70,9 @@ describe("agent gateway lifecycle",()=>{
     const boundResponse=await app.request("http://localhost/v1/workspaces/bind",{method:"POST",headers,body:JSON.stringify({binding_request_id:unbound.binding_request_id,team_id:"team-1",agent_id:"agent-1"})});
     expect(boundResponse.status).toBe(200);expect(await boundResponse.json()).toMatchObject({status:"bound",team_id:"team-1",agent_id:"agent-1",additionalContext:"profile"});
     expect(directory.validate).toHaveBeenCalledWith(principal,"team-1","agent-1");
-    const second=await app.request("http://localhost/v1/workspaces/resolve",{method:"POST",headers,body:JSON.stringify({...resolveBody,session_id:"s4"})});
-    expect(await second.json()).toMatchObject({status:"bound",team_id:"team-1",agent_id:"agent-1"});
-    expect(await(await app.request("http://localhost/v1/workspaces/status",{method:"POST",headers,body:JSON.stringify({workspace_key:"git:abc"})})).json()).toMatchObject({status:"bound",team_id:"team-1",agent_id:"agent-1"});
+    const second=await app.request("http://localhost/v1/workspaces/resolve",{method:"POST",headers,body:JSON.stringify({...resolveBody,workspace_label:"Cbrain",session_id:"s4"})});
+    expect(await second.json()).toMatchObject({status:"bound",workspace_label:"Cbrain",team_id:"team-1",agent_id:"agent-1"});
+    expect(await(await app.request("http://localhost/v1/workspaces/status",{method:"POST",headers,body:JSON.stringify({workspace_key:"git:abc"})})).json()).toMatchObject({status:"bound",workspace_label:"Cbrain",team_id:"team-1",agent_id:"agent-1"});
     const rebind=await app.request("http://localhost/v1/workspaces/rebind",{method:"POST",headers,body:JSON.stringify({...resolveBody,session_id:"s5"})});
     const reselection=await rebind.json() as {binding_request_id:string};expect(reselection).toMatchObject({status:"selection_required",current_binding:{team_id:"team-1",agent_id:"agent-1"},teams:[{team_id:"team-1"}]});
     const removed=await app.request("http://localhost/v1/workspaces/unbind",{method:"POST",headers,body:JSON.stringify({workspace_key:"git:abc"})});

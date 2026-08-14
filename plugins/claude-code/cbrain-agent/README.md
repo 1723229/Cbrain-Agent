@@ -3,6 +3,18 @@
 Claude Code continues to call Anthropic directly. The plugin sends only memory,
 Wiki/RAG, CodeGraph, Skill, and workspace-binding traffic to Cbrain.
 
+## Workspace display name
+
+By default, Cbrain displays the Git root directory name. A project can define a stable display name without renaming its directory by adding `.cbrain.json` at the Git root:
+
+```json
+{
+  "workspaceLabel": "Cbrain"
+}
+```
+
+`CBRAIN_AGENT_WORKSPACE_LABEL` can override the project value for a specific environment.
+
 ## Install
 
 Requirements: Claude Code 2.1.215 or newer and Node.js 22 or newer. Create an API
