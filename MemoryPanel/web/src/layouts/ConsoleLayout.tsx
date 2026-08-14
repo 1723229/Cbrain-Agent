@@ -18,7 +18,6 @@ const { Body, Sider, Content } = Layout;
 
 /** 路由 path → PageId */
 const PATH_TO_PAGE: Record<string, PageId> = {
-  '/': 'workbench_board',
   '/wiki': 'wiki',
   '/code': 'code',
   '/skills': 'skills',
@@ -37,6 +36,7 @@ function legacyHashToPath(): string | null {
   const raw = window.location.hash.replace(/^#\/?/, '');
   const leaf = raw.split('/').filter(Boolean).pop();
   if (!leaf) return null;
+  if (leaf === 'workbench' || leaf === 'tasks') return '/team/agents';
   if (leaf === 'wiki') return '/wiki';
   if (leaf === 'code') return '/code';
   if (leaf === 'skills' || leaf === 'skill') return '/skills';
@@ -59,7 +59,7 @@ export function ConsoleLayout() {
     const match = Object.entries(PATH_TO_PAGE).find(
       ([path]) => path !== '/' && location.pathname.startsWith(path)
     );
-    return match ? match[1] : 'workbench_board';
+    return match ? match[1] : 'team_agents';
   }, [location.pathname]);
 
   useEffect(() => {
@@ -120,10 +120,6 @@ export function ConsoleLayout() {
       }));
   }, [userRole, PAGE_META, t]);
 
-  const workbenchGroupTitle = t('menu.group.workbench');
-  const pinnedGroup = menuGroups.find((g) => g.title === workbenchGroupTitle);
-  const restGroups = menuGroups.filter((g) => g.title !== workbenchGroupTitle);
-
   const renderMenuItem = (item: typeof PAGE_META[PageId]) => {
     const isActive = activePage === item.id;
     return (
@@ -154,8 +150,7 @@ export function ConsoleLayout() {
               collapsed={sidebarCollapsed}
               onCollapsedChange={setSidebarCollapsed}
             >
-              {pinnedGroup?.items.map((item) => renderMenuItem(item))}
-              {restGroups.map((group) => (
+              {menuGroups.map((group) => (
                 <Menu.Group key={group.title} title={group.title}>
                   {group.items.map((item) => renderMenuItem(item))}
                 </Menu.Group>

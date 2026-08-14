@@ -4,9 +4,8 @@
  * 使用 react-router 的 createBrowserRouter / RouterProvider。
  * ConsoleLayout 作为父路由，各页面作为子路由。
  */
-import { createHashRouter, type RouteObject } from 'react-router-dom';
+import { createHashRouter, Navigate, type RouteObject } from 'react-router-dom';
 import { ConsoleLayout } from '@/layouts/ConsoleLayout';
-import { WorkbenchPage } from '@/pages/workbench/WorkbenchPage';
 import { WikiPage } from '@/pages/wiki/WikiPage';
 import { CodePage } from '@/pages/code/CodePage';
 import { SkillsPage } from '@/pages/skills/SkillsPage';
@@ -20,7 +19,9 @@ export const routes: RouteObject[] = [
     path: '/',
     element: <ConsoleLayout />,
     children: [
-      { index: true, element: <WorkbenchPage /> },
+      { index: true, element: <Navigate to="/team/agents" replace /> },
+      { path: 'workbench', element: <Navigate to="/team/agents" replace /> },
+      { path: 'tasks', element: <Navigate to="/team/agents" replace /> },
       { path: 'wiki', element: <WikiPage /> },
       { path: 'code', element: <CodePage /> },
       { path: 'skills', element: <SkillsPage /> },

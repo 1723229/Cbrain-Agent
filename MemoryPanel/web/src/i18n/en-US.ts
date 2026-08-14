@@ -5,7 +5,6 @@ export const enUS = {
   'app.checkingSession': 'Checking session…',
 
   // ===== Menu / Navigation =====
-  'menu.workbench_board': 'Task Board',
   'menu.wiki': 'Wiki Knowledge Base',
   'menu.code': 'Code_Graph',
   'menu.skills': 'Skills',
@@ -13,10 +12,8 @@ export const enUS = {
   'menu.team_members': 'Members',
   'menu.team_agents': 'Agents',
   'menu.api_keys': 'API Key',
-  'menu.group.workbench': 'Workbench',
   'menu.group.organization': 'Organization',
   'menu.group.assets': 'Asset Management',
-  'menu.desc.workbench_board': 'Task list / create / detail',
   'menu.desc.wiki': 'Sources / graph / pages / search',
   'menu.desc.code': 'Repos / index / search / explore',
   'menu.desc.skills': 'All / team pool / agent assets',

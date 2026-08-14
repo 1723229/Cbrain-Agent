@@ -5,7 +5,6 @@ export const zhCN = {
   'app.checkingSession': '正在检测登录态…',
 
   // ===== Menu / Navigation =====
-  'menu.workbench_board': '任务看板',
   'menu.wiki': 'Wiki 知识库',
   'menu.code': 'Code_Graph',
   'menu.skills': 'Skill 技能',
@@ -13,10 +12,8 @@ export const zhCN = {
   'menu.team_members': '成员管理',
   'menu.team_agents': 'Agents 管理',
   'menu.api_keys': 'API Key',
-  'menu.group.workbench': '工作台',
   'menu.group.organization': '组织与权限',
   'menu.group.assets': '资产管理',
-  'menu.desc.workbench_board': 'Task 列表 / 创建 / 详情',
   'menu.desc.wiki': '来源 / 图谱 / 页面 / 搜索',
   'menu.desc.code': '仓库 / 索引 / 搜索 / 探索',
   'menu.desc.skills': '全部 / 团队池 / Agent 资产',
