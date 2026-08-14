@@ -25,6 +25,7 @@ const SENSITIVE_KEYS = new Set([
   'authorization',
   'api_key',
   'token',
+  'session_token',
   'secret',
   'bearer',
 ]);
@@ -42,7 +43,7 @@ function truncateString(value: string): string {
   return `${value.slice(0, MAX_LOG_FIELD_CHARS)}…[truncated ${value.length - MAX_LOG_FIELD_CHARS} chars]`;
 }
 
-function sanitizeMetaBody(value: unknown, depth = 0): unknown {
+export function sanitizeMetaBody(value: unknown, depth = 0): unknown {
   if (depth > 8) return '[max_depth]';
   if (value === null || value === undefined) return value;
   if (typeof value === 'string') return truncateString(value);

@@ -59,26 +59,17 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     const kc = deps.knowledgeClientFactory(ctx.instanceId);
     try {
       const detail = await kc.codeGraphCreate(teamId, repoUrl, branch, gate.userId, repoName);
-      // stash owner key 供 status-callback ready 时以 owner 身份注册 meta asset
-      // （callback 是 S2S、无 user_key；详见 knowledge-task-registry.ts）
-      if (ctx.userKey) {
-        deps.knowledgeTaskRegistry.record({
-          knowledge_id: detail.code_graph_id,
-          type: 'code-graph',
-          team_id: teamId,
-          owner_user_id: gate.userId,
-          owner_user_key: ctx.userKey,
-          service_id: ctx.instanceId,
-          created_at: Date.now(),
-        });
-        deps.logger.info('[code-graph/create] stashed owner key for S2S meta register', {
-          knowledge_id: detail.code_graph_id, team_id: teamId, owner: gate.userId,
-        });
-      } else {
-        deps.logger.warn('[code-graph/create] no user_key in ctx; cannot stash for S2S register', {
-          knowledge_id: detail.code_graph_id, team_id: teamId,
-        });
-      }
+      deps.knowledgeTaskRegistry.record({
+        knowledge_id: detail.code_graph_id,
+        type: 'code-graph',
+        team_id: teamId,
+        owner_user_id: gate.userId,
+        service_id: ctx.instanceId,
+        created_at: Date.now(),
+      });
+      deps.logger.info('[code-graph/create] stashed owner identity for S2S meta register', {
+        knowledge_id: detail.code_graph_id, team_id: teamId, owner: gate.userId,
+      });
       return respondEnvelope(c, okEnvelope(c, detail));
     } catch (err) {
       return runKs(c, () => Promise.reject(err));

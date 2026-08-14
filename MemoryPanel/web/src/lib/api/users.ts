@@ -52,7 +52,7 @@ export interface UserKey {
   name?: string;
   /** key 的可展示前缀（如 `sk-mem-ab12****`），内核 list/get 返回，用于免密识别具体是哪把 key */
   key_prefix?: string;
-  /** 明文 key —— 仅创建响应里出现这一次，之后（list/get）内核不会再回传，安全设计如此 */
+  /** 明文 key —— 当前用户查询自己的 Key 时持续返回；管理员代查他人时不返回。 */
   key_value?: string;
   created_at?: string;
   expires_at?: string;
@@ -64,7 +64,7 @@ export const userKeysApi = {
   /** 列出当前登录用户的全部 API Key（按内核分页拉全量） */
   list: () => dedupeInFlight('user-key/list', () => metaListAll<UserKey>('user-key/list', {})),
 
-  /** 创建一把新 Key；返回值里的 key_value 明文只展示这一次，调用方需立即展示给用户 */
+  /** 创建一把新 Key；之后仍可在自己的列表中查看完整 key_value。 */
   create: (data: { name?: string; expires_at?: string; user_id?: string }) => metaPost<UserKey>('user-key/create', data),
 
   /** 吊销一把 Key */

@@ -1,24 +1,32 @@
 /**
- * api/auth.ts — 登录验活 + 环境绑定。
- *
- * 新面板登录流程（09 设计文档 §3.3.1）：
- *   ① GET /meta/instances 选实例
- *   ② 用户输入自持的 user_key（sk-mem-…）
- *   ③ POST /meta/auth/verify（Header 仅 X-Tdai-Service-Id，body 带 user_key）
- *   ④ data.valid === true → 登录成功，前端把 { instance_id, user_key, user } 写入 session
- * 无 OAuth、无 Cookie、Control 不落库；见 lib/panelSession.ts。
+ * api/auth.ts — LDAP / 应急登录与 HttpOnly Web Session。
  */
-import { request, metaCall } from './base';
+import { request } from './base';
 import type { PublicUser } from './types';
 
-export const authVerifyApi = {
-  /** 登录验活：Header 仅带实例 ID，user_key 只放 body（meta-api.openapi.yaml §auth/verify） */
-  verify: (instanceId: string, userKey: string) =>
-    metaCall<{ valid: boolean; user?: PublicUser }>(
-      'auth/verify',
-      { user_key: userKey },
-      { 'X-Tdai-Service-Id': instanceId }
-    ),
+interface AuthEnvelope {
+  code: number;
+  message: string;
+  data: { user: PublicUser; expires_at?: string } | null;
+}
+
+async function unwrapAuth(promise: Promise<AuthEnvelope>): Promise<PublicUser> {
+  const envelope = await promise;
+  if (envelope.code !== 0 || !envelope.data?.user) throw new Error(envelope.message || 'AUTH_FAILED');
+  return envelope.data.user;
+}
+
+export const authSessionApi = {
+  ldapLogin: (instanceId: string, username: string, password: string) => unwrapAuth(
+    request<AuthEnvelope>('POST', '/api/v1/auth/ldap/login', { instance_id: instanceId, username, password }),
+  ),
+  adminApiKeyLogin: (instanceId: string, apiKey: string) => unwrapAuth(
+    request<AuthEnvelope>('POST', '/api/v1/auth/admin-api-key/login', { instance_id: instanceId, api_key: apiKey }),
+  ),
+  session: (instanceId: string) => unwrapAuth(
+    request<AuthEnvelope>('GET', `/api/v1/auth/session?instance_id=${encodeURIComponent(instanceId)}`),
+  ),
+  logout: (instanceId: string) => request<AuthEnvelope>('POST', '/api/v1/auth/logout', { instance_id: instanceId }),
 };
 
 // ========================= Environment Bindings =========================

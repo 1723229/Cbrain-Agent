@@ -608,6 +608,36 @@ paths:
           $ref: "#/components/responses/KernelUnavailable"
         '504':
           $ref: "#/components/responses/KernelTimeout"
+  /api/v1/meta/team-member/candidate/list:
+    post:
+      tags: ["Meta · Team Member"]
+      operationId: meta_team-member_candidate_list
+      summary: team-member/candidate/list
+      description: "分页搜索可加入团队的候选用户；body 须 team_id，可选 query（显示名、用户名或 user_id 模糊匹配）。仅团队 admin 可调用；只返回 active normal 用户，并排除当前 active 成员。"
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TdaiServiceId'
+        - $ref: '#/components/parameters/TdaiUserKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: 内核风格信封（业务成败优先看 body.code）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: "#/components/responses/ControlBadRequest"
+        '502':
+          $ref: "#/components/responses/KernelUnavailable"
+        '504':
+          $ref: "#/components/responses/KernelTimeout"
   /api/v1/meta/agent/create:
     post:
       tags: ["Meta · Agent"]

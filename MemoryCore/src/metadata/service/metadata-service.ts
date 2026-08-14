@@ -42,8 +42,10 @@ import {
 import type {
   UserEntity,
   UserPublic,
+  TeamMemberCandidate,
   UserKeyEntity,
   UserKeyPublic,
+  UserKeyOwned,
   UserKeyCreated,
   TeamEntity,
   TeamMemberEntity,
@@ -62,6 +64,7 @@ import type {
   SummarizeAgentFixedAssetsParams,
   AclEntity,
   CreateUserInput,
+  FederatedLoginInput,
   InitAdminInput,
   InitAdminResult,
   CreateUserApiResult,
@@ -90,6 +93,12 @@ import type {
 import { formatListResult, paginateArray, resolvePagination, wrapPaginated, DEFAULT_PAGINATION } from "../pagination.js";
 import { generateId, ID_PREFIX } from "../utils/id-generator.js";
 import { buildChatMemoryAssetId } from "../utils/chat-memory-asset.js";
+import {
+  DEFAULT_WEB_SESSION_TTL_SECONDS,
+  generateWebSessionToken,
+  hashWebSessionToken,
+  webSessionExpiresAt,
+} from "../utils/auth-session.js";
 
 /** 业务校验错误，带可映射到 HTTP 状态的 code。 */
 export class MetadataError extends Error {
@@ -389,6 +398,194 @@ export class MetadataService {
     return this.store.getUserByExternalId(authProvider, externalId);
   }
 
+  /** LDAP 等外部身份登录：身份唯一映射、资料同步并签发短期 Web Session。 */
+  async loginFederatedUser(
+    input: FederatedLoginInput,
+    options: { ttlSeconds?: number } = {},
+  ): Promise<{ user: UserPublic; session_token: string; expires_at: string }> {
+    const user = await this.upsertFederatedUser(input);
+
+    const session = await this.issueWebSession(
+      user.user_id,
+      input.provider_id,
+      options.ttlSeconds ?? DEFAULT_WEB_SESSION_TTL_SECONDS,
+    );
+    const ctx: V3AuthContext = {
+      token: session.session_token,
+      userId: user.user_id,
+      isAdmin: false,
+      isSystemAdmin: user.user_type === "system_admin",
+    };
+    return { user: toPublicUser(user, ctx), ...session };
+  }
+
+  /** 创建或更新外部目录身份；不签发 Session，也不为 LDAP 用户生成 API Key。 */
+  private async upsertFederatedUser(input: FederatedLoginInput): Promise<UserEntity> {
+    let identity = await this.store.getExternalIdentity(input.provider_id, input.subject_id);
+    let user: UserEntity | null = identity ? await this.store.getUserById(identity.user_id) : null;
+
+    if (!identity) {
+      await this.assertUserQuota();
+      const resolved = this.resolveCreateUserInput({
+        username: input.username,
+        display_name: input.display_name,
+        email: input.email,
+        raw_profile_json: input.raw_profile_json,
+        auth_provider: input.provider_id,
+        external_id: input.subject_id,
+        create_default_key: false,
+      });
+      const created = await this.store.createUser({
+        ...resolved,
+        password: null,
+        user_type: "normal",
+        create_default_key: false,
+      });
+      try {
+        identity = await this.store.createExternalIdentity({
+          provider_id: input.provider_id,
+          subject_id: input.subject_id,
+          user_id: created.user_id,
+          profile_json: input.raw_profile_json,
+        });
+        user = created;
+      } catch (err) {
+        if (!isUniqueViolation(err)) throw err;
+        await this.store.deleteUsers([created.user_id]);
+        identity = await this.store.getExternalIdentity(input.provider_id, input.subject_id);
+        user = identity ? await this.store.getUserById(identity.user_id) : null;
+      }
+    }
+
+    if (!identity || !user) {
+      throw new MetadataError("federated_identity_not_found", "federated identity is inconsistent");
+    }
+
+    const patch: Partial<UserEntity> = {
+      username: input.username,
+      display_name: input.display_name ?? null,
+      email: input.email ?? null,
+      raw_profile_json: input.raw_profile_json,
+      status: "active",
+    };
+    user = await this.store.updateUser(user.user_id, patch);
+    await this.store.touchExternalIdentity(identity.identity_id, input.raw_profile_json);
+    if (!user) throw new MetadataError("user_not_found", `user not found: ${identity.user_id}`);
+    return user;
+  }
+
+  /** 受保护内部接口使用；为系统应急管理员签发 Web Session。 */
+  async issueWebSession(
+    userId: string,
+    providerId: string,
+    ttlSeconds = DEFAULT_WEB_SESSION_TTL_SECONDS,
+  ): Promise<{ session_token: string; expires_at: string }> {
+    const user = await this.requireUser(userId);
+    if (user.status !== "active") throw new MetadataError("user_inactive", "user is inactive");
+    await this.store.purgeExpiredAuthSessions(new Date().toISOString());
+    const sessionToken = generateWebSessionToken();
+    const expiresAt = webSessionExpiresAt(ttlSeconds);
+    await this.store.createAuthSession({
+      user_id: userId,
+      token_hash: hashWebSessionToken(sessionToken),
+      provider_id: providerId,
+      expires_at: expiresAt,
+    });
+    return { session_token: sessionToken, expires_at: expiresAt };
+  }
+
+  /** LDAP 不可用时，仅允许有效的 system_admin API Key 换取 Web Session。 */
+  async loginSystemAdminWithApiKey(
+    apiKey: string,
+    ttlSeconds = DEFAULT_WEB_SESSION_TTL_SECONDS,
+  ): Promise<{ user: UserPublic; session_token: string; expires_at: string }> {
+    const user = await this.verifyAuth(apiKey);
+    if (!user) throw new MetadataError("invalid_credentials", "API key is invalid, expired, or revoked");
+    if (user.user_type !== "system_admin") {
+      throw new MetadataError("permission_denied", "emergency login requires a system_admin API key");
+    }
+    const session = await this.issueWebSession(user.user_id, "admin-api-key", ttlSeconds);
+    return {
+      user: toPublicUser(user, {
+        token: session.session_token,
+        userId: user.user_id,
+        isAdmin: false,
+        isSystemAdmin: true,
+      }),
+      ...session,
+    };
+  }
+
+  async resolveWebSession(sessionToken: string): Promise<UserEntity | null> {
+    if (!sessionToken.startsWith("cs-")) return null;
+    const session = await this.store.getAuthSessionByTokenHash(hashWebSessionToken(sessionToken));
+    if (!session || session.revoked_at || Date.parse(session.expires_at) <= Date.now()) return null;
+    const user = await this.store.getUserById(session.user_id);
+    if (!user || user.status !== "active") return null;
+    if (Date.now() - Date.parse(session.last_seen_at) >= 5 * 60 * 1000) {
+      await this.store.touchAuthSession(session.session_id);
+    }
+    return user;
+  }
+
+  async revokeWebSession(sessionToken: string): Promise<void> {
+    if (!sessionToken.startsWith("cs-")) return;
+    const session = await this.store.getAuthSessionByTokenHash(hashWebSessionToken(sessionToken));
+    if (session) await this.store.revokeAuthSession(session.session_id);
+  }
+
+  /** 完整目录同步：新增身份自动建映射；快照缺失者停用并撤销 Web Session。 */
+  async syncFederatedUsers(
+    providerId: string,
+    users: Array<{
+      subject_id: string;
+      username: string;
+      display_name?: string | null;
+      email?: string | null;
+      raw_profile_json: string;
+    }>,
+  ): Promise<{ created: number; updated: number; deactivated: number }> {
+    const snapshot = new Map(users.map((user) => [user.subject_id, user]));
+    const identities = await this.store.listExternalIdentities(providerId);
+    let created = 0;
+    let updated = 0;
+    let deactivated = 0;
+    for (const identity of identities) {
+      const profile = snapshot.get(identity.subject_id);
+      if (!profile) {
+        const user = await this.store.getUserById(identity.user_id);
+        if (user?.status !== "inactive") {
+          await this.store.updateUser(identity.user_id, { status: "inactive" });
+          deactivated++;
+        }
+        await this.store.revokeAuthSessionsForUser(identity.user_id);
+        continue;
+      }
+      await this.store.updateUser(identity.user_id, {
+        username: profile.username,
+        display_name: profile.display_name ?? null,
+        email: profile.email ?? null,
+        raw_profile_json: profile.raw_profile_json,
+        status: "active",
+      });
+      await this.store.touchExternalIdentity(identity.identity_id, profile.raw_profile_json);
+      snapshot.delete(identity.subject_id);
+      updated++;
+    }
+    for (const profile of snapshot.values()) {
+      await this.upsertFederatedUser({
+        provider_id: providerId,
+        subject_id: profile.subject_id,
+        username: profile.username,
+        display_name: profile.display_name,
+        email: profile.email,
+        raw_profile_json: profile.raw_profile_json,
+      });
+      created++;
+    }
+    return { created, updated, deactivated };
+  }
+
   async deleteUsersForCaller(userIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
     if (!canManageUsers(ctx)) {
       throw new MetadataError("permission_denied", "user management requires system admin");
@@ -538,9 +735,11 @@ export class MetadataService {
   /** 校验 user_key 并返回对应用户（无效返回 null）。 */
   async verifyAuth(userKey: string): Promise<UserEntity | null> {
     if (!userKey) return null;
+    if (userKey.startsWith("cs-")) return this.resolveWebSession(userKey);
     const configured = lookupMemorySystemUser(userKey, this.instanceId, this.memorySystemUser);
     if (configured) return configured;
-    return this.store.getUserByKey(userKey);
+    const user = await this.store.getUserByKey(userKey);
+    return user?.status === "active" ? user : null;
   }
 
   toPublicUserKey(entity: UserKeyEntity): UserKeyPublic {
@@ -585,6 +784,21 @@ export class MetadataService {
     return formatListResult({ items, total: page.total }, pagination);
   }
 
+  async listUserKeysForCaller(
+    userId: string,
+    ctx: V3AuthContext,
+    pagination: PaginationParams = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<UserKeyPublic | UserKeyOwned>> {
+    this.assertUserScope(userId, ctx.userId, ctx.isAdmin, ctx.isSystemAdmin);
+    await this.requireUser(userId);
+    const page = await this.store.listUserKeys(userId, pagination);
+    const ownerView = ctx.userId === userId;
+    const items = page.items.map((key) => ownerView
+      ? { ...this.toPublicUserKey(key), key_value: key.key_value }
+      : this.toPublicUserKey(key));
+    return formatListResult({ items, total: page.total }, pagination);
+  }
+
   async getUserKey(keyId: string): Promise<UserKeyPublic> {
     const entity = await this.store.getUserKeyById(keyId);
     if (!entity) throw new MetadataError("user_key_not_found", `user key not found: ${keyId}`);
@@ -610,7 +824,9 @@ export class MetadataService {
     if (isSystemAdminUser(owner) && !isAdmin && callerUserId !== owner.user_id) {
       throw new MetadataError("user_key_not_found", `user key not found: ${keyId}`);
     }
-    return this.toPublicUserKey(entity);
+    return entity.user_id === callerUserId
+      ? { ...this.toPublicUserKey(entity), key_value: entity.key_value } as UserKeyOwned
+      : this.toPublicUserKey(entity);
   }
 
   async revokeUserKey(keyId: string): Promise<void> {
@@ -618,11 +834,6 @@ export class MetadataService {
     if (!entity) throw new MetadataError("user_key_not_found", `user key not found: ${keyId}`);
     if (!(await this.getUserById(entity.user_id))) {
       throw new MetadataError("user_key_not_found", `user key not found: ${keyId}`);
-    }
-
-    const active = await this.store.countActiveUserKeys(entity.user_id);
-    if (active <= 1) {
-      throw new MetadataError("last_key_cannot_revoke", "cannot revoke the last active user key");
     }
 
     console.info(
@@ -921,6 +1132,24 @@ export class MetadataService {
     return this.store.createAsset(input);
   }
 
+  /** Panel 的异步 Knowledge 回调使用：不携带用户 secret，只携带已记录的 owner。 */
+  async ensureOwnedAssetInternal(input: CreateAssetInput): Promise<AssetEntity> {
+    const user = await this.requireUser(input.owner_user_id);
+    if (user.status !== "active") throw new MetadataError("user_inactive", "asset owner is inactive");
+    const member = await this.store.getTeamMember(input.team_id, input.owner_user_id);
+    if (!member || member.status !== "active") {
+      throw new MetadataError("permission_denied", "asset owner is not an active team member");
+    }
+    const existing = await this.getAssetById(input.asset_id!);
+    if (existing) {
+      if (existing.team_id !== input.team_id || existing.owner_user_id !== input.owner_user_id) {
+        throw new MetadataError("permission_denied", "asset identity conflicts with existing owner or team");
+      }
+      return existing;
+    }
+    return this.createAsset(input);
+  }
+
   async getAssetById(assetId: string): Promise<AssetEntity | null> {
     return this.store.getAssetById(assetId);
   }
@@ -1120,7 +1349,7 @@ export class MetadataService {
           owner_user_id: agent.owner_user_id,
           source_type: "auto",
           visibility: "private",
-          status: "active",
+          status: "approved",
         });
       } catch (err) {
         const raced = await this.getAssetById(assetId);
@@ -1234,7 +1463,7 @@ export class MetadataService {
           owner_user_id: agent.owner_user_id,
           source_type: "extracted",
           visibility: "private",
-          status: "active",
+          status: "approved",
         });
       } catch (err) {
         const raced = await this.getAssetById(assetId);
@@ -1594,6 +1823,24 @@ export class MetadataService {
       throw new MetadataError("member_not_found", `member not found: ${teamId}/${userId}`);
     }
     return member;
+  }
+
+  async listTeamMemberCandidatesForCaller(
+    teamId: string,
+    query: string | undefined,
+    ctx: V3AuthContext,
+    pagination: PaginationParams = DEFAULT_PAGINATION,
+  ): Promise<PaginatedResult<TeamMemberCandidate>> {
+    await this.assertCallerIsTeamAdmin(ctx, teamId);
+    const page = await this.store.listTeamMemberCandidates(teamId, pagination, query);
+    return formatListResult({
+      items: page.items.map((user) => ({
+        user_id: user.user_id,
+        username: user.username,
+        display_name: user.display_name,
+      })),
+      total: page.total,
+    }, pagination);
   }
 
   async createAgentForCaller(input: CreateAgentInput, ctx: V3AuthContext): Promise<AgentEntity> {

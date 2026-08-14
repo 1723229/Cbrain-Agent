@@ -124,70 +124,6 @@ export const enUS = {
   'common.copied': 'Copied',
   'common.agent': 'Agent',
   'common.team': 'Team',
-  'common.task': 'Task',
-
-  // ===== Workbench / TaskWorkbench =====
-  'task.list.title': 'Task List',
-  'task.list.count': '{{count}} tasks',
-  'task.list.subtitle': 'Click a card to view details and manage settings in the drawer',
-  'task.create': 'New Task',
-  'task.empty': 'No tasks yet. Click "New Task" above to create one.',
-  'task.emptyTeam.title': 'No Team Available',
-  'task.emptyTeam.desc':
-    'Please create a team in Team Management first, then come back to create tasks.',
-  'task.detail.empty': 'Select a task on the left, or click "New Task" to start.',
-  'task.status.running': 'In Progress',
-  'task.status.completed': 'Completed',
-  'task.delete.title': 'Delete Task',
-  'task.delete.confirm': 'Delete task "{{title}}"?',
-  'task.delete.description': 'Task ID: {{id}}',
-  'task.delete.okText': 'Delete',
-  'task.delete.cancelText': 'Cancel',
-  'task.delete.noPermission':
-    'You are not the creator of task "{{title}}" nor a team admin. Cannot delete. Creator: {{creator}}',
-  'task.edit': 'Edit',
-  'task.edit.tooltip': 'Edit task details (title, description)',
-  'task.save': 'Save',
-  'task.titlePlaceholder': 'Task title',
-  'task.taskId': 'task_id: ',
-  'task.team': 'team: ',
-  'task.deleted': 'deleted',
-  'task.statusSwitch.tooltip.canEdit': 'Toggle task status (you will be added as a participant)',
-  'task.statusSwitch.tooltip.cannotEdit': 'Only team members can toggle task status',
-  'task.creator': 'Creator',
-  'task.creator.tooltip':
-    'Creator (default = team admin). Only creator or team admin can delete this task',
-  'task.participantUsers': 'Participant Users',
-  'task.participantUsers.tooltip':
-    'Participants: users who have started a session via proxy (including the creator)',
-  'task.sessionAgents': 'Session Agents',
-  'task.sessionAgents.tooltip':
-    'Agents observed starting sessions on the proxy side · agent_id={{id}}',
-  'task.description': 'Description',
-  'task.descriptionPlaceholder': 'Include background, goals, acceptance criteria…',
-  'task.footer': 'Created: {{created}} · Updated: {{updated}}',
-  'task.noPermissionEdit': 'You are not a member of this team. Cannot modify this task.',
-  'task.titleRequired': 'Task title cannot be empty.',
-  'task.participants.empty': 'No active participants',
-  'task.participants.tooltip': 'Active participants:\n{{users}}',
-  'task.agents.empty': 'No active agents',
-  'task.agents.tooltip': 'Active agents:\n{{agents}}',
-  'task.peopleCount': '{{count}} people',
-  'task.agentCount': '{{count}} Agents',
-
-  // ===== TaskCreateDialog =====
-  'taskCreate.caption': 'New Task',
-  'taskCreate.team': 'Team',
-  'taskCreate.teamLabel': 'Will create in team',
-  'taskCreate.title': 'Title',
-  'taskCreate.titlePlaceholder': 'e.g. Fix #142 macOS 14 startup failure',
-  'taskCreate.description': 'Description',
-  'taskCreate.descriptionExtra': 'Linked Agents can be added after creation',
-  'taskCreate.descriptionPlaceholder':
-    'Include background, goals, acceptance criteria. The more specific, the better for agent context.',
-  'taskCreate.submit': 'Create Task',
-  'taskCreate.cancel': 'Cancel',
-
   // ===== AdminResourceLock =====
   'adminLock.title': 'Resource Management is Not Available for Admins',
   'adminLock.desc':
@@ -971,7 +907,7 @@ export const enUS = {
   'apiKey.empty.title': "You don't have any User Keys yet",
   'apiKey.empty.desc': 'Click "New Key" in the top right to create your first key',
   'apiKey.endpoint.copy': 'Copy',
-  'apiKey.plugin.title': 'Codex / Claude Code Plugin Access',
+  'apiKey.plugin.title': 'Codex / Claude Code Access',
   'apiKey.plugin.desc': 'Install and update preserve older versions, configuration, bindings, and server data; restart the client afterward. Uninstall happens only when its command is explicitly run and still preserves Cbrain configuration and server data.',
   'apiKey.plugin.flow.title': 'Workflow',
   'apiKey.plugin.flow.install.title': 'First install',
@@ -1111,7 +1047,6 @@ export const enUS = {
   // ===== backend store =====
   'backend.loadTeamsFailed': 'Failed to load team list',
   'backend.loadAgentsFailed': 'Failed to load Agent list',
-  'backend.loadTasksFailed': 'Failed to load task list',
 
   // ===== API error messages (error-message.ts) =====
   'error.UNAUTHORIZED': 'Your session has expired. Please log in again.',

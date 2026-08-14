@@ -25,7 +25,7 @@
  * is not worth it.
  */
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { assetsApi, agentsApi, type Asset } from '@/lib/teamApi';
@@ -125,7 +125,7 @@ export default function SkillsPanel({
         setTeamAgents([]);
       });
     return () => { cancelled = true; };
-  }, [activeTeamId, myUserId]);
+  }, [activeTeamId, myUserId, t]);
 
   const [loading, setLoading] = useState(false);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
@@ -149,8 +149,11 @@ export default function SkillsPanel({
 
   // 对 skills 列表应用缓存：已拉过的 skill 更新为真实 version / owner_agent_id。
   const skillsWithCache = useMemo(
-    () => skills.map((s) => applyCachedDetail(s)),
-    [skills, cacheVersion],
+    () => {
+      void cacheVersion;
+      return skills.map((s) => applyCachedDetail(s));
+    },
+    [skills, applyCachedDetail, cacheVersion],
   );
 
   // 选中某条 skill 时按需预拉其数据面详情（幂等，已缓存则跳过）。
@@ -371,7 +374,7 @@ export default function SkillsPanel({
     } finally {
       setDeleteLoading(false);
     }
-  }, [selectedSkillId, refresh, activeTeamId, myUserId]);
+  }, [selectedSkillId, refresh, activeTeamId, myUserId, t]);
 
   // ============================
   // Render
@@ -504,7 +507,7 @@ export default function SkillsPanel({
                         type="text"
                         tooltip={ownerIsMe ? t('skills.delete.own') : t('skills.delete.admin')}
                         className="_memory-skill-item-delete"
-                        onClick={async (e: any) => {
+                        onClick={async (e?: MouseEvent<Element>) => {
                           e?.stopPropagation();
                           const ok = await tea.confirm({
                             message: t('skills.delete.confirm', { name: s.name }),
@@ -869,7 +872,7 @@ function PersonalAssetTab({
                       disabled={isBusy}
                       tooltip={t('skills.personal.delete.tooltip')}
                       className="_memory-personal-asset-delete"
-                      onClick={(e: any) => {
+                      onClick={(e?: MouseEvent<Element>) => {
                         e?.stopPropagation();
                         void handleDelete(asset);
                       }}

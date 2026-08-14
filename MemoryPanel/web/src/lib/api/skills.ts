@@ -6,7 +6,7 @@
  * 与 meta 链路的关键区别：
  *   - skill 有独立存储与主键 skill_id（前缀 skl-），团队内可读、owner agent 可写；
  *   - 身份字段（user_id / team_id / agent_id）放在 body，不放 Header（鉴权 Header
- *     仍是 X-Tdai-Service-Id + X-Tdai-User-Key，与 meta 一致）；
+ *     由 HttpOnly Web Session 提供）；
  *   - 写操作（create/update/patch/delete/files.*）需带 agent_id（= owner），
  *     update/patch/delete/files.* 还需 expected_version 乐观锁；
  *   - 分页用嵌套 pagination.{limit,offset}。
@@ -99,7 +99,6 @@ async function skillPost<T>(action: string, body: Record<string, unknown> = {}):
   }
   return skillCall<T>(action, body, {
     'X-Tdai-Service-Id': session.instanceId,
-    'X-Tdai-User-Key': session.userKey,
   });
 }
 

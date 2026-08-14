@@ -205,7 +205,10 @@ export default function KnowledgeGraph({ data, loading, onNodeClick, highlightNo
     return () => observer.disconnect();
   }, []);
 
-  const palette = useMemo(() => createAtlasPalette(), [themeRevision]);
+  const palette = useMemo(() => {
+    void themeRevision;
+    return createAtlasPalette();
+  }, [themeRevision]);
   const filteredData = useMemo(() => data ? (hideStructural ? filterStructuralNodes(data) : data) : null, [data, hideStructural]);
 
   const handleSearch = useCallback((q: string) => {

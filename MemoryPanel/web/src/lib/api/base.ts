@@ -5,11 +5,9 @@
  *   - docs/architecture/09-new-panel-control-backend-design.md  新面板设计（Header 鉴权、登录流程）
  *   - docs/api/meta-api.openapi.yaml                            前端对接契约（机器可读）
  *
- * 规则（新面板 · 无 Cookie · 无状态）：
+ * 规则（Cbrain Web Session）：
  *   - 元数据 CRUD 统一走 POST /api/v1/meta/{action}；
- *   - 鉴权由前端 sessionStorage 缓存 instance_id + user_key（见 lib/panelSession.ts），
- *     每次请求注入 Header X-Tdai-Service-Id + X-Tdai-User-Key（auth/verify 除外，
- *     该接口 user_key 只放 body，不放 Header）；
+ *   - 前端只缓存 instance_id；HttpOnly Cookie 由浏览器自动携带；
  *     ⚠️ Header 名以 meta-api.openapi.yaml v1.1.0 为准：instance 的 Header 名是
  *     `X-Tdai-Service-Id`（不是早期版本用过的 `X-Metadata-Instance-Id`），改名后未同步
  *     会导致 Control 报 400 MISSING_INSTANCE_ID。
@@ -17,7 +15,7 @@
  *     再 acl/grant）；agent-fixed-asset/*（运行时固定注入）仍 501 NOT_IN_SCOPE。
  *     注：PANEL_CAPABILITIES.assets 仍为 false —— 它只控制通用「资产」UI 是否展示
  *     占位，skill 挂载走 v3 数据面 fork（skillApi.forkToAgent），不受该开关影响；
- *   - 一期不注册 /api/v1/auth/*、/users/*（OAuth、Cookie 会话、environment-bindings 等）；
+ *   - LDAP / 应急登录统一换取 HttpOnly Web Session；
  *   - 所有函数返回 Promise<T>，失败抛 ApiError。
  */
 import { getPanelSession, clearPanelSession } from '../panelSession';
@@ -130,8 +128,8 @@ export const META_PREFIX = '/api/v1/meta';
 export const META_PAGE_SIZE = 100;
 
 /**
- * 登出 / 401 时清空前端会话（instance_id + user_key + user 缓存）。
- * 新面板无 Cookie，"清会话"就是清 sessionStorage，不涉及后端调用。
+ * 登出 / 401 时清空前端实例选择和内存用户资料；主动登出由 auth store
+ * 另外调用后端撤销 HttpOnly Web Session。
  */
 export function clearSessionCache(): void {
   clearPanelSession();
@@ -148,8 +146,7 @@ export async function getCurrentUser(): Promise<PublicUser> {
 
 /**
  * 内核 meta 透明代理的公共调用：注入指定 Header，POST body，解析信封。
- * `auth/verify` 走此函数但只传 X-Tdai-Service-Id（不带 user-key），
- * 其余 action 走 `metaPost`（自动从 session 注入双 Header）。
+ * 业务调用只显式传实例 Header；HttpOnly Cookie 由浏览器同源请求自动携带。
  */
 export async function metaCall<T>(
   action: string,
@@ -181,7 +178,6 @@ export async function metaPost<T>(action: string, body: Record<string, unknown> 
   }
   return metaCall<T>(action, body, {
     'X-Tdai-Service-Id': session.instanceId,
-    'X-Tdai-User-Key': session.userKey,
   });
 }
 

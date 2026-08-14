@@ -7,10 +7,11 @@ import { registerHealthRoutes, registerMetaInstanceRoutes } from './routes/meta/
 import { registerMetaProxyRoutes } from './routes/meta/proxy.js';
 import { registerSkillProxyRoutes } from './routes/skill/proxy.js';
 import { registerChatMemoryRoutes } from './routes/chat-memory.js';
-import { registerTaskRoutes } from './routes/task.js';
 import { registerAgentOverviewRoutes } from './routes/agent-overview.js';
 import { registerAgentLifecycleRoutes } from './routes/agent-lifecycle.js';
 import { registerKnowledgeRoutes } from './routes/knowledge/index.js';
+import { registerAuthRoutes } from './routes/auth.js';
+import { registerPluginDownloadRoutes } from './routes/plugin-downloads.js';
 
 const API_PREFIX = '/api/v1';
 
@@ -20,16 +21,16 @@ export function buildPanelApp(deps: PanelDeps): Hono {
   app.use('*', requestLogger(deps.logger));
 
   registerHealthRoutes(app);
+  registerPluginDownloadRoutes(app, deps.config.pluginDownloads.dir);
 
   const api = new Hono();
+  registerAuthRoutes(api, deps);
   registerMetaInstanceRoutes(api, deps);
   registerMetaProxyRoutes(api, deps);
   // Skill 数据面透明代理：/api/v1/skill/* → 内核 /v3/skill/*
   registerSkillProxyRoutes(api, deps);
   // Chat Memory 面板 3-tab 专属业务路由（12.3 决策例外，见 chat-memory.ts 顶注释）
   registerChatMemoryRoutes(api, deps);
-  // Task 聚合路由：task/list + 批量 task-agent/list 一次返回
-  registerTaskRoutes(api, deps);
   registerAgentOverviewRoutes(api, deps);
   // Agent 生命周期业务路由：/agent/delete-cascade 在 control 层级联清 skill 再 archive
   registerAgentLifecycleRoutes(api, deps);

@@ -80,7 +80,6 @@ export const agentsApi = {
       deleted_skill_ids: string[];
     }>>('POST', '/api/v1/agent/delete-cascade', { agent_id: agentId }, {
       'X-Tdai-Service-Id': session.instanceId,
-      'X-Tdai-User-Key': session.userKey,
     });
     if (envelope.code !== 0) {
       throw new ApiError(200, envelope.message, '', {

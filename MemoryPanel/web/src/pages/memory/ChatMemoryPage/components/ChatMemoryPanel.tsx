@@ -17,6 +17,7 @@ import { AppIcon, UsergroupIcon, UserIcon } from 'tea-icons-react';
 import { useAgents, useTeams } from '@/services';
 import { readAuth } from '@/components/LoginGate';
 import { tea } from '@/lib/tea-bridge';
+import { getErrorMessage } from '@/lib/error-message';
 import { chatMemoryApi, type ChatMemoryBlock, type ChatMemoryLayerItem } from '@/lib/teamApi';
 import { type MemoryBlock, type MemoryLayer, type ScopeTab } from './types';
 import { useScopeTabLabels } from './constants';
@@ -127,7 +128,7 @@ export default function ChatMemoryPanel(
         updated_at_ms: b.updated_at_ms,
         agent_id: b.agent_id ?? undefined,
         uploaded_by_user_id: b.uploaded_by_user_id,
-        scope: (b as any).scope,
+        scope: b.scope,
         layer_counts: b.layer_counts,
         bound_agent_count: b.bound_agent_count,
         layers: { L0: [], L1: [], L2: [], L3: [] },
@@ -137,9 +138,9 @@ export default function ChatMemoryPanel(
         layerCounts: buildInitialLayerCounts(b.layer_counts),
       }));
       setBlocks(mapped);
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (seq !== fetchSeqRef.current) return;
-      tea.notify.error(e?.message || t('memory.notify.loadFailed'));
+      tea.notify.error(getErrorMessage(e) || t('memory.notify.loadFailed'));
       setBlocks([]);
     } finally {
       if (seq === fetchSeqRef.current) setBlocksLoading(false);
@@ -218,9 +219,6 @@ export default function ChatMemoryPanel(
 
     const layers: MemoryLayer[] = ['L0', 'L1', 'L2', 'L3'];
     layers.forEach((l) => {
-      // 已经有真实计数的层不重复请求
-      if (selected.layerCounts[l] !== undefined) return;
-
       chatMemoryApi
         .layer(blockId, l, 1, 0)
         .then((res) => {
@@ -266,8 +264,8 @@ export default function ChatMemoryPanel(
           }),
         );
       })
-      .catch((e: any) => {
-        if (!cancelled) tea.notify.error(e?.message || t('memory.notify.layerFailed'));
+      .catch((e: unknown) => {
+        if (!cancelled) tea.notify.error(getErrorMessage(e) || t('memory.notify.layerFailed'));
       })
       .finally(() => {
         if (!cancelled) setLayerLoading(false);
@@ -322,8 +320,8 @@ export default function ChatMemoryPanel(
           };
         }),
       );
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('memory.notify.layerFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('memory.notify.layerFailed'));
     } finally {
       setL0MoreLoading(false);
     }
@@ -368,8 +366,8 @@ export default function ChatMemoryPanel(
             };
           }),
         );
-      } catch (e: any) {
-        tea.notify.error(e?.message || t('memory.notify.l2Failed'));
+      } catch (e: unknown) {
+        tea.notify.error(getErrorMessage(e) || t('memory.notify.l2Failed'));
       } finally {
         setLayerItemLoadingId(null);
       }
@@ -438,8 +436,8 @@ export default function ChatMemoryPanel(
       setBlocks((prev) => prev.filter((b) => b.id !== id));
       if (selectedId === id) setSelectedId(null);
       tea.notify.success(t('memory.notify.unbound'));
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('memory.notify.unbindFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('memory.notify.unbindFailed'));
     }
   }
 
@@ -459,8 +457,8 @@ export default function ChatMemoryPanel(
       tea.notify.success(t('memory.notify.importSuccess', { count: messages.length }));
       setShowImport(false);
       fetchBlocks();
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('memory.notify.importFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('memory.notify.importFailed'));
     }
   }
 
@@ -480,8 +478,8 @@ export default function ChatMemoryPanel(
       await chatMemoryApi.patchScope(block.id, newScope);
       tea.notify.success(newScope === 'team' ? t('memory.notify.scopeTeam') : t('memory.notify.scopePrivate'));
       fetchBlocks();
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('memory.notify.scopeFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('memory.notify.scopeFailed'));
     }
   }
 
@@ -679,8 +677,8 @@ export default function ChatMemoryPanel(
               tea.notify.success(t('memory.notify.allocated'));
               setShowAllocate(false);
               fetchBlocks();
-            } catch (e: any) {
-              tea.notify.error(e?.message || t('memory.notify.allocateFailed'));
+            } catch (e: unknown) {
+              tea.notify.error(getErrorMessage(e) || t('memory.notify.allocateFailed'));
             }
           }}
         />

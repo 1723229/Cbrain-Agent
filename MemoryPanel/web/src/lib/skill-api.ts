@@ -3,7 +3,7 @@
  *
  * 对接文档：见团队内部知识库 Skill API 章节
  * 14 个 POST 接口，前端走 Panel 后端代理 `/api/v1/skill/`，由 Panel 再转发到记忆 Gateway `/v3/skill/`。
- * 鉴权 Header：`X-Tdai-Service-Id` + `X-Tdai-User-Key`（与 meta API 一致）。
+ * 鉴权：`X-Tdai-Service-Id` + HttpOnly Web Session。
  *
  * 统一信封 `{ code, message, request_id, data }`，code === 0 为成功。
  */
@@ -14,7 +14,7 @@ import i18n from '@/i18n';
 
 // ========================= Envelope =========================
 
-export interface SkillEnvelope<T = any> {
+export interface SkillEnvelope<T = unknown> {
   code: number;
   message: string;
   request_id: string;
@@ -51,7 +51,7 @@ export interface SkillSummary {
   task_id: string;
   created_at_ms: number;
   updated_at_ms: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /** get 接口返回，包含完整内容 */
@@ -110,7 +110,6 @@ async function skillCall<T>(action: string, body: Record<string, unknown>): Prom
   };
   if (session) {
     headers['X-Tdai-Service-Id'] = session.instanceId;
-    headers['X-Tdai-User-Key'] = session.userKey;
   }
   const res = await fetch(`${SKILL_PREFIX}/${action}`, {
     method: 'POST',
@@ -145,7 +144,7 @@ export function createSkill(params: {
   name: string;
   content: string;
   resources?: SkillResourcePayload[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }): Promise<SkillSummary> {
   return skillCall('create', params as unknown as Record<string, unknown>);
 }

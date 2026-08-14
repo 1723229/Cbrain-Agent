@@ -50,11 +50,12 @@ export function ImportBlockDialog({
     if (p.length > MAX_MESSAGES) return { ok: false, error: t('importBlock.parse.tooMany', { max: MAX_MESSAGES, count: p.length }) };
     const messages: ImportMessage[] = [];
     for (let i = 0; i < p.length; i++) {
-      const m = p[i] as any;
+      const m = p[i];
       if (!m || typeof m !== 'object') return { ok: false, error: t('importBlock.parse.notObject', { index: i + 1 }) };
-      const role = m.role;
+      const record = m as Record<string, unknown>;
+      const role = record.role;
       if (role !== 'user' && role !== 'assistant') return { ok: false, error: t('importBlock.parse.invalidRole', { index: i + 1, role }) };
-      const content = m.content;
+      const content = record.content;
       if (typeof content !== 'string' || content.length === 0) return { ok: false, error: t('importBlock.parse.invalidContent', { index: i + 1 }) };
       messages.push({ role, content });
     }

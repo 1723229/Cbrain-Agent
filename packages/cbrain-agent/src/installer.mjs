@@ -101,7 +101,7 @@ export async function uninstall(options) {
   } else {
     const plugins = await jsonCommand(runner, "claude", ["plugin", "list", "--json"]);
     const installed = Array.isArray(plugins) && plugins.some((item) => item.id === `cbrain-agent@${MARKETPLACE}`);
-    if (installed) await runner("claude", ["plugin", "uninstall", `cbrain-agent@${MARKETPLACE}`, "--scope", "user", "--keep-data", "--yes"]);
+    if (installed) await runner("claude", ["plugin", "uninstall", `cbrain-agent@${MARKETPLACE}`, "--scope", "user"]);
     removed = installed;
     output(installed ? "Cbrain plugin removed from Claude Code." : "Cbrain plugin is not installed in Claude Code.");
   }

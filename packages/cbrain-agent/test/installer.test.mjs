@@ -137,10 +137,10 @@ describe("cbrain-agent installer", () => {
     assert.match(output.join("\n"),/configuration and server-side data were preserved/);
   });
 
-  it("uninstalls Claude Code with persistent plugin data preserved", async () => {
+  it("uninstalls Claude Code while preserving Cbrain configuration", async () => {
     const calls=[];const runner=async(command,args,options={})=>{calls.push([command,args]);if(options.capture&&args.includes("list"))return{stdout:JSON.stringify([{id:"cbrain-agent@cbrain"}])};return{stdout:""}};
     await uninstall({client:"claude-code",runner,output:()=>{}});
-    assert.deepEqual(calls.at(-1),["claude",["plugin","uninstall","cbrain-agent@cbrain","--scope","user","--keep-data","--yes"]]);
+    assert.deepEqual(calls.at(-1),["claude",["plugin","uninstall","cbrain-agent@cbrain","--scope","user"]]);
   });
 
   it("treats uninstall as idempotent when the plugin is absent", async () => {

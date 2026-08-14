@@ -25,6 +25,54 @@ require_vars \
 # 与 memory-core 保持一致的 gateway 内部凭据（默认 local，仅本地体验）
 MEMORY_CORE_GATEWAY_API_KEY="${MEMORY_CORE_GATEWAY_API_KEY:-local}"
 
+# Panel 身份配置。LDAP 密码和可选 CA 均从宿主机只读挂载，避免进入环境变量。
+PANEL_AUTH_ARGS=(
+  -e "CBRAIN_SESSION_COOKIE_NAME=${CBRAIN_SESSION_COOKIE_NAME:-cbrain_session}"
+  -e "CBRAIN_SESSION_COOKIE_SECURE=${CBRAIN_SESSION_COOKIE_SECURE:-true}"
+  -e "CBRAIN_SESSION_TTL_SECONDS=${CBRAIN_SESSION_TTL_SECONDS:-43200}"
+)
+
+# 仅用于 Panel API Key 页面生成 Codex / Claude Code Plugin 安装命令。
+# 该地址不是认证凭据；为空时前端隐藏安装说明卡片。
+PANEL_AGENT_GATEWAY_ARGS=()
+if [[ -n "${REMOTE_AGENT_GATEWAY_URL:-}" ]]; then
+  PANEL_AGENT_GATEWAY_ARGS+=(
+    -e "REMOTE_AGENT_GATEWAY_URL=$REMOTE_AGENT_GATEWAY_URL"
+  )
+fi
+
+if [[ "${CBRAIN_LDAP_ENABLED:-false}" == "true" ]]; then
+  require_vars \
+    CBRAIN_LDAP_PROVIDER_ID CBRAIN_LDAP_URL CBRAIN_LDAP_USER_BASE_DN \
+    CBRAIN_LDAP_BIND_DN CBRAIN_LDAP_BIND_PASSWORD_HOST_FILE
+  if [[ ! -f "$CBRAIN_LDAP_BIND_PASSWORD_HOST_FILE" ]]; then
+    die "LDAP bind 密码文件不存在: $CBRAIN_LDAP_BIND_PASSWORD_HOST_FILE"
+  fi
+  PANEL_AUTH_ARGS+=(
+    -e CBRAIN_LDAP_ENABLED=true
+    -e "CBRAIN_LDAP_PROVIDER_ID=$CBRAIN_LDAP_PROVIDER_ID"
+    -e "CBRAIN_LDAP_URL=$CBRAIN_LDAP_URL"
+    -e "CBRAIN_LDAP_USER_BASE_DN=$CBRAIN_LDAP_USER_BASE_DN"
+    -e "CBRAIN_LDAP_BIND_DN=$CBRAIN_LDAP_BIND_DN"
+    -e CBRAIN_LDAP_BIND_PASSWORD_FILE=/run/secrets/cbrain-ldap-bind-password
+    -e "CBRAIN_LDAP_STARTTLS=${CBRAIN_LDAP_STARTTLS:-true}"
+    -e "CBRAIN_LDAP_ALLOW_INSECURE_POC=${CBRAIN_LDAP_ALLOW_INSECURE_POC:-false}"
+    -e "CBRAIN_LDAP_CONNECT_TIMEOUT_MS=${CBRAIN_LDAP_CONNECT_TIMEOUT_MS:-3000}"
+    -e "CBRAIN_LDAP_OPERATION_TIMEOUT_MS=${CBRAIN_LDAP_OPERATION_TIMEOUT_MS:-5000}"
+    -e "CBRAIN_LDAP_SYNC_INTERVAL_MS=${CBRAIN_LDAP_SYNC_INTERVAL_MS:-300000}"
+    -v "$CBRAIN_LDAP_BIND_PASSWORD_HOST_FILE:/run/secrets/cbrain-ldap-bind-password:ro"
+  )
+  if [[ -n "${CBRAIN_LDAP_CA_HOST_FILE:-}" ]]; then
+    if [[ ! -f "$CBRAIN_LDAP_CA_HOST_FILE" ]]; then
+      die "LDAP CA 文件不存在: $CBRAIN_LDAP_CA_HOST_FILE"
+    fi
+    PANEL_AUTH_ARGS+=(
+      -e CBRAIN_LDAP_CA_FILE=/run/secrets/cbrain-ldap-ca.pem
+      -v "$CBRAIN_LDAP_CA_HOST_FILE:/run/secrets/cbrain-ldap-ca.pem:ro"
+    )
+  fi
+fi
+
 # Panel UI "客户端接入地址"卡片显示的 base URL（供 CodeBuddy / ClaudeCode 拷贝使用）。
 # 开源本地部署 core 和 proxy 分开跑，客户端要接的是 proxy，不是 core/gateway。
 #
@@ -66,8 +114,9 @@ if [[ -z "${MEMORY_HUB_PROXY_PUBLIC_URL+x}" ]]; then
   info "  (如需覆盖，在 .env 里显式设 MEMORY_HUB_PROXY_PUBLIC_URL=http://<your-ip>:${PROXY_PORT:-8096})"
 fi
 
-CONTAINER=tdai-memory-hub
+CONTAINER="${MEMORY_HUB_CONTAINER:-tdai-memory-hub}"
 NETWORK=tdai-memory-stack
+DOCKER_RESTART_POLICY="${DOCKER_RESTART_POLICY:-unless-stopped}"
 
 if ! $DOCKER network inspect "$NETWORK" >/dev/null 2>&1; then
   info "创建 docker 网络 $NETWORK"
@@ -87,6 +136,7 @@ rm_container_if_exists "$CONTAINER"
 # LLM_MODE=custom → 不走 memory 的 LLM proxy，而是 knowledge 直连用户提供的端点
 info "启动 memory-hub (image=$MEMORY_HUB_IMAGE, panel=$PANEL_PORT knowledge=$KNOWLEDGE_PORT)"
 $DOCKER run -d --name "$CONTAINER" \
+  --restart "$DOCKER_RESTART_POLICY" \
   --network "$NETWORK" \
   --network-alias memory-hub \
   --add-host=host.docker.internal:host-gateway \
@@ -107,6 +157,8 @@ $DOCKER run -d --name "$CONTAINER" \
   -e LLM_BASE_URL="$MEMORY_LLM_BASE_URL" \
   -e LLM_MODEL="$MEMORY_LLM_MODEL" \
   -e KNOWLEDGE_LLM_BINDING_SYNC=0 \
+  "${PANEL_AUTH_ARGS[@]}" \
+  "${PANEL_AGENT_GATEWAY_ARGS[@]}" \
   "$MEMORY_HUB_IMAGE" >/dev/null
 
 wait_healthy "$CONTAINER" 120

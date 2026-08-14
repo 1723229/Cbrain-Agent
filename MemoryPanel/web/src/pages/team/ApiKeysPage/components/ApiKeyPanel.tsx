@@ -39,7 +39,7 @@ import { tea } from '@/lib/tea-bridge';
 import './api-key-panel.css';
 
 const { autotip } = Table.addons;
-const CBRAIN_AGENT_INSTALLER_VERSION = '0.1.2';
+const CBRAIN_AGENT_INSTALLER_VERSION = '0.1.4';
 
 export default function ApiKeyPanel() {
   const { t } = useTranslation();
@@ -281,7 +281,7 @@ export default function ApiKeyPanel() {
               return (
                 <div className="_memory-apikey-endpoint" key={client}>
                   <Text theme="label" parent="div" style={{ marginBottom: 4 }}>
-                    {client === 'codex' ? 'Codex' : 'Claude Code Plugin'}
+                    {client === 'codex' ? 'Codex' : 'Claude Code'}
                   </Text>
                   {commands.map(({ action, label, command }) => (
                     <div key={action} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: action === 'uninstall' ? 6 : 0 }}>

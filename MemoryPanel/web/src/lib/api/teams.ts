@@ -2,7 +2,13 @@
  * api/teams.ts — Team + TeamMember（链路 A：meta/team/* + meta/team-member/*）。
  */
 import { metaPost, metaListAll, getCurrentUser } from './base';
-import type { Team, TeamMember } from './types';
+import type { PaginatedResult, Team, TeamMember } from './types';
+
+export interface MemberCandidate {
+  user_id: string;
+  username: string;
+  display_name?: string | null;
+}
 
 export const teamsApi = {
   /**
@@ -40,14 +46,17 @@ export const membersApi = {
   /** 列出 team 成员 */
   list: (teamId: string) => metaListAll<TeamMember>('team-member/list', { team_id: teamId }),
 
+  /** 搜索尚未加入 team 的有效普通用户；仅 team admin 可调用。 */
+  candidates: (teamId: string, query = '', limit = 100) =>
+    metaPost<PaginatedResult<MemberCandidate>>('team-member/candidate/list', {
+      team_id: teamId,
+      query: query.trim() || undefined,
+      limit,
+      offset: 0,
+    }),
+
   /**
-   * 添加成员（按已知 user_id 加入 team）。
-   *
-   * 新面板下"开号"（拿到 user_key）与"加入 team"是两件独立的事：用户自行持有
-   * user_key 登录后即可从 auth/verify 拿到自己的 user_id；team 管理员只需要
-   * 已知这个 user_id 就能调 team-member/add（标准 meta action，非阻断）。
-   * 没有"按用户名建户"的等价能力——若要按用户名查找 user_id，可用 `usersApi.list`
-   * 传入 `{ username }` 做精确匹配（与内核 user/list 一致）。
+   * 将候选用户加入 team；候选项由 candidate/list 按当前管理员权限提供。
    */
   add: (teamId: string, data: { user_id: string; role: 'admin' | 'member' | 'reviewer' }) =>
     metaPost<TeamMember>('team-member/add', { team_id: teamId, user_id: data.user_id, role: data.role }),

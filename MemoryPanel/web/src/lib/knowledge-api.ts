@@ -3,7 +3,7 @@
  *
  * 对接文档：docs/api/knowledge-panel-api.md
  * 前缀：`/api/v1/knowledge`，全部 POST，统一信封 { code, message, request_id, data }
- * 鉴权：`X-Tdai-Service-Id` + `X-Tdai-User-Key`（与 meta API 一致）
+ * 鉴权：`X-Tdai-Service-Id` + HttpOnly Web Session。
  *
  * 本期接入（§2.0 最小端点集）：
  *   Wiki: list / create / ingest / get / delete / graph / page/ls / page/read /
@@ -12,14 +12,14 @@
  */
 
 import { getPanelSession } from './panelSession';
-import { formatApiErrorMessage } from './error-message';
+import { formatApiErrorMessage, getErrorMessage } from './error-message';
 import i18n from '@/i18n';
 
 const BASE = '/api/v1/knowledge';
 
 // ========================= Envelope =========================
 
-interface Envelope<T = any> {
+interface Envelope<T = unknown> {
   code: number;
   message: string;
   request_id: string;
@@ -47,7 +47,6 @@ async function panelPost<T>(path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (session) {
     headers['X-Tdai-Service-Id'] = session.instanceId;
-    headers['X-Tdai-User-Key'] = session.userKey;
   }
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
@@ -287,7 +286,7 @@ export function wikiProgressPercent(status: WikiDetail['status'], internalStatus
 }
 
 export const knowledgeApi = {
-  health: () => panelPost<any>('/health').catch(() => ({ ok: true })),
+  health: () => panelPost<{ ok: boolean }>('/health').catch(() => ({ ok: true })),
 
   /** 读取某个 Agent 已绑定的全部 Knowledge 固定资产（wiki + code_graph）。 */
   agentFixed: (agentId: string): Promise<KnowledgeFixedItem[]> => listAgentFixedKnowledge(agentId),
@@ -325,7 +324,7 @@ export const knowledgeApi = {
         callbacks.onProgress?.({ type: 'file_start', detail: i18n.t('knowledgeApi.ingest.triggering'), done: 0, total: 100, ts: Date.now() });
         try {
           await knowledgeApi.wiki.ingest(wikiId);
-        } catch (err: any) {
+        } catch (err: unknown) {
           // 已经在 pending/processing 时，KS 会返回 409 busy；前端继续轮询现有任务。
           if (!(err instanceof KnowledgeApiError && err.code === 409)) throw err;
         }
@@ -357,8 +356,8 @@ export const knowledgeApi = {
           }
         }
         callbacks.onError?.(i18n.t('knowledgeApi.ingest.timeout'));
-      } catch (err: any) {
-        callbacks.onError?.(err.message || String(err));
+      } catch (err: unknown) {
+        callbacks.onError?.(getErrorMessage(err));
       }
     },
 

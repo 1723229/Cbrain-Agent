@@ -1,7 +1,7 @@
 {
   "name": "team-memory-control",
   "version": "0.1.0",
-  "description": "团队记忆管控平台 - 管理 team/user/agent/task 与四类资产",
+  "description": "团队记忆管控平台 - 管理 team/user/agent 与四类资产",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -23,6 +23,7 @@
     "@hono/node-server": "^1.13.0",
     "dotenv": "^16.4.0",
     "hono": "^4.6.0",
+    "ldapts": "^9.0.0",
     "ulid": "^2.3.0",
     "zod": "^3.24.0"
   },

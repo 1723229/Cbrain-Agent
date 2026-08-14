@@ -3,12 +3,12 @@
  * AddMemberDialog / CreatedUserKeyModal —— 添加已有用户 / 新建用户弹窗（拆自 TeamManagementPanel）。
  */
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Copy, Form, Input, Modal, Segment, Select, Tag } from 'tea-component';
 import { useTranslation } from 'react-i18next';
 import { AddIcon, CloseIcon } from 'tea-icons-react';
 import { isTeamAdmin, invalidateBackendCache, type Team } from '@/services';
-import { membersApi, usersApi } from '@/lib/teamApi';
+import { membersApi, usersApi, type MemberCandidate } from '@/lib/teamApi';
 import { tea } from '@/lib/tea-bridge';
 import { canRemoveMember } from './types';
 
@@ -154,7 +154,7 @@ function MemberCard({
 
 /**
  * 添加用户 — 两种模式：
- *   - 添加已有用户：按已知 user_id 加入 team
+ *   - 添加已有用户：搜索并选择尚未加入 team 的平台用户
  *   - 新建用户并加入团队：调 meta/user/create 创建用户账号，再自动加入 team
  */
 export function AddMemberDialog({
@@ -173,6 +173,9 @@ export function AddMemberDialog({
 }) {
   const [mode, setMode] = useState<'existing' | 'new'>('existing');
   const [userId, setUserId] = useState('');
+  const [candidateQuery, setCandidateQuery] = useState('');
+  const [candidates, setCandidates] = useState<MemberCandidate[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
   const [role, setRole] = useState<'admin' | 'member'>('member');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -186,7 +189,45 @@ export function AddMemberDialog({
   // 非 全局 admin 调了必 403 —— 这里直接隐藏"新建用户"选项，避免用户操作后才报错。
   const canCreateUser = _globalAdmin;
 
+  useEffect(() => {
+    if (mode !== 'existing') return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setLoadingCandidates(true);
+      void membersApi.candidates(team.team_id, candidateQuery)
+        .then((page) => {
+          if (!cancelled) setCandidates(page.items);
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setCandidates([]);
+            tea.notify.error(err);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingCandidates(false);
+        });
+    }, candidateQuery ? 250 : 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [candidateQuery, mode, team.team_id]);
 
+  const candidateOptions = useMemo(() => candidates.map((candidate) => ({
+    value: candidate.user_id,
+    text: (
+      <div className="_memory-member-user-option">
+        <div className="_memory-member-user-option-name">
+          {candidate.display_name?.trim() || candidate.username}
+        </div>
+        <div className="_memory-member-user-option-meta">
+          {candidate.username} · {candidate.user_id}
+        </div>
+      </div>
+    ),
+    tooltip: `${candidate.display_name?.trim() || candidate.username} (${candidate.user_id})`,
+  })), [candidates]);
 
   async function submitExisting() {
     const id = userId.trim();
@@ -293,20 +334,37 @@ export function AddMemberDialog({
       </Form.Item>
 
       {mode === 'existing' ? (
-        <Form.Item label={t('addMember.userId')}>
-          <div>
-            <Input
-              autoFocus
+        <Form.Item label={t('addMember.user')}>
+          <div className="_memory-member-user-picker">
+            <Select
               size="full"
               value={userId}
+              options={candidateOptions}
+              matchButtonWidth
+              searchable
+              searchValue={candidateQuery}
+              onSearchValueChange={setCandidateQuery}
+              searchPlaceholder={t('addMember.user.searchPlaceholder')}
+              placeholder={t('addMember.user.placeholder')}
+              filter={() => true}
+              button={(selectedOption) => {
+                if (!selectedOption) return t('addMember.user.placeholder');
+                const candidate = candidates.find((item) => item.user_id === selectedOption.value);
+                if (!candidate) return selectedOption.value;
+                const name = candidate.display_name?.trim() || candidate.username;
+                return name === candidate.username ? name : `${name} · ${candidate.username}`;
+              }}
+              tips={loadingCandidates
+                ? t('addMember.user.loading')
+                : candidateOptions.length === 0
+                  ? t('addMember.user.empty')
+                  : undefined}
               onChange={(v) => {
                 setUserId(v);
                 setError(null);
               }}
-              onPressEnter={() => void handleSubmit()}
-              placeholder={t('addMember.userId.placeholder')}
             />
-            <div className="_memory-field-hint">{t('addMember.userId.hint')}</div>
+            <div className="_memory-field-hint">{t('addMember.user.hint')}</div>
           </div>
         </Form.Item>
       ) : (

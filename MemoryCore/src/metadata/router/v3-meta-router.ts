@@ -105,8 +105,7 @@ const routeTable: Record<string, Handler> = {
   [`${V3_PREFIX}/user-key/list`]: bind(S.userKeyListSchema, async (d, c, s) => {
     const userId = d.user_id ?? c.userId;
     if (!userId) throw new MetadataError("permission_denied", "user_id required");
-    s.assertUserScope(userId, c.userId, c.isAdmin, c.isSystemAdmin);
-    return s.listUserKeys(userId, resolvePagination(d));
+    return s.listUserKeysForCaller(userId, c, resolvePagination(d));
   }),
   [`${V3_PREFIX}/user-key/get`]: bind(S.userKeyGetSchema, async (d, c, s) =>
     s.getUserKeyForCaller(d.key_id, c.userId, c.isAdmin, c.isSystemAdmin),
@@ -155,6 +154,8 @@ const routeTable: Record<string, Handler> = {
   ),
   [`${V3_PREFIX}/team-member/get`]: bind(S.teamMemberGetSchema, async (d, c, s) =>
     s.getTeamMemberForCaller(d.team_id, d.user_id, c)),
+  [`${V3_PREFIX}/team-member/candidate/list`]: bind(S.teamMemberCandidateListSchema, (d, c, s) =>
+    s.listTeamMemberCandidatesForCaller(d.team_id, d.query, c, resolvePagination(d))),
 
   // Agent
   [`${V3_PREFIX}/agent/create`]: bind(S.agentCreateSchema, (d, c, s) => s.createAgentForCaller(d, c)),

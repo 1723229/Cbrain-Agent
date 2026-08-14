@@ -15,6 +15,8 @@ export interface MetaCallContext {
   gatewayEndpoint: string;
   gatewayApiKey: string;
   userKey?: string;
+  /** Panel 已验证的可信用户，仅供控制层业务门控；不作为 Kernel 传输 Header。 */
+  userId?: string;
   reqId?: string;
 }
 

@@ -26,6 +26,8 @@ import { generateUserKey } from "../utils/crypto.js";
 import { isUserKeyExpired } from "../utils/user-key.js";
 import type {
   UserEntity,
+  ExternalIdentityEntity,
+  AuthSessionEntity,
   UserKeyEntity,
   TeamEntity,
   TeamMemberEntity,
@@ -40,6 +42,8 @@ import type {
   FixedAssetBindingEntity,
   AclEntity,
   CreateUserInput,
+  CreateExternalIdentityInput,
+  CreateAuthSessionInput,
   CreateUserKeyInput,
   CreateTeamInput,
   AddTeamMemberInput,
@@ -63,6 +67,7 @@ import type {
 } from "../types.js";
 import { DEFAULT_PAGINATION } from "../pagination.js";
 import { buildChatMemoryAssetId } from "../utils/chat-memory-asset.js";
+import type { IMetadataStore } from "./interface.js";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -180,6 +185,13 @@ export class MongoMetadataStore implements IMetadataStore {
     await this.ensureIndex("meta_user_keys", { key_value: 1 }, { unique: true });
     await this.ensureIndex("meta_user_keys", { user_id: 1, status: 1 });
     await this.ensureIndex("meta_user_keys", { user_id: 1, created_at: -1 });
+
+    await this.ensureIndex("meta_external_identities", { identity_id: 1 }, { unique: true });
+    await this.ensureIndex("meta_external_identities", { provider_id: 1, subject_id: 1 }, { unique: true });
+    await this.ensureIndex("meta_external_identities", { user_id: 1 });
+    await this.ensureIndex("meta_auth_sessions", { session_id: 1 }, { unique: true });
+    await this.ensureIndex("meta_auth_sessions", { token_hash: 1 }, { unique: true });
+    await this.ensureIndex("meta_auth_sessions", { user_id: 1, revoked_at: 1, expires_at: 1 });
 
     // ── meta_teams ──
     await this.ensureIndex("meta_teams", { team_id: 1 }, { unique: true });
@@ -357,13 +369,15 @@ export class MongoMetadataStore implements IMetadataStore {
   // ============================================================
   async createUser(input: CreateUserInput): Promise<UserEntity> {
     const now = nowIso();
-    const defaultKeyValue = input.default_key_value ?? generateUserKey();
+    const createDefaultKey = input.create_default_key !== false;
+    const defaultKeyValue = createDefaultKey ? input.default_key_value ?? generateUserKey() : null;
     for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
+      const userId = input.user_id ?? generateId(ID_PREFIX.user);
       const doc: UserEntity = {
-        user_id: input.user_id ?? generateId(ID_PREFIX.user),
+        user_id: userId,
         password: input.password ?? null,
-        auth_provider: input.auth_provider,
-        external_id: input.external_id,
+        auth_provider: input.auth_provider ?? "local",
+        external_id: input.external_id ?? userId,
         username: input.username,
         display_name: input.display_name ?? null,
         raw_profile_json: input.raw_profile_json ?? "{}",
@@ -378,12 +392,14 @@ export class MongoMetadataStore implements IMetadataStore {
       }
       try {
         await this.col("meta_users").insertOne({ ...doc });
-        await this.insertUserKeyDoc({
-          user_id: doc.user_id,
-          key_value: defaultKeyValue,
-          is_default: true,
-          created_at: now,
-        });
+        if (defaultKeyValue) {
+          await this.insertUserKeyDoc({
+            user_id: doc.user_id,
+            key_value: defaultKeyValue,
+            is_default: true,
+            created_at: now,
+          });
+        }
         return doc;
       } catch (err) {
         if (isPkCollision(err) && !input.user_id) continue;
@@ -404,7 +420,8 @@ export class MongoMetadataStore implements IMetadataStore {
     ) as UserKeyEntity | null;
     if (!keyDoc || isUserKeyExpired(keyDoc.expires_at)) return null;
     await this.touchUserKeyUsage(keyDoc.key_id);
-    return this.getUserById(keyDoc.user_id);
+    const user = await this.getUserById(keyDoc.user_id);
+    return user?.status === "active" ? user : null;
   }
 
   async getDefaultUserKey(userId: string): Promise<UserKeyEntity | null> {
@@ -442,6 +459,8 @@ export class MongoMetadataStore implements IMetadataStore {
     const result = await this.batchDelete("meta_users", "user_id", userIds);
     if (result.deleted_ids.length > 0) {
       await this.col("meta_user_keys").deleteMany({ user_id: { $in: result.deleted_ids } } as Document);
+      await this.col("meta_external_identities").deleteMany({ user_id: { $in: result.deleted_ids } } as Document);
+      await this.col("meta_auth_sessions").deleteMany({ user_id: { $in: result.deleted_ids } } as Document);
       await this.col("meta_team_members").deleteMany({ user_id: { $in: result.deleted_ids } } as Document);
       await this.col("meta_asset_acl").deleteMany({ subject_type: "user", subject_id: { $in: result.deleted_ids } } as Document);
     }
@@ -484,6 +503,61 @@ export class MongoMetadataStore implements IMetadataStore {
     return this.paginatedFind("meta_users", q, pagination, { created_at: -1 }, (d) => d as UserEntity);
   }
 
+  async listTeamMemberCandidates(
+    teamId: string,
+    pagination?: PaginationParams | null,
+    query?: string,
+  ): Promise<ListPage<UserEntity>> {
+    const normalizedQuery = query?.trim();
+    const userMatch: Document = { status: "active", user_type: "normal" };
+    if (normalizedQuery) {
+      const escaped = normalizedQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      userMatch.$or = [
+        { display_name: { $regex: escaped, $options: "i" } },
+        { username: { $regex: escaped, $options: "i" } },
+        { user_id: { $regex: escaped, $options: "i" } },
+      ];
+    }
+    const base: Document[] = [
+      { $match: userMatch },
+      {
+        $lookup: {
+          from: "meta_team_members",
+          let: { candidateUserId: "$user_id" },
+          pipeline: [{
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$user_id", "$$candidateUserId"] },
+                  { $eq: ["$team_id", teamId] },
+                  { $eq: ["$status", "active"] },
+                ],
+              },
+            },
+          }],
+          as: "_active_memberships",
+        },
+      },
+      { $match: { _active_memberships: { $size: 0 } } },
+      { $project: { _id: 0, _active_memberships: 0 } },
+    ];
+    const p = pagination ?? DEFAULT_PAGINATION;
+    const [result] = await this.col("meta_users").aggregate([
+      ...base,
+      {
+        $facet: {
+          items: [{ $sort: { username: 1, created_at: -1 } }, { $skip: p.offset }, { $limit: p.limit }],
+          total: [{ $count: "total" }],
+        },
+      },
+    ]).toArray();
+    const facet = result as { items?: Document[]; total?: Array<{ total: number }> } | undefined;
+    return {
+      items: (facet?.items ?? []).map((item) => item as UserEntity),
+      total: facet?.total?.[0]?.total ?? 0,
+    };
+  }
+
   async countUsers(): Promise<number> {
     return this.col("meta_users").countDocuments({});
   }
@@ -494,6 +568,98 @@ export class MongoMetadataStore implements IMetadataStore {
 
   async countTeams(): Promise<number> {
     return this.col("meta_teams").countDocuments({});
+  }
+
+  // ============================================================
+  // ExternalIdentity / WebSession
+  // ============================================================
+  async createExternalIdentity(input: CreateExternalIdentityInput): Promise<ExternalIdentityEntity> {
+    const now = nowIso();
+    const doc: ExternalIdentityEntity = {
+      identity_id: input.identity_id ?? generateId(ID_PREFIX.externalIdentity),
+      provider_id: input.provider_id,
+      subject_id: input.subject_id,
+      user_id: input.user_id,
+      profile_json: input.profile_json ?? "{}",
+      created_at: now,
+      updated_at: now,
+      last_seen_at: now,
+    };
+    await this.col<ExternalIdentityEntity>("meta_external_identities").insertOne({ ...doc });
+    return doc;
+  }
+
+  async getExternalIdentity(providerId: string, subjectId: string): Promise<ExternalIdentityEntity | null> {
+    return this.col<ExternalIdentityEntity>("meta_external_identities").findOne(
+      { provider_id: providerId, subject_id: subjectId } as Document,
+      PROJECT_NO_ID,
+    ) as Promise<ExternalIdentityEntity | null>;
+  }
+
+  async listExternalIdentities(providerId: string): Promise<ExternalIdentityEntity[]> {
+    return this.col<ExternalIdentityEntity>("meta_external_identities")
+      .find({ provider_id: providerId } as Document, PROJECT_NO_ID)
+      .toArray();
+  }
+
+  async touchExternalIdentity(identityId: string, profileJson: string): Promise<ExternalIdentityEntity | null> {
+    const now = nowIso();
+    await this.col("meta_external_identities").updateOne(
+      { identity_id: identityId } as Document,
+      { $set: { profile_json: profileJson, updated_at: now, last_seen_at: now } },
+    );
+    return this.col<ExternalIdentityEntity>("meta_external_identities").findOne(
+      { identity_id: identityId } as Document,
+      PROJECT_NO_ID,
+    ) as Promise<ExternalIdentityEntity | null>;
+  }
+
+  async createAuthSession(input: CreateAuthSessionInput): Promise<AuthSessionEntity> {
+    const now = nowIso();
+    const doc: AuthSessionEntity = {
+      session_id: input.session_id ?? generateId(ID_PREFIX.authSession),
+      user_id: input.user_id,
+      token_hash: input.token_hash,
+      provider_id: input.provider_id,
+      created_at: now,
+      expires_at: input.expires_at,
+      last_seen_at: now,
+      revoked_at: null,
+    };
+    await this.col<AuthSessionEntity>("meta_auth_sessions").insertOne({ ...doc });
+    return doc;
+  }
+
+  async getAuthSessionByTokenHash(tokenHash: string): Promise<AuthSessionEntity | null> {
+    return this.col<AuthSessionEntity>("meta_auth_sessions").findOne(
+      { token_hash: tokenHash } as Document,
+      PROJECT_NO_ID,
+    ) as Promise<AuthSessionEntity | null>;
+  }
+
+  async touchAuthSession(sessionId: string): Promise<void> {
+    await this.col("meta_auth_sessions").updateOne(
+      { session_id: sessionId } as Document,
+      { $set: { last_seen_at: nowIso() } },
+    );
+  }
+
+  async revokeAuthSession(sessionId: string): Promise<void> {
+    await this.col("meta_auth_sessions").updateOne(
+      { session_id: sessionId, revoked_at: null } as Document,
+      { $set: { revoked_at: nowIso() } },
+    );
+  }
+
+  async revokeAuthSessionsForUser(userId: string): Promise<void> {
+    await this.col("meta_auth_sessions").updateMany(
+      { user_id: userId, revoked_at: null } as Document,
+      { $set: { revoked_at: nowIso() } },
+    );
+  }
+
+  async purgeExpiredAuthSessions(expiredBefore: string): Promise<void> {
+    await this.col("meta_auth_sessions").deleteMany({ expires_at: { $lte: expiredBefore } } as Document);
   }
 
   // ============================================================

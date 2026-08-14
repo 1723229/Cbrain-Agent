@@ -25,6 +25,22 @@ require_vars MEMORY_CORE_IMAGE MEMORY_CORE_PORT MEMORY_CORE_VOLUME
 MEMORY_CORE_GATEWAY_API_KEY="${MEMORY_CORE_GATEWAY_API_KEY-}"
 MEMORY_CORE_ADMIN_USERNAME="${MEMORY_CORE_ADMIN_USERNAME:-admin}"
 
+# ── Embedding ───────────────────────────────────────────────────
+# 默认关闭；启用远端 OpenAI-compatible Embedding 时由 .env 统一配置。
+# 部分内网服务不校验 Authorization，但 MemoryCore 远端适配器仍要求非空 API Key，
+# 此时可使用无敏感含义的占位值（如 local-no-auth）。
+MEMORY_EMBEDDING_PROVIDER="${MEMORY_EMBEDDING_PROVIDER:-none}"
+MEMORY_EMBEDDING_BASE_URL="${MEMORY_EMBEDDING_BASE_URL:-}"
+MEMORY_EMBEDDING_API_KEY="${MEMORY_EMBEDDING_API_KEY:-}"
+MEMORY_EMBEDDING_MODEL="${MEMORY_EMBEDDING_MODEL:-}"
+MEMORY_EMBEDDING_DIMENSIONS="${MEMORY_EMBEDDING_DIMENSIONS:-0}"
+MEMORY_EMBEDDING_SEND_DIMENSIONS="${MEMORY_EMBEDDING_SEND_DIMENSIONS:-false}"
+MEMORY_SKILL_SEARCH_MODE="${MEMORY_SKILL_SEARCH_MODE:-bm25}"
+
+if [[ "$MEMORY_EMBEDDING_PROVIDER" != "none" ]]; then
+  require_vars MEMORY_EMBEDDING_BASE_URL MEMORY_EMBEDDING_API_KEY MEMORY_EMBEDDING_MODEL MEMORY_EMBEDDING_DIMENSIONS
+fi
+
 # admin user_key 持久化位置（宿主机侧；volume 数据被清后需一并删掉此文件）
 ADMIN_KEY_FILE="${MEMORY_CORE_ADMIN_KEY_FILE:-$SCRIPT_DIR/.admin-key}"
 
@@ -33,8 +49,9 @@ if [[ -n "$MEMORY_CORE_GATEWAY_API_KEY" ]]; then
   warn "本地体验请把 .env 里的 MEMORY_CORE_GATEWAY_API_KEY 留空。"
 fi
 
-CONTAINER=tdai-memory-core
+CONTAINER="${MEMORY_CORE_CONTAINER:-tdai-memory-core}"
 NETWORK=tdai-memory-stack
+DOCKER_RESTART_POLICY="${DOCKER_RESTART_POLICY:-unless-stopped}"
 
 # 创建共享网络（幂等）
 if ! $DOCKER network inspect "$NETWORK" >/dev/null 2>&1; then
@@ -99,13 +116,18 @@ memory:
     timeoutMs: 5000
   storeBackend: sqlite
   embedding:
-    provider: none
+    provider: "${MEMORY_EMBEDDING_PROVIDER}"
+    baseUrl: "${MEMORY_EMBEDDING_BASE_URL}"
+    apiKey: "${MEMORY_EMBEDDING_API_KEY}"
+    model: "${MEMORY_EMBEDDING_MODEL}"
+    dimensions: ${MEMORY_EMBEDDING_DIMENSIONS}
+    sendDimensions: ${MEMORY_EMBEDDING_SEND_DIMENSIONS}
 
 # ── Skill 模块 ──
 skill:
   enabled: true
   routing:
-    mode: bm25
+    mode: ${MEMORY_SKILL_SEARCH_MODE}
     searchTopK: 20
   extraction:
     enabled: true
@@ -123,6 +145,7 @@ YAML
 
 info "启动 memory-core (image=$MEMORY_CORE_IMAGE, port=$MEMORY_CORE_PORT)"
 $DOCKER run -d --name "$CONTAINER" \
+  --restart "$DOCKER_RESTART_POLICY" \
   --network "$NETWORK" \
   --network-alias memory-core \
   -p "${MEMORY_CORE_PORT}:8420" \

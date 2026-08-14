@@ -1,11 +1,8 @@
 /**
  * Knowledge 抽取任务内存态（本期临时方案，下期持久化）。
  *
- * 背景：KS → Panel 的 status-callback 是 S2S，没有 owner user_key，
- * 无法直接以 owner 身份打内核 /v3/meta/asset/create（ForCaller 路由要求
- * caller.user_id === owner_user_id）。所以 Panel 在 code-graph/create
- * （前端发起、带 user_key）时把 owner key 临时记进内存，等 callback
- * ready 时取出来以 owner 身份注册 meta asset。
+ * KS → Panel 的 status-callback 是 S2S。任务只保存 owner_user_id，不保存
+ * Web Session 或 Agent API Key；回调通过受保护的 Core internal 路由登记资产。
  *
  * 进程重启会丢任务——已知 corner，由前端 register-meta 兜底补建，
  * 下期持久化后根治。
@@ -16,8 +13,6 @@ export interface KnowledgeTask {
   type: 'wiki' | 'code-graph';
   team_id: string;
   owner_user_id: string;
-  /** callback S2S 注册 asset 时以 owner 身份打 meta API 用。 */
-  owner_user_key: string;
   service_id: string;
   created_at: number;
 }

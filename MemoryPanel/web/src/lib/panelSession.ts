@@ -1,17 +1,6 @@
 /**
- * Panel Session — 新面板前端会话缓存（localStorage）。
- *
- * 对接 docs/architecture/09-new-panel-control-backend-design.md §3.3.2：
- * 新面板 Control 是无状态代理，不建 Cookie/Session；登录凭证
- * （instance_id + user_key）由前端自行持有，缓存在 localStorage
- * （跨 tab 共享，关 tab 不失效），每次 meta 请求从这里读出注入 Header：
- *   - X-Tdai-Service-Id（= 注册表 id = 内核 x-tdai-service-id；早期版本文档曾用
- *     `X-Metadata-Instance-Id` 这个名字，meta-api.openapi.yaml v1.1.0 起已改名，
- *     务必以最新契约为准，否则 Control 会报 400 MISSING_INSTANCE_ID）
- *   - X-Tdai-User-Key（auth/verify 除外）
- *
- * 之前用 sessionStorage（tab 级），导致新开 tab 需要重新登录。
- * 改为 localStorage 后多 tab 共享登录态，登出时通过 storage 事件同步。
+ * 浏览器只持久化非敏感的实例选择；真正登录凭证由 HttpOnly Cookie 保存，
+ * JavaScript 不可读取。用户公开资料只驻留当前页面内存，刷新后从 /auth/session 恢复。
  */
 import type { PublicUser } from './teamApi';
 
@@ -20,20 +9,20 @@ export interface PanelSession {
   instanceId: string;
   /** 仅展示用（实例列表里的 name），非必需 */
   instanceName?: string;
-  /** 用户自持的 API 密钥 sk-mem-…；经 auth/verify 验活后缓存 */
-  userKey: string;
-  /** auth/verify 响应 data.user（可选，用于展示 + 作为 owner_user_id/creator_user_id 来源） */
+  /** 当前页面内存中的公开资料，不写 localStorage。 */
   user?: PublicUser;
 }
 
 const STORAGE_KEY = 'tdai-panel.session';
+let currentUser: PublicUser | undefined;
 
 /** 读取当前会话；无会话或解析失败均返回 null（不抛错，调用方按未登录处理） */
 export function getPanelSession(): PanelSession | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as PanelSession;
+    const stored = JSON.parse(raw) as Pick<PanelSession, 'instanceId' | 'instanceName'>;
+    return { ...stored, user: currentUser };
   } catch {
     return null;
   }
@@ -41,8 +30,12 @@ export function getPanelSession(): PanelSession | null {
 
 /** 登录成功（auth/verify 返回 valid===true）后写入会话 */
 export function setPanelSession(session: PanelSession): void {
+  currentUser = session.user;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      instanceId: session.instanceId,
+      instanceName: session.instanceName,
+    }));
   } catch {
     /* 隐私模式 / 存储配额异常：静默失败，不阻断登录后的本次会话内存态 */
   }
@@ -50,6 +43,7 @@ export function setPanelSession(session: PanelSession): void {
 
 /** 登出 / 401 兜底时清空会话 */
 export function clearPanelSession(): void {
+  currentUser = undefined;
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch {

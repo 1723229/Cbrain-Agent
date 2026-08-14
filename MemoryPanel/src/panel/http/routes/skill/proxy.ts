@@ -20,8 +20,8 @@ function readAction(path: string): string {
 /**
  * 注册 skill 数据面透明代理：POST /api/v1/skill/{action} → 内核 POST /v3/skill/{action}。
  *
- * 复用 validatePanelMetaHeaders：对 /skill/* 路径 readAction 返回 ''（非 auth/verify），
- * 因此强制要求 X-Tdai-User-Key，与 skill 需要 owner 身份的语义一致。
+ * 统一 Session 中间件先解析可信用户；skill body 的 user_id 由服务端覆盖，
+ * 不接受浏览器自报身份。
  */
 export function registerSkillProxyRoutes(api: Hono, deps: PanelDeps): void {
   api.post('/skill/*', validatePanelMetaHeaders(deps), async (c) => {
@@ -38,11 +38,14 @@ export function registerSkillProxyRoutes(api: Hono, deps: PanelDeps): void {
     }
 
     const panelMeta = c.get('panelMeta');
+    body.user_id = panelMeta.user.user_id;
+    if ('owner_user_id' in body) body.owner_user_id = panelMeta.user.user_id;
     const ctx: MetaCallContext = {
       instanceId: panelMeta.instanceId,
       gatewayEndpoint: panelMeta.gatewayEndpoint,
       gatewayApiKey: panelMeta.gatewayApiKey,
       userKey: panelMeta.userKey,
+      userId: panelMeta.user.user_id,
       reqId: c.get('reqId'),
     };
 

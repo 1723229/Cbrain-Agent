@@ -13,6 +13,8 @@
 
 import type {
   UserEntity,
+  ExternalIdentityEntity,
+  AuthSessionEntity,
   UserKeyEntity,
   TeamEntity,
   TeamMemberEntity,
@@ -28,6 +30,8 @@ import type {
   AgentFixedAssetCountRow,
   AclEntity,
   CreateUserInput,
+  CreateExternalIdentityInput,
+  CreateAuthSessionInput,
   CreateUserKeyInput,
   CreateTeamInput,
   AddTeamMemberInput,
@@ -76,9 +80,27 @@ export interface IMetadataStore {
     pagination?: PaginationParams | null,
     filter?: InstanceUserListFilter,
   ): MaybePromise<ListPage<UserEntity>>;
+  /** 可加入指定团队的有效普通用户；排除当前有效成员，支持显示名、用户名或 user_id 模糊搜索。 */
+  listTeamMemberCandidates(
+    teamId: string,
+    pagination?: PaginationParams | null,
+    query?: string,
+  ): MaybePromise<ListPage<UserEntity>>;
   countUsers(): MaybePromise<number>;
   countSystemAdmins(): MaybePromise<number>;
   countTeams(): MaybePromise<number>;
+
+  // ── ExternalIdentity / WebSession ──
+  createExternalIdentity(input: CreateExternalIdentityInput): MaybePromise<ExternalIdentityEntity>;
+  getExternalIdentity(providerId: string, subjectId: string): MaybePromise<ExternalIdentityEntity | null>;
+  listExternalIdentities(providerId: string): MaybePromise<ExternalIdentityEntity[]>;
+  touchExternalIdentity(identityId: string, profileJson: string): MaybePromise<ExternalIdentityEntity | null>;
+  createAuthSession(input: CreateAuthSessionInput): MaybePromise<AuthSessionEntity>;
+  getAuthSessionByTokenHash(tokenHash: string): MaybePromise<AuthSessionEntity | null>;
+  touchAuthSession(sessionId: string): MaybePromise<void>;
+  revokeAuthSession(sessionId: string): MaybePromise<void>;
+  revokeAuthSessionsForUser(userId: string): MaybePromise<void>;
+  purgeExpiredAuthSessions(expiredBefore: string): MaybePromise<void>;
 
   // ── UserKey（多 API 密钥）──
   createUserKey(input: CreateUserKeyInput): MaybePromise<UserKeyEntity>;

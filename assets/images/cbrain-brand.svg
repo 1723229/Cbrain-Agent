@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title description">
+  <title id="title">Cbrain</title>
+  <desc id="description">Cbrain agent intelligence platform</desc>
+  <defs>
+    <linearGradient id="background" x1="70" y1="54" x2="294" y2="306" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#152B55"/>
+      <stop offset="1" stop-color="#176BDB"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="188" y1="124" x2="258" y2="236" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#75E6FF"/>
+      <stop offset="1" stop-color="#29B8FF"/>
+    </linearGradient>
+  </defs>
+  <rect x="54" y="54" width="252" height="252" rx="68" fill="url(#background)"/>
+  <path d="M224 123a76 76 0 1 0 0 114" fill="none" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round"/>
+  <path d="m211 143 34 37-34 37" fill="none" stroke="url(#signal)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="211" cy="143" r="15" fill="#8CEBFF"/>
+  <circle cx="245" cy="180" r="17" fill="#FFFFFF"/>
+  <circle cx="211" cy="217" r="15" fill="#39C6FF"/>
+  <text x="374" y="190" fill="#102A43" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="112" font-weight="750" letter-spacing="-4">Cbrain</text>
+  <text x="382" y="246" fill="#52708F" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="30" font-weight="500" letter-spacing="2">MEMORY · KNOWLEDGE · GRAPH · SKILLS</text>
+</svg>

@@ -26,24 +26,45 @@ WORKSPACE_ROOT="$(dirname "$REPO_ROOT")"               # 上一级（默认 CTX_
 
 TMC_DIR="${TMC_DIR:-$REPO_ROOT/MemoryPanel}"
 KNOWLEDGE_DIR="${KNOWLEDGE_DIR:-$REPO_ROOT/MemoryKnowledge}"
+CBRAIN_AGENT_PACKAGE_DIR="${CBRAIN_AGENT_PACKAGE_DIR:-$REPO_ROOT/packages/cbrain-agent}"
 IMAGE_NAME="${IMAGE_NAME:-team-memory-panel-knowledge}"
 IMAGE_TAG="${IMAGE_TAG:-amd64}"
 CTX_DIR="${CTX_DIR:-$WORKSPACE_ROOT/panel-knowledge-builder}"
 KEEP_CTX="${KEEP_CTX:-0}"
 PREPARE_ONLY="${PREPARE_ONLY:-0}"
 PLATFORM="${PLATFORM:-linux/amd64}"
+CBRAIN_SOURCE_REVISION="${CBRAIN_SOURCE_REVISION:-unknown}"
+CBRAIN_SOURCE_DIRTY="${CBRAIN_SOURCE_DIRTY:-unknown}"
 
 err() { echo "[build-combined] error: $*" >&2; exit 1; }
+
+copy_tree() {
+  local source="$1" destination="$2"
+  shift 2
+  case "$destination/" in
+    "$CTX_DIR"/*) ;;
+    *) err "拒绝清理构建上下文之外的目录: $destination" ;;
+  esac
+  rm -rf -- "$destination"
+  mkdir -p "$destination"
+  local tar_args=()
+  local pattern
+  for pattern in "$@"; do tar_args+=(--exclude "$pattern"); done
+  (cd "$source" && tar -cf - "${tar_args[@]}" .) | (cd "$destination" && tar -xf -)
+}
 
 [[ -d "$TMC_DIR/package.json" || -f "$TMC_DIR/package.json" ]] \
   || err "MemoryPanel 不在 $TMC_DIR（设 TMC_DIR=<path> 指定）"
 [[ -f "$KNOWLEDGE_DIR/package.json" ]] \
   || err "MemoryKnowledge 不在 $KNOWLEDGE_DIR（设 KNOWLEDGE_DIR=<path> 指定）"
+[[ -f "$CBRAIN_AGENT_PACKAGE_DIR/package.json" ]] \
+  || err "Cbrain Agent 安装器不在 $CBRAIN_AGENT_PACKAGE_DIR"
 [[ -f "$SCRIPT_DIR/Dockerfile" ]] || err "Dockerfile 不在 $SCRIPT_DIR"
 [[ -f "$SCRIPT_DIR/start-combined.sh" ]] || err "start-combined.sh 不在 $SCRIPT_DIR"
 
 echo "[build-combined] panel  (MemoryPanel): $TMC_DIR"
 echo "[build-combined] knowledge:            $KNOWLEDGE_DIR"
+echo "[build-combined] installer:            $CBRAIN_AGENT_PACKAGE_DIR"
 echo "[build-combined] context dir:                 $CTX_DIR"
 echo "[build-combined] image:                       $IMAGE_NAME:$IMAGE_TAG"
 echo ""
@@ -56,58 +77,24 @@ else
 fi
 mkdir -p "$CTX_DIR"
 
-# rsync panel（builder stage 编译需要 src/ + web/ + package*.json + tsconfig.json，
+# 复制 panel（builder stage 编译需要 src/ + web/ + package*.json + tsconfig.json，
 # 排除敏感真值 config/*.json、文档、测试、.claude、docker 配置等非必要文件）
-echo "[build-combined] rsync panel → $CTX_DIR/panel/"
-rsync -a --delete \
-  --exclude .git \
-  --exclude node_modules \
-  --exclude web/node_modules \
-  --exclude dist \
-  --exclude build \
-  --exclude coverage \
-  --exclude data \
-  --exclude .claude \
-  --exclude .env \
-  --exclude .env.* \
-  --exclude config/metadata-instances.json \
-  --exclude config/*.yaml \
-  --exclude config/*.yml \
-  --exclude docs/ \
-  --exclude tests/ \
-  --exclude scripts/ \
-  --exclude docker/ \
-  --exclude e2e-*.sh \
-  --exclude *.md \
-  --exclude pnpm-lock.yaml \
-  --exclude pnpm-workspace.yaml \
-  --exclude vitest.config.ts \
-  "$TMC_DIR"/ "$CTX_DIR/panel"/
+echo "[build-combined] copy panel → $CTX_DIR/panel/"
+copy_tree "$TMC_DIR" "$CTX_DIR/panel" \
+  .git node_modules web/node_modules dist build coverage data .claude \
+  .env '.env.*' config/metadata-instances.json 'config/*.yaml' 'config/*.yml' \
+  docs tests scripts docker 'e2e-*.sh' '*.md' pnpm-lock.yaml pnpm-workspace.yaml vitest.config.ts
 
-# rsync knowledge（builder stage 编译需要 src/ + package*.json + tsconfig.json + tsdown.config.ts，
+# 复制 knowledge（builder stage 编译需要 src/ + package*.json + tsconfig.json + tsdown.config.ts，
 # runtime 需要包根的 openapi.yaml（Swagger UI）。排除文档、测试、.claude、docker 配置等）
-echo "[build-combined] rsync knowledge → $CTX_DIR/knowledge/"
-rsync -a --delete \
-  --exclude .git \
-  --exclude node_modules \
-  --exclude dist \
-  --exclude coverage \
-  --exclude data \
-  --exclude .claude \
-  --exclude .env \
-  --exclude .env.* \
-  --exclude bin/ \
-  --exclude docs/ \
-  --exclude __tests__/ \
-  --exclude docker/ \
-  --exclude docker-compose*.yml \
-  --exclude Dockerfile \
-  --exclude .dockerignore \
-  --exclude *.md \
-  --exclude pnpm-lock.yaml \
-  --exclude vitest.config.ts \
-  --exclude start.sh \
-  "$KNOWLEDGE_DIR"/ "$CTX_DIR/knowledge"/
+echo "[build-combined] copy knowledge → $CTX_DIR/knowledge/"
+copy_tree "$KNOWLEDGE_DIR" "$CTX_DIR/knowledge" \
+  .git node_modules dist coverage data .claude .env '.env.*' bin docs __tests__ docker \
+  'docker-compose*.yml' Dockerfile .dockerignore '*.md' pnpm-lock.yaml vitest.config.ts start.sh
+
+# 安装器由 Cbrain 自身托管，页面命令不依赖 npm 发布状态。
+copy_tree "$CBRAIN_AGENT_PACKAGE_DIR" "$CTX_DIR/cbrain-agent-package" \
+  node_modules dist test scripts
 
 # 拷 Dockerfile + start-combined.sh + .dockerignore + README（rsync 已过滤敏感文件，.dockerignore 作兜底）
 cp "$SCRIPT_DIR/Dockerfile" "$CTX_DIR"/
@@ -125,7 +112,10 @@ fi
 
 # build
 echo "[build-combined] docker build --platform $PLATFORM -t $IMAGE_NAME:$IMAGE_TAG $CTX_DIR"
-docker build --platform "$PLATFORM" -t "$IMAGE_NAME:$IMAGE_TAG" "$CTX_DIR"
+docker build --platform "$PLATFORM" \
+  --label "org.opencontainers.image.revision=$CBRAIN_SOURCE_REVISION" \
+  --label "io.cbrain.source.dirty=$CBRAIN_SOURCE_DIRTY" \
+  -t "$IMAGE_NAME:$IMAGE_TAG" "$CTX_DIR"
 
 echo ""
 echo "[build-combined] ✅ done: $IMAGE_NAME:$IMAGE_TAG"

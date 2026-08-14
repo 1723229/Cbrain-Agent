@@ -22,6 +22,8 @@ import { generateUserKey } from "../utils/crypto.js";
 import { isUserKeyExpired } from "../utils/user-key.js";
 import type {
   UserEntity,
+  ExternalIdentityEntity,
+  AuthSessionEntity,
   UserKeyEntity,
   TeamEntity,
   TeamMemberEntity,
@@ -36,6 +38,8 @@ import type {
   FixedAssetBindingEntity,
   AclEntity,
   CreateUserInput,
+  CreateExternalIdentityInput,
+  CreateAuthSessionInput,
   CreateUserKeyInput,
   CreateTeamInput,
   AddTeamMemberInput,
@@ -59,6 +63,7 @@ import type {
 } from "../types.js";
 import { DEFAULT_PAGINATION } from "../pagination.js";
 import { buildChatMemoryAssetId } from "../utils/chat-memory-asset.js";
+import type { IMetadataStore } from "./interface.js";
 
 const require = createRequire(import.meta.url);
 function requireNodeSqlite(): typeof import("node:sqlite") {
@@ -151,6 +156,29 @@ export class SqliteMetadataStore implements IMetadataStore {
         metadata_json TEXT NOT NULL DEFAULT '{}'
       );
       CREATE INDEX IF NOT EXISTS idx_meta_user_keys_user ON meta_user_keys(user_id, status);
+      CREATE TABLE IF NOT EXISTS meta_external_identities (
+        identity_id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        profile_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        UNIQUE(provider_id, subject_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_external_identity_user ON meta_external_identities(user_id);
+      CREATE TABLE IF NOT EXISTS meta_auth_sessions (
+        session_id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        provider_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        revoked_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_auth_sessions_user ON meta_auth_sessions(user_id, revoked_at, expires_at);
       CREATE TABLE IF NOT EXISTS meta_teams (
         team_id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -452,7 +480,8 @@ export class SqliteMetadataStore implements IMetadataStore {
   // ============================================================
   createUser(input: CreateUserInput): UserEntity {
     const now = nowIso();
-    const defaultKeyValue = input.default_key_value ?? generateUserKey();
+    const createDefaultKey = input.create_default_key !== false;
+    const defaultKeyValue = createDefaultKey ? input.default_key_value ?? generateUserKey() : null;
     for (let attempt = 0; attempt < PK_RETRY_LIMIT; attempt++) {
       const userId = input.user_id ?? generateId(ID_PREFIX.user);
       try {
@@ -464,8 +493,8 @@ export class SqliteMetadataStore implements IMetadataStore {
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             userId,
             input.password ?? null,
-            input.auth_provider as string,
-            input.external_id as string,
+            input.auth_provider ?? "local",
+            input.external_id ?? userId,
             input.username as string,
             input.display_name ?? null,
             input.email ?? null,
@@ -476,12 +505,14 @@ export class SqliteMetadataStore implements IMetadataStore {
             now,
             input.metadata_json ?? "{}",
           );
-          this.insertUserKeyRow({
-            user_id: userId,
-            key_value: defaultKeyValue,
-            is_default: true,
-            created_at: now,
-          });
+          if (defaultKeyValue) {
+            this.insertUserKeyRow({
+              user_id: userId,
+              key_value: defaultKeyValue,
+              is_default: true,
+              created_at: now,
+            });
+          }
         });
         return this.getUserById(userId)!;
       } catch (err) {
@@ -502,7 +533,8 @@ export class SqliteMetadataStore implements IMetadataStore {
     );
     if (!keyRow || isUserKeyExpired(keyRow.expires_at)) return null;
     this.touchUserKeyUsage(keyRow.key_id);
-    return this.getUserById(keyRow.user_id);
+    const user = this.getUserById(keyRow.user_id);
+    return user?.status === "active" ? user : null;
   }
 
   getDefaultUserKey(userId: string): UserKeyEntity | null {
@@ -545,6 +577,8 @@ export class SqliteMetadataStore implements IMetadataStore {
     if (result.deleted_ids.length > 0) {
       const ph = result.deleted_ids.map(() => "?").join(",");
       this.run(`DELETE FROM meta_user_keys WHERE user_id IN (${ph})`, ...result.deleted_ids);
+      this.run(`DELETE FROM meta_external_identities WHERE user_id IN (${ph})`, ...result.deleted_ids);
+      this.run(`DELETE FROM meta_auth_sessions WHERE user_id IN (${ph})`, ...result.deleted_ids);
       this.run(`DELETE FROM meta_team_members WHERE user_id IN (${ph})`, ...result.deleted_ids);
       this.run(`DELETE FROM meta_asset_acl WHERE subject_type = 'user' AND subject_id IN (${ph})`, ...result.deleted_ids);
     }
@@ -609,6 +643,35 @@ export class SqliteMetadataStore implements IMetadataStore {
     );
   }
 
+  listTeamMemberCandidates(
+    teamId: string,
+    pagination?: PaginationParams | null,
+    query?: string,
+  ): ListPage<UserEntity> {
+    let where = `
+      WHERE u.status = 'active'
+        AND u.user_type = 'normal'
+        AND NOT EXISTS (
+          SELECT 1 FROM meta_team_members m
+          WHERE m.team_id = ? AND m.user_id = u.user_id AND m.status = 'active'
+        )`;
+    const params: SQLInputValue[] = [teamId];
+    const normalizedQuery = query?.trim().toLowerCase();
+    if (normalizedQuery) {
+      where += " AND (LOWER(COALESCE(u.display_name, '')) LIKE ? ESCAPE '\\' OR LOWER(u.username) LIKE ? ESCAPE '\\' OR LOWER(u.user_id) LIKE ? ESCAPE '\\')";
+      const pattern = `%${normalizedQuery.replace(/([%_\\])/g, "\\$1")}%`;
+      params.push(pattern, pattern, pattern);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c FROM meta_users u ${where}`,
+      params,
+      `SELECT u.* FROM meta_users u ${where} ORDER BY u.username ASC, u.created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapUser(r),
+    );
+  }
+
   countUsers(): number {
     const row = this.get<{ c: number }>("SELECT COUNT(*) AS c FROM meta_users");
     return row?.c ?? 0;
@@ -622,6 +685,95 @@ export class SqliteMetadataStore implements IMetadataStore {
   countTeams(): number {
     const row = this.get<{ c: number }>("SELECT COUNT(*) AS c FROM meta_teams");
     return row?.c ?? 0;
+  }
+
+  // ============================================================
+  // ExternalIdentity / WebSession
+  // ============================================================
+  createExternalIdentity(input: CreateExternalIdentityInput): ExternalIdentityEntity {
+    const now = nowIso();
+    const identityId = input.identity_id ?? generateId(ID_PREFIX.externalIdentity);
+    this.run(
+      `INSERT INTO meta_external_identities
+        (identity_id, provider_id, subject_id, user_id, profile_json, created_at, updated_at, last_seen_at)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      identityId,
+      input.provider_id,
+      input.subject_id,
+      input.user_id,
+      input.profile_json ?? "{}",
+      now,
+      now,
+      now,
+    );
+    return this.getExternalIdentity(input.provider_id, input.subject_id)!;
+  }
+
+  getExternalIdentity(providerId: string, subjectId: string): ExternalIdentityEntity | null {
+    return this.mapExternalIdentity(this.get(
+      "SELECT * FROM meta_external_identities WHERE provider_id = ? AND subject_id = ?",
+      providerId,
+      subjectId,
+    ));
+  }
+
+  listExternalIdentities(providerId: string): ExternalIdentityEntity[] {
+    return this.all("SELECT * FROM meta_external_identities WHERE provider_id = ?", providerId)
+      .map((row) => this.mapExternalIdentity(row))
+      .filter((row): row is ExternalIdentityEntity => row !== null);
+  }
+
+  touchExternalIdentity(identityId: string, profileJson: string): ExternalIdentityEntity | null {
+    const now = nowIso();
+    this.run(
+      "UPDATE meta_external_identities SET profile_json = ?, updated_at = ?, last_seen_at = ? WHERE identity_id = ?",
+      profileJson,
+      now,
+      now,
+      identityId,
+    );
+    return this.mapExternalIdentity(this.get(
+      "SELECT * FROM meta_external_identities WHERE identity_id = ?",
+      identityId,
+    ));
+  }
+
+  createAuthSession(input: CreateAuthSessionInput): AuthSessionEntity {
+    const now = nowIso();
+    const sessionId = input.session_id ?? generateId(ID_PREFIX.authSession);
+    this.run(
+      `INSERT INTO meta_auth_sessions
+        (session_id, user_id, token_hash, provider_id, created_at, expires_at, last_seen_at, revoked_at)
+       VALUES (?,?,?,?,?,?,?,NULL)`,
+      sessionId,
+      input.user_id,
+      input.token_hash,
+      input.provider_id,
+      now,
+      input.expires_at,
+      now,
+    );
+    return this.mapAuthSession(this.get("SELECT * FROM meta_auth_sessions WHERE session_id = ?", sessionId))!;
+  }
+
+  getAuthSessionByTokenHash(tokenHash: string): AuthSessionEntity | null {
+    return this.mapAuthSession(this.get("SELECT * FROM meta_auth_sessions WHERE token_hash = ?", tokenHash));
+  }
+
+  touchAuthSession(sessionId: string): void {
+    this.run("UPDATE meta_auth_sessions SET last_seen_at = ? WHERE session_id = ?", nowIso(), sessionId);
+  }
+
+  revokeAuthSession(sessionId: string): void {
+    this.run("UPDATE meta_auth_sessions SET revoked_at = ? WHERE session_id = ? AND revoked_at IS NULL", nowIso(), sessionId);
+  }
+
+  revokeAuthSessionsForUser(userId: string): void {
+    this.run("UPDATE meta_auth_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL", nowIso(), userId);
+  }
+
+  purgeExpiredAuthSessions(expiredBefore: string): void {
+    this.run("DELETE FROM meta_auth_sessions WHERE expires_at <= ?", expiredBefore);
   }
 
   // ============================================================
@@ -1597,6 +1749,34 @@ export class SqliteMetadataStore implements IMetadataStore {
       created_at: String(r.created_at),
       updated_at: String(r.updated_at),
       metadata_json: String(r.metadata_json ?? "{}"),
+    };
+  }
+
+  private mapExternalIdentity(row: Row | null | undefined): ExternalIdentityEntity | null {
+    if (!row) return null;
+    return {
+      identity_id: String(row.identity_id),
+      provider_id: String(row.provider_id),
+      subject_id: String(row.subject_id),
+      user_id: String(row.user_id),
+      profile_json: String(row.profile_json ?? "{}"),
+      created_at: String(row.created_at),
+      updated_at: String(row.updated_at),
+      last_seen_at: String(row.last_seen_at),
+    };
+  }
+
+  private mapAuthSession(row: Row | null | undefined): AuthSessionEntity | null {
+    if (!row) return null;
+    return {
+      session_id: String(row.session_id),
+      user_id: String(row.user_id),
+      token_hash: String(row.token_hash),
+      provider_id: String(row.provider_id),
+      created_at: String(row.created_at),
+      expires_at: String(row.expires_at),
+      last_seen_at: String(row.last_seen_at),
+      revoked_at: row.revoked_at != null ? String(row.revoked_at) : null,
     };
   }
 

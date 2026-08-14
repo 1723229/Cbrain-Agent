@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   Alert,
@@ -35,42 +35,43 @@ import { useUserDisplayName } from '@/services/user-profile-store';
 import AllocateAssetDialog from '@/pages/ResourcePage/components/AllocateAssetDialog';
 import { readAuth } from '@/components/LoginGate';
 import { tea } from '@/lib/tea-bridge';
+import { getErrorMessage } from '@/lib/error-message';
 import { AssetPageHeader } from '@/pages/ResourcePage/components/AssetPageHeader';
 import './code-sources-panel.css';
 
 // Markdown 渲染排版（内容排版，非 Tea 组件替换范围）——保留原实现，见 design-system 例外条款。
-const mdComponents = {
-  h2: ({ children, ...p }: any) => (
+const mdComponents: Components = {
+  h2: ({ children, ...p }) => (
     <h2 className="text-[13px] font-semibold mb-2 mt-4 text-foreground/85" {...p}>
       {children}
     </h2>
   ),
-  h3: ({ children, ...p }: any) => (
+  h3: ({ children, ...p }) => (
     <h3 className="text-[12px] font-semibold mb-1 mt-3 font-mono text-foreground/85" {...p}>
       {children}
     </h3>
   ),
-  p: ({ children, ...p }: any) => (
+  p: ({ children, ...p }) => (
     <p className="text-[12px] text-muted-foreground mb-2 leading-relaxed" {...p}>
       {children}
     </p>
   ),
-  ul: ({ children, ...p }: any) => (
+  ul: ({ children, ...p }) => (
     <ul className="text-[12px] text-muted-foreground list-disc pl-4 mb-2 space-y-0.5" {...p}>
       {children}
     </ul>
   ),
-  ol: ({ children, ...p }: any) => (
+  ol: ({ children, ...p }) => (
     <ol className="text-[12px] text-muted-foreground list-decimal pl-4 mb-2 space-y-0.5" {...p}>
       {children}
     </ol>
   ),
-  li: ({ children, ...p }: any) => (
+  li: ({ children, ...p }) => (
     <li className="text-[12px]" {...p}>
       {children}
     </li>
   ),
-  code: ({ children, className, ...p }: any) => {
+  code: ({ children, className, ...p }) => {
     if (className?.includes('language-'))
       return (
         <pre className="rounded-lg bg-muted p-3 text-[11px] font-mono overflow-x-auto my-2 border border-border">
@@ -83,21 +84,21 @@ const mdComponents = {
       </code>
     );
   },
-  pre: ({ children, ...p }: any) => <div {...p}>{children}</div>,
+  pre: ({ children }) => <div>{children}</div>,
   hr: () => <hr className="my-3 border-border" />,
-  strong: ({ children, ...p }: any) => (
+  strong: ({ children, ...p }) => (
     <strong className="font-semibold text-foreground/85" {...p}>
       {children}
     </strong>
   ),
-  table: ({ children, ...p }: any) => (
+  table: ({ children, ...p }) => (
     <div className="overflow-x-auto my-2">
       <table className="w-full text-[11px] border-collapse border border-border" {...p}>
         {children}
       </table>
     </div>
   ),
-  th: ({ children, ...p }: any) => (
+  th: ({ children, ...p }) => (
     <th
       className="border border-border px-2 py-1.5 bg-muted text-left text-[11px] font-semibold"
       {...p}
@@ -105,7 +106,7 @@ const mdComponents = {
       {children}
     </th>
   ),
-  td: ({ children, ...p }: any) => (
+  td: ({ children, ...p }) => (
     <td className="border border-border px-2 py-1.5 text-[11px]" {...p}>
       {children}
     </td>
@@ -272,8 +273,8 @@ export default function CodeSourcesPanel() {
     try {
       const items = await knowledgeApi.code.agentFixed(agentFilter);
       setFixedBoundIds(new Set(items.map((it) => it.knowledge_id)));
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('code.notify.loadFixedFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('code.notify.loadFixedFailed'));
       setFixedBoundIds(new Set());
     }
   }, [agentFilter, t]);
@@ -366,14 +367,14 @@ export default function CodeSourcesPanel() {
       const data = await knowledgeApi.code.teamAssets(activeTeamId);
       if (seq !== fetchSeqRef.current) return; // 已被后续请求取代
       setSources(Array.isArray(data) ? data : []);
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (seq !== fetchSeqRef.current) return;
-      tea.notify.error(e);
+      tea.notify.error(getErrorMessage(e));
       setSources([]);
     } finally {
       if (seq === fetchSeqRef.current) setLoading(false);
     }
-  }, [activeTeamId, scopeTab]);
+  }, [activeTeamId]);
 
   // 触发 fetchSources：依赖原始参数 + fetchSources，并用 key 去重防止短时间内重复触发。
   const fetchKeyRef = useRef<string>('');
@@ -405,10 +406,10 @@ export default function CodeSourcesPanel() {
           if (detail.status === 'ready') {
             try {
               await knowledgeApi.code.registerMeta(activeTeamId, detail.code_graph_id);
-            } catch (e: any) {
+            } catch (e: unknown) {
               // 幂等：asset 已存在 / 409 → 忽略；其它真错报出来便于排查
               // （callback S2S 是主力，这里只是兜底，但失败要可见）
-              const msg = e?.message || String(e);
+              const msg = getErrorMessage(e);
               if (!/already|exist|409|registered|ok/i.test(msg)) {
                 tea.notify.error(t('code.notify.metaFailed', { msg }));
               }
@@ -459,8 +460,8 @@ export default function CodeSourcesPanel() {
       if (selectedCodeAsset?.cgId === codeGraphId) setSelectedCodeAsset(null);
       await fetchFixedBindings();
       await fetchSources();
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('code.notify.unbindFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('code.notify.unbindFailed'));
     }
   }
 
@@ -485,8 +486,8 @@ export default function CodeSourcesPanel() {
       ]);
       tea.notify.info(t('code.notify.registered'));
       fetchSources();
-    } catch (e: any) {
-      tea.notify.error(e);
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -496,8 +497,8 @@ export default function CodeSourcesPanel() {
     try {
       await knowledgeApi.code.sync(cgId);
       fetchSources();
-    } catch (e: any) {
-      tea.notify.error(e);
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e));
     }
   };
 
@@ -523,8 +524,8 @@ export default function CodeSourcesPanel() {
       if (selectedCgId === cgId) setSubView('list');
       tea.notify.success(t('code.notify.deleted'));
       fetchSources();
-    } catch (e: any) {
-      tea.notify.error(e);
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e));
     }
   };
 
@@ -544,8 +545,8 @@ export default function CodeSourcesPanel() {
     try {
       const res = await knowledgeApi.code.search(selectedCgId, searchQuery, 'any', 20);
       setSearchResult(res?.text || JSON.stringify(res, null, 2));
-    } catch (e: any) {
-      setSearchResult(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      setSearchResult(`Error: ${getErrorMessage(e)}`);
     } finally {
       setSearching(false);
     }
@@ -558,8 +559,8 @@ export default function CodeSourcesPanel() {
     try {
       const res = await knowledgeApi.code.explore(selectedCgId, exploreQuery);
       setExploreResult(res?.text || JSON.stringify(res, null, 2));
-    } catch (e: any) {
-      setExploreResult(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      setExploreResult(`Error: ${getErrorMessage(e)}`);
     } finally {
       setExploring(false);
     }

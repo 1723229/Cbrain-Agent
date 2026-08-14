@@ -1,7 +1,7 @@
 
 <div align="center">
 
-<img src="./assets/images/logo.png" alt="TencentDB Agent Memory" width="880" />
+<img src="./assets/images/cbrain-brand.svg" alt="Cbrain" width="880" />
 
 ### 让 Agent 沉淀经验，让人专注创造。
 

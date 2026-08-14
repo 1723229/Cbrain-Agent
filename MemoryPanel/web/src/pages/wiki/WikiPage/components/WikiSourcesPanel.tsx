@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   Alert,
@@ -58,6 +58,7 @@ import { useUserDisplayName } from '@/services/user-profile-store';
 import AllocateAssetDialog from '@/pages/ResourcePage/components/AllocateAssetDialog';
 import { readAuth } from '@/components/LoginGate';
 import { tea } from '@/lib/tea-bridge';
+import { getErrorMessage } from '@/lib/error-message';
 import { findExistingRawFilenames, formatOverwriteFilenames } from './wiki-upload-utils';
 import { AssetPageHeader } from '@/pages/ResourcePage/components/AssetPageHeader';
 import './wiki-sources-panel.css';
@@ -66,48 +67,48 @@ import './wiki-sources-panel.css';
 const WIKI_ALLOWED_FILE_RE = /\.(md|txt|markdown)$/i;
 
 // --- Markdown 渲染组件 ---
-const mdComponents = {
-  h1: ({ children, ...p }: any) => (
+const mdComponents: Components = {
+  h1: ({ children, ...p }) => (
     <h1 className="text-xl font-bold mb-3 mt-0 pb-2 border-b border-border text-foreground" {...p}>
       {children}
     </h1>
   ),
-  h2: ({ children, ...p }: any) => (
+  h2: ({ children, ...p }) => (
     <h2 className="text-lg font-semibold mb-2 mt-6 text-foreground/85" {...p}>
       {children}
     </h2>
   ),
-  h3: ({ children, ...p }: any) => (
+  h3: ({ children, ...p }) => (
     <h3 className="text-base font-semibold mb-1.5 mt-4 text-foreground/85" {...p}>
       {children}
     </h3>
   ),
-  h4: ({ children, ...p }: any) => (
+  h4: ({ children, ...p }) => (
     <h4 className="text-sm font-semibold mb-1 mt-3 text-foreground/85" {...p}>
       {children}
     </h4>
   ),
-  p: ({ children, ...p }: any) => (
+  p: ({ children, ...p }) => (
     <p className="text-sm leading-relaxed mb-3 text-foreground/70" {...p}>
       {children}
     </p>
   ),
-  ul: ({ children, ...p }: any) => (
+  ul: ({ children, ...p }) => (
     <ul className="text-sm list-disc pl-5 mb-3 space-y-1 text-foreground/70" {...p}>
       {children}
     </ul>
   ),
-  ol: ({ children, ...p }: any) => (
+  ol: ({ children, ...p }) => (
     <ol className="text-sm list-decimal pl-5 mb-3 space-y-1 text-foreground/70" {...p}>
       {children}
     </ol>
   ),
-  li: ({ children, ...p }: any) => (
+  li: ({ children, ...p }) => (
     <li className="text-sm leading-relaxed" {...p}>
       {children}
     </li>
   ),
-  code: ({ children, className, ...p }: any) => {
+  code: ({ children, className, ...p }) => {
     if (className?.includes('language-'))
       return (
         <pre className="rounded-lg bg-muted p-4 text-xs font-mono overflow-x-auto my-3 border border-border">
@@ -120,14 +121,14 @@ const mdComponents = {
       </code>
     );
   },
-  pre: ({ children, ...p }: any) => <div {...p}>{children}</div>,
+  pre: ({ children }) => <div>{children}</div>,
   hr: () => <hr className="my-5 border-border" />,
-  strong: ({ children, ...p }: any) => (
+  strong: ({ children, ...p }) => (
     <strong className="font-semibold text-foreground/85" {...p}>
       {children}
     </strong>
   ),
-  a: ({ children, href, ...p }: any) => (
+  a: ({ children, href, ...p }) => (
     <a
       className="text-primary underline underline-offset-2 hover:text-primary/80"
       href={href}
@@ -136,7 +137,7 @@ const mdComponents = {
       {children}
     </a>
   ),
-  blockquote: ({ children, ...p }: any) => (
+  blockquote: ({ children, ...p }) => (
     <blockquote
       className="border-l-[3px] border-primary/40 pl-4 italic text-muted-foreground my-3"
       {...p}
@@ -144,19 +145,19 @@ const mdComponents = {
       {children}
     </blockquote>
   ),
-  table: ({ children, ...p }: any) => (
+  table: ({ children, ...p }) => (
     <div className="overflow-x-auto my-3">
       <table className="w-full text-xs border-collapse border border-border" {...p}>
         {children}
       </table>
     </div>
   ),
-  th: ({ children, ...p }: any) => (
+  th: ({ children, ...p }) => (
     <th className="border border-border px-3 py-2 bg-muted text-left text-xs font-semibold" {...p}>
       {children}
     </th>
   ),
-  td: ({ children, ...p }: any) => (
+  td: ({ children, ...p }) => (
     <td className="border border-border px-3 py-2 text-xs" {...p}>
       {children}
     </td>
@@ -260,6 +261,8 @@ function WikiOwnerLabel({ userId, currentUserId }: { userId: string; currentUser
 export default function WikiSourcesPanel() {
   const { t } = useTranslation();
   const [sources, setSources] = useState<WikiDetail[]>([]);
+  const sourcesRef = useRef(sources);
+  sourcesRef.current = sources;
   const [loading, setLoading] = useState(false);
   const [scopeTab, setScopeTab] = useState<WikiScopeTab>('team');
   const [keyword, setKeyword] = useState('');
@@ -315,11 +318,11 @@ export default function WikiSourcesPanel() {
     try {
       const items = await knowledgeApi.wiki.agentFixed(agentFilter);
       setFixedBoundIds(new Set(items.map((it) => it.knowledge_id)));
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('wiki.notify.loadFixedFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('wiki.notify.loadFixedFailed'));
       setFixedBoundIds(new Set());
     }
-  }, [agentFilter]);
+  }, [agentFilter, t]);
 
   useEffect(() => {
     if (scopeTab === 'fixed') void fetchFixedBindings();
@@ -433,14 +436,14 @@ export default function WikiSourcesPanel() {
       const d = await knowledgeApi.wiki.teamAssets(activeTeamId);
       if (seq !== fetchSeqRef.current) return; // 已被后续请求取代
       setSources(Array.isArray(d) ? d : []);
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (seq !== fetchSeqRef.current) return;
-      tea.notify.error(e);
+      tea.notify.error(getErrorMessage(e));
       setSources([]);
     } finally {
       if (seq === fetchSeqRef.current) setLoading(false);
     }
-  }, [activeTeamId, scopeTab]);
+  }, [activeTeamId]);
 
   // 触发 fetchSources：依赖原始参数 + fetchSources，并用 key 去重防止短时间内重复触发。
   const fetchKeyRef = useRef<string>('');
@@ -486,12 +489,12 @@ export default function WikiSourcesPanel() {
         }),
       ]);
       setGraphData(g);
-      setPages(Array.isArray(p) ? p : (p as any)?.pages || []);
+      setPages(p);
     } finally {
       setGraphLoading(false);
     }
     if (hadError) tea.notify.error(t('wiki.notify.loadDetailFailed'));
-  }, []);
+  }, [t]);
 
   const runningWikiKey = useMemo(
     () =>
@@ -503,7 +506,7 @@ export default function WikiSourcesPanel() {
   );
 
   useEffect(() => {
-    const running = sources.filter(
+    const running = sourcesRef.current.filter(
       (s) => s.wiki_id && (s.status === 'pending' || s.status === 'processing'),
     );
     if (running.length === 0) return;
@@ -550,8 +553,8 @@ export default function WikiSourcesPanel() {
       if (selectedWikiId === wikiId) setSelectedWikiId('');
       await fetchFixedBindings();
       await fetchSources();
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('wiki.notify.unbindFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('wiki.notify.unbindFailed'));
     }
   }
 
@@ -565,8 +568,8 @@ export default function WikiSourcesPanel() {
       setShowCreate(false);
       setNewName('');
       fetchSources();
-    } catch (e: any) {
-      tea.notify.error(e);
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -663,8 +666,8 @@ export default function WikiSourcesPanel() {
       await knowledgeApi.wiki.delete(wikiId);
       if (selectedWikiId === wikiId) setSubView('list');
       fetchSources();
-    } catch (e: any) {
-      tea.notify.error(e);
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e));
     }
   };
 
@@ -692,14 +695,11 @@ export default function WikiSourcesPanel() {
     setReadContent('');
     setReadLoading(true);
     try {
-      const r = await knowledgeApi.wiki.read(
-        selectedWikiId,
-        (page as any).id || (page as any).path,
-      );
+      const r = await knowledgeApi.wiki.read(selectedWikiId, page.path);
       setReadContent(r?.content || '');
-    } catch (e: any) {
+    } catch (e: unknown) {
       setReadContent('');
-      tea.notify.error(e?.message || t('wiki.notify.readPageFailed'));
+      tea.notify.error(getErrorMessage(e) || t('wiki.notify.readPageFailed'));
     } finally {
       setReadLoading(false);
     }
@@ -707,7 +707,7 @@ export default function WikiSourcesPanel() {
 
   const handleDeletePage = async (page: WikiPage) => {
     if (!selectedWikiId) return;
-    const ref = (page as any).id || page.path;
+    const ref = page.path;
     const ok = await tea.confirm({
       message: t('wiki.confirm.deletePage', { name: page.title || ref }),
       description: t('wiki.confirm.deletePage.desc'),
@@ -717,13 +717,13 @@ export default function WikiSourcesPanel() {
     try {
       await knowledgeApi.wiki.pageDelete(selectedWikiId, [ref]);
       tea.notify.success(t('wiki.notify.pageDeleted'));
-      if (selectedPage && ((selectedPage as any).id || selectedPage.path) === ref) {
+      if (selectedPage?.path === ref) {
         setSelectedPage(null);
         setReadContent('');
       }
       await fetchDetail(selectedWikiId);
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('wiki.notify.pageDeleteFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('wiki.notify.pageDeleteFailed'));
     }
   };
 
@@ -743,8 +743,8 @@ export default function WikiSourcesPanel() {
         setReadContent('');
       }
       await fetchDetail(selectedWikiId);
-    } catch (e: any) {
-      tea.notify.error(e?.message || t('wiki.notify.rawDeleteFailed'));
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e) || t('wiki.notify.rawDeleteFailed'));
     }
   };
 
@@ -753,9 +753,9 @@ export default function WikiSourcesPanel() {
     setSearching(true);
     try {
       const r = await knowledgeApi.wiki.search(selectedWikiId, searchQuery, 20);
-      setSearchResults((r as any)?.results || []);
-    } catch (e: any) {
-      tea.notify.error(e);
+      setSearchResults(r.results);
+    } catch (e: unknown) {
+      tea.notify.error(getErrorMessage(e));
     } finally {
       setSearching(false);
     }
@@ -817,8 +817,8 @@ export default function WikiSourcesPanel() {
       const filename = doc.filename.trim();
       try {
         await knowledgeApi.wiki.upload(activeTeamId, selectedWikiId, filename, doc.content);
-      } catch (e: any) {
-        failures.push({ filename, error: e?.message || String(e) });
+      } catch (e: unknown) {
+        failures.push({ filename, error: getErrorMessage(e) });
       }
     }
     uploadInFlightRef.current = false;
@@ -948,7 +948,7 @@ export default function WikiSourcesPanel() {
       lastCheckedAt: '',
       log: [],
     };
-  }, [hasManualIngestState, ingestState, runningWiki]);
+  }, [hasManualIngestState, ingestState, runningWiki, t]);
   const ingestBusy = displayIngestState.active || !!runningWiki;
 
   const { displayContent, metadata } = useMemo(() => {
@@ -1219,7 +1219,7 @@ export default function WikiSourcesPanel() {
                     <div className="_wiki-detail-overview-grid">
                       {pages.slice(0, 9).map((page) => (
                         <button
-                          key={(page as any).id || page.path}
+                          key={page.path}
                           onClick={() => {
                             handleReadPage(page);
                             setActiveTab('pages');
@@ -1250,7 +1250,7 @@ export default function WikiSourcesPanel() {
               metadata={metadata}
               onNodeClick={(node) => {
                 const page =
-                  pages.find((item) => ((item as any).id || item.path) === node.id) ||
+                  pages.find((item) => item.path === node.id) ||
                   ({ path: node.id, title: node.label, type: node.type } as WikiPage);
                 handleReadPage(page);
               }}
@@ -1285,10 +1285,10 @@ export default function WikiSourcesPanel() {
                 setReadLoading(true);
                 knowledgeApi.wiki
                   .rawRead(selectedWikiId, [filename])
-                  .then((result: any) => setReadContent(result?.items?.[0]?.content || ''))
-                  .catch((error: any) => {
+                  .then((result) => setReadContent(result.items?.[0]?.content || ''))
+                  .catch((error: unknown) => {
                     setReadContent('');
-                    tea.notify.error(error?.message || t('wiki.notify.readRawFailed'));
+                    tea.notify.error(getErrorMessage(error) || t('wiki.notify.readRawFailed'));
                   })
                   .finally(() => setReadLoading(false));
               }}
@@ -1314,7 +1314,7 @@ export default function WikiSourcesPanel() {
                         className="_wiki-detail-search-item"
                         onClick={() => {
                           const page =
-                            pages.find((item) => ((item as any).id || item.path) === result.path) ||
+                            pages.find((item) => item.path === result.path) ||
                             ({
                               path: result.path,
                               title: result.title,
@@ -1920,7 +1920,7 @@ function GraphTabContent({
           data={graphData}
           loading={graphLoading}
           onNodeClick={onNodeClick}
-          highlightNode={selectedPage ? (selectedPage as any).id || selectedPage.path : null}
+          highlightNode={selectedPage?.path ?? null}
         />
       </div>
       <ResizeHandle onMouseDown={onMouseDown} />
@@ -2042,10 +2042,10 @@ function PagesTabContent({
           {pages.map((page) => {
             const active =
               selectedPage &&
-              ((selectedPage as any).id || selectedPage.path) === ((page as any).id || page.path);
+              selectedPage.path === page.path;
             return (
               <div
-                key={(page as any).id || page.path}
+                key={page.path}
                 className={`_wiki-detail-page-row${active ? ' is-active' : ''}`}
               >
                 <button className="_wiki-detail-page-item" onClick={() => onReadPage(page)}>
@@ -2152,10 +2152,10 @@ function RawFilesSection({
     setLoading(true);
     knowledgeApi.wiki
       .rawList(wikiId)
-      .then((r: any) => setFiles(r?.files || []))
-      .catch((e: any) => tea.notify.error(e?.message || t('wiki.notify.loadRawFailed')))
+      .then((r) => setFiles(r.files))
+      .catch((e: unknown) => tea.notify.error(getErrorMessage(e) || t('wiki.notify.loadRawFailed')))
       .finally(() => setLoading(false));
-  }, [wikiId]);
+  }, [wikiId, t]);
 
   // refreshKey 变化（如上传成功后）时强制重载原始文档列表，无需用户手动刷新。
   useEffect(() => {

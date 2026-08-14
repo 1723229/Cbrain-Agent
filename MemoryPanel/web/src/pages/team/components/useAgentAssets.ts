@@ -27,7 +27,6 @@ export async function loadAgentOverview(teamId: string, agentIds: string[] = [])
     headers: {
       'content-type': 'application/json',
       'X-Tdai-Service-Id': session.instanceId,
-      'X-Tdai-User-Key': session.userKey,
     },
     body: JSON.stringify({ team_id: teamId, agent_ids: agentIds }),
   });

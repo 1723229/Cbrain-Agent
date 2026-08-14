@@ -8,7 +8,6 @@
  *   - api/auth.ts          登录验活 + 环境绑定
  *   - api/teams.ts         Team + Member
  *   - api/agents.ts        Agent
- *   - api/tasks.ts         Task + ParticipationLog
  *   - api/users.ts         User + UserKey + UserConfig
  *   - api/assets.ts        Asset
  *   - api/skills.ts        Skill 数据面
@@ -25,25 +24,13 @@ export { ApiError, onUnauthorized, clearSessionCache, PANEL_CAPABILITIES } from 
 export { metaInstancesApi, type MetadataInstance } from './api/meta-instances';
 
 // ── Auth + Environment Bindings ──
-export { authVerifyApi, environmentBindingsApi, type EnvironmentBinding } from './api/auth';
+export { authSessionApi, environmentBindingsApi, type EnvironmentBinding } from './api/auth';
 
 // ── Teams + Members ──
-export { teamsApi, membersApi } from './api/teams';
+export { teamsApi, membersApi, type MemberCandidate } from './api/teams';
 
 // ── Agents ──
 export { agentsApi } from './api/agents';
-
-// ── Tasks + Participation Logs ──
-export {
-  tasksApi,
-  participationLogsApi,
-  type TaskStatus,
-  type TaskSourceType,
-  type BackendTask,
-  type BackendTaskAgent,
-  type BackendTaskWithAgents,
-  type ParticipationLogEntity,
-} from './api/tasks';
 
 // ── Users + UserKeys + UserConfig ──
 export {

@@ -40,7 +40,6 @@ async function chatMemoryCall<T>(endpoint: string, body: Record<string, unknown>
   if (!session) throw new ApiError(401, 'Unauthorized', 'no active panel session');
   const envelope = await request<MetaEnvelope<T>>('POST', `${CHAT_MEMORY_PREFIX}/${endpoint}`, body, {
     'X-Tdai-Service-Id': session.instanceId,
-    'X-Tdai-User-Key': session.userKey,
   });
   if (envelope.code !== 0) {
     throw new ApiError(200, envelope.message, '', {

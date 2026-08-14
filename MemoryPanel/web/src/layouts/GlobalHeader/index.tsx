@@ -34,7 +34,7 @@ export function GlobalHeader({
       {/* 左侧：品牌 + 团队切换器 */}
       <div className="_memory-global-header-left">
         <div className="_memory-global-header-brand">
-          <img src="/logo.png" alt="Cbrain" className="_memory-global-header-logo" />
+          <img src="/cbrain-mark.svg" alt="Cbrain" className="_memory-global-header-logo" />
           <span className="_memory-global-header-brand-text">{t('header.brand')}</span>
         </div>
         <TeamSwitcher userRole={userRole} />

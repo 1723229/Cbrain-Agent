@@ -1,7 +1,7 @@
 /**
  * TeamHeaderCard — 当前 team 概览卡片（头像 + 名称 + team_id + 成员数 + 描述）。
  *
- * 抽自 TeamManagementPanel 头部，供 team 管理页与 Task 工作台等页面复用，
+ * 抽自 TeamManagementPanel 头部，供各 team 管理页面复用，
  * 统一「我现在操作的是哪个 team」的展示。样式类定义在 team-management-panel.css。
  */
 

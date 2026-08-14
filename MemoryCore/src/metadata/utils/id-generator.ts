@@ -24,6 +24,8 @@ export const ID_PREFIX = {
   task: "task",
   asset: "ast",
   userKey: "uky",
+  externalIdentity: "eid",
+  authSession: "ses",
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIX)[keyof typeof ID_PREFIX];

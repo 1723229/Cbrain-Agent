@@ -41,6 +41,13 @@ RUN npm install --no-audit --no-fund
 COPY knowledge/ ./
 RUN npm run build
 
+FROM base AS cbrain-agent-builder
+WORKDIR /build/cbrain-agent
+COPY cbrain-agent-package/ ./
+RUN mkdir -p /build/downloads \
+    && npm pack --pack-destination /build/downloads \
+    && mv /build/downloads/cbrain-agent-*.tgz /build/downloads/cbrain-agent.tgz
+
 FROM base AS runtime
 WORKDIR /app
 
@@ -71,6 +78,7 @@ COPY --from=panel-builder /build/panel/dist /app/panel/dist
 COPY --from=panel-builder /build/panel/node_modules /app/panel/node_modules
 COPY --from=panel-builder /build/panel/package.json /app/panel/package.json
 COPY --from=panel-builder /build/panel/web/dist /app/panel/web/dist
+COPY --from=cbrain-agent-builder /build/downloads /app/panel/downloads
 
 COPY --from=knowledge-builder /build/knowledge/dist /app/knowledge/dist
 COPY --from=knowledge-builder /build/knowledge/node_modules /app/knowledge/node_modules

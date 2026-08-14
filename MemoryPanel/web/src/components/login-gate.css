@@ -17,3 +17,70 @@
 ._tdai-login-submit.tea-btn {
   width: 100%;
 }
+
+.cbrain-login-hero__glow {
+  animation: cbrain-hero-breathe 5s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+.cbrain-login-hero__orbit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  will-change: transform;
+}
+
+.cbrain-login-hero__orbit--outer {
+  animation: cbrain-hero-orbit 10s linear infinite;
+}
+
+.cbrain-login-hero__orbit--inner {
+  animation: cbrain-hero-orbit-reverse 7s linear infinite;
+}
+
+.cbrain-login-hero__core {
+  animation: cbrain-hero-float 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.cbrain-login-hero__dot {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  display: block;
+  border-radius: 9999px;
+}
+
+.cbrain-login-hero__dot--cyan {
+  width: 6px;
+  height: 6px;
+  background: rgba(103, 232, 249, 0.78);
+  box-shadow: 0 0 14px rgba(103, 232, 249, 0.9);
+}
+
+.cbrain-login-hero__dot--blue {
+  width: 8px;
+  height: 8px;
+  background: rgba(96, 165, 250, 0.78);
+  box-shadow: 0 0 16px rgba(96, 165, 250, 0.9);
+}
+
+@keyframes cbrain-hero-orbit {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes cbrain-hero-orbit-reverse {
+  from { transform: translate(-50%, -50%) rotate(360deg); }
+  to { transform: translate(-50%, -50%) rotate(0deg); }
+}
+
+@keyframes cbrain-hero-breathe {
+  0%, 100% { opacity: 0.65; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+@keyframes cbrain-hero-float {
+  0%, 100% { transform: translate(-50%, -50%) translateY(3px); }
+  50% { transform: translate(-50%, -50%) translateY(-5px); }
+}

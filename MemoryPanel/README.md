@@ -11,14 +11,14 @@ Control 负责：
 - 聚合元数据、记忆资产和知识资产；
 - 管理资产分配、绑定和展示。
 
-Control 不保存服务端登录会话，也不维护本地用户数据库。业务数据由部署时配置的外部服务负责持久化。
+Control 不维护独立用户数据库：LDAP 负责验证身份，MemoryCore 负责外部身份映射、用户状态和 Web Session 持久化。浏览器只持有 HttpOnly Session Cookie。
 
 ## 技术栈
 
 - 后端：Node.js 22+、TypeScript、Hono、tsx
 - 前端：React 18、Vite、TypeScript、Tailwind CSS、Zustand
 - 测试：Vitest
-- 包管理：pnpm（后端）和 npm（前端）
+- 包管理：npm（后端和前端）
 
 ## 目录结构
 
@@ -54,7 +54,7 @@ tests/                        # 单元测试与 E2E 测试
 ### 1. 安装依赖
 
 ```bash
-pnpm install
+npm install
 cd web
 npm install
 cd ..
@@ -74,7 +74,7 @@ cp config/metadata-instances.example.json config/metadata-instances.json
 ### 3. 启动后端
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
 默认监听 `http://127.0.0.1:8123`，健康检查为 `GET /health`。
@@ -92,13 +92,13 @@ npm run dev
 
 | 命令 | 说明 |
 |------|------|
-| `pnpm dev` | 启动后端开发服务器 |
-| `pnpm build` | 编译后端到 `dist/` |
-| `pnpm typecheck` | 执行 TypeScript 类型检查 |
-| `pnpm test` | 运行单元测试 |
-| `pnpm generate:meta-openapi` | 生成 Meta OpenAPI 文档 |
-| `pnpm test:panel:e2e` | 运行 Panel Meta E2E |
-| `pnpm test:knowledge:e2e` | 运行 Knowledge E2E |
+| `npm run dev` | 启动后端开发服务器 |
+| `npm run build` | 编译后端到 `dist/` |
+| `npm run typecheck` | 执行 TypeScript 类型检查 |
+| `npm test` | 运行单元测试 |
+| `npm run generate:meta-openapi` | 生成 Meta OpenAPI 文档 |
+| `npm run test:panel:e2e` | 运行 Panel Meta E2E |
+| `npm run test:knowledge:e2e` | 运行 Knowledge E2E |
 | `cd web && npm run dev` | 启动前端开发服务器 |
 | `cd web && npm run build` | 构建前端到 `web/dist/` |
 | `bash scripts/secret-scan.sh` | 扫描敏感信息 |
@@ -107,6 +107,7 @@ npm run dev
 
 Control 的公开入口统一位于 `/api/v1`：
 
+- `/api/v1/auth/*`：LDAP/应急登录、Session 恢复和退出
 - `/api/v1/meta/*`：实例、身份和元数据管理
 - `/api/v1/skill/*`：Skill 管理
 - `/api/v1/chat-memory/*`：Chat Memory 管理
@@ -122,9 +123,19 @@ Control 的公开入口统一位于 `/api/v1`：
 
 部署时必须通过只读挂载提供 `metadata-instances.json`，不得把真实 API Key 写入镜像、示例文件或版本库。
 
+## 登录与凭证边界
+
+- 普通用户使用 LDAP 账号登录后台；LDAP 密码只在登录请求中到达 Panel，不进入 Core。
+- 登录成功后签发短期 HttpOnly Cookie，浏览器 JavaScript 和 localStorage 都拿不到 Session Token。
+- 系统应急 Key 只用于 LDAP 故障时的 break-glass 登录，服务端只配置 SHA-256 哈希。
+- Agent API Key 由用户登录后台后自行创建，只供 Codex Plugin、Claude Code Plugin 等外部 Agent 使用，不能登录后台。
+- LDAP Group 不自动映射 Team；Team 成员关系继续由 Cbrain 管理。
+
+详细设计和部署门槛见 `../docs/architecture/cbrain-ldap/architecture-design.md`。
+
 ## 安全要求
 
-- `user_key` 是用户凭证，只能通过请求 Header 传递，不得写入日志、文档或前端静态资源。
+- Agent API Key 是用户凭证，不得写入日志、文档或前端静态资源；仅其所有人在已认证后台中可以查看完整值。
 - 实例注册表中的 `api_key` 仅供服务端调用外部服务，不得返回浏览器。
 - `.env`、真实实例注册表、Smoke 环境文件、日志和测试报告不得提交。
 - 文档和示例只能使用 `example.com`、回环地址及明显的占位符。

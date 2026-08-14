@@ -9,7 +9,7 @@
 
 /* ===== Button: icon + 文字水平排列 =====
  * 外部版 tea-component@2.8.0 的 .tea-btn 默认 display: inline-block，
- * 当内部放 SVG 图标（如 <AddIcon /> 新建 Task）时，SVG 默认 display: block
+ * 当内部放 SVG 图标（如 <AddIcon /> 新建资源）时，SVG 默认 display: block
  * 会导致图标和文字各占一行。改为 inline-flex 让两者水平居中排列。
  * 内部版 @tencent/tea-component 默认就是 inline-flex，这里补齐差异。 */
 .tea-btn {

@@ -55,6 +55,9 @@ function panelDescription(action: string): string {
   if (action === 'team-member/list') {
     return '分页 list；body 须 team_id。响应 items 为 TeamMemberEntity（含读时 JOIN 的 username，v3.2.2+）；仅 active 团队成员可调用。默认 joined_at DESC。须 Header 双凭证。';
   }
+  if (action === 'team-member/candidate/list') {
+    return '分页搜索可加入团队的候选用户；body 须 team_id，可选 query（显示名、用户名或 user_id 模糊匹配）。仅团队 admin 可调用；只返回 active normal 用户，并排除当前 active 成员。';
+  }
   if (action === 'team-member/get') {
     return '透明代理；响应 TeamMemberEntity 含 username（v3.2.2+，读时 JOIN）。须为 team active 成员。须 Header 双凭证。';
   }

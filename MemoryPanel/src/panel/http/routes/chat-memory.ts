@@ -1091,6 +1091,7 @@ function buildCtx(c: import('hono').Context): MetaCallContext {
     gatewayEndpoint: panelMeta.gatewayEndpoint,
     gatewayApiKey: panelMeta.gatewayApiKey,
     userKey: panelMeta.userKey,
+    userId: panelMeta.user.user_id,
     reqId: c.get('reqId'),
   };
 }
@@ -1171,6 +1172,7 @@ function okEnvelope<T>(c: import('hono').Context, data: T): MetaEnvelope<T> {
  * envelope.data.user.user_id 为空或非法都返 null。
  */
 async function resolveCallerUserId(deps: PanelDeps, ctx: MetaCallContext): Promise<string | null> {
+  if (ctx.userId) return ctx.userId;
   if (!ctx.userKey) return null;
   const env = await deps.metaKernel.invoke('auth/verify', { user_key: ctx.userKey }, ctx);
   if (env.code !== 0) return null;

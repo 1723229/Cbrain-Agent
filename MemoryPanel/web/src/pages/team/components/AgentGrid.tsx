@@ -57,7 +57,11 @@ export default function AgentGrid({
   });
   const handleSetViewMode = useCallback((mode: ViewMode) => {
     setViewMode(mode);
-    try { localStorage.setItem('agentGrid.viewMode', mode); } catch {}
+    try {
+      localStorage.setItem('agentGrid.viewMode', mode);
+    } catch {
+      // localStorage 不可用时只是不持久化视图偏好，不影响当前切换。
+    }
   }, []);
 
   const ownerOptions = useMemo(() => {

@@ -19,6 +19,7 @@ export function buildCtx(c: Context): MetaCallContext {
     gatewayEndpoint: panelMeta.gatewayEndpoint,
     gatewayApiKey: panelMeta.gatewayApiKey,
     userKey: panelMeta.userKey,
+    userId: panelMeta.user.user_id,
     reqId: c.get('reqId'),
   };
 }
@@ -57,6 +58,7 @@ export async function resolveCallerUserId(
   deps: PanelDeps,
   ctx: MetaCallContext,
 ): Promise<string | null> {
+  if (ctx.userId) return ctx.userId;
   if (!ctx.userKey) return null;
   const env = await deps.metaKernel.invoke('auth/verify', { user_key: ctx.userKey }, ctx);
   if (env.code !== 0) return null;

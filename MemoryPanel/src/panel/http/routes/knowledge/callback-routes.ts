@@ -4,9 +4,8 @@
  * KS ingest/sync 完成后回调。设计 §0.6：
  *   - status=ready + summary → 写内核明细 entity_knowledge（/v3/knowledge/create）；
  *     这是 Proxy 注入的唯一闸门。
- *   - code-graph ready 时再以 owner 身份登记 meta_asset（/v3/meta/asset/create）；
- *     callback 是 S2S 无 user_key，用 code-graph/create 时内存任务表 stash 的
- *     owner_user_key 走 ForCaller 路径（caller===owner）。失败 best-effort，
+ *   - code-graph ready 时通过受保护的 internal 路由登记 meta_asset；
+ *     callback 只使用 create 时记录的 owner_user_id，不保存用户 secret。失败 best-effort，
  *     前端 register-meta 兜底（幂等）。
  *   - status=failed → 不写明细、不写 meta（资源不可注入，UI 读 KS status 显示失败）。
  *
@@ -17,8 +16,8 @@
  */
 import type { Hono } from 'hono';
 import type { PanelDeps } from '../../../panel-deps.js';
-import type { KernelCredentials, MetaCallContext } from '../../../kernel/types.js';
-import { ensureKnowledgeAsset, ASSET_TYPE_CODE_GRAPH } from './common.js';
+import type { KernelCredentials } from '../../../kernel/types.js';
+import { ASSET_TYPE_CODE_GRAPH } from './common.js';
 
 interface CallbackBody {
   knowledge_id?: string;
@@ -41,9 +40,7 @@ async function safeJson(c: { req: { text: () => Promise<string> } }): Promise<Ca
 }
 
 /**
- * code-graph ready 后用内存任务表里 stash 的 owner key 注册 meta asset。
- * callback 是 S2S、无 user_key，靠 create 时记录的 owner_user_key 以 owner
- * 身份打 /v3/meta/asset/create（ForCaller 路由要求 caller===owner）。
+ * code-graph ready 后用内存任务表里的 owner_user_id 注册 meta asset。
  * best-effort：失败只 log，前端 register-meta 会兜底（幂等）。
  */
 async function registerCodeGraphAsset(
@@ -64,29 +61,30 @@ async function registerCodeGraphAsset(
   log.info('[knowledge-callback] found in-memory task stash; registering meta asset as owner', {
     knowledge_id: knowledgeId, owner_user_id: task.owner_user_id, team_id: task.team_id,
   });
-  const ownerCtx: MetaCallContext = {
-    instanceId: entry.instance_id,
-    gatewayEndpoint: entry.gateway_endpoint,
-    gatewayApiKey: entry.api_key,
-    userKey: task.owner_user_key,
-    reqId: `cb-${knowledgeId}`,
-  };
   try {
-    const reg = await ensureKnowledgeAsset(deps, ownerCtx, {
-      assetId: detail.code_graph_id,
-      teamId: detail.team_id,
-      assetType: ASSET_TYPE_CODE_GRAPH,
+    const env = await deps.kernelHttp.postEnvelope('/v3/internal/meta/asset/ensure-owned', {
+      asset_id: detail.code_graph_id,
+      team_id: detail.team_id,
+      asset_type: ASSET_TYPE_CODE_GRAPH,
       name: detail.repo_name || detail.repo_url,
-      ownerUserId: task.owner_user_id,
-      serviceUrl: detail.service_url,
+      owner_user_id: task.owner_user_id,
+      source_type: 'manual',
+      visibility: 'team',
+      content_ref: detail.service_url,
+    }, {
+      endpoint: entry.gateway_endpoint,
+      apiKey: entry.api_key,
+      instanceId: entry.instance_id,
+      timeoutMs: deps.config.metadataRemoteTimeoutMs,
+      requestId: `cb-${knowledgeId}`,
     });
-    if (reg.ok) {
+    if (env.code === 0) {
       deps.knowledgeTaskRegistry.take(knowledgeId);
       log.info('[knowledge-callback] meta asset registered (or already present); task cleared', {
         knowledge_id: knowledgeId, asset_id: detail.code_graph_id,
       });
     } else {
-      log.error(`[knowledge-callback] asset register rejected for ${knowledgeId}: code=${(reg.env as { code?: number }).code}`);
+      log.error(`[knowledge-callback] asset register rejected for ${knowledgeId}: code=${env.code}`);
     }
   } catch (err) {
     log.error(`[knowledge-callback] asset register error for ${knowledgeId}: ${(err as Error).message}`);

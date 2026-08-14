@@ -206,7 +206,7 @@ export default function AgentEditDialog({
     });
 
     return () => { cancelled = true; };
-  }, [agent, assets.loading, realBindingsLoaded, selfChatMemoryId]);
+  }, [agent, assets.loading, realBindingsLoaded, selfChatMemoryId, t]);
 
   return (
     <Modal visible caption={t('agentEdit.caption')} size="l" onClose={onClose}>

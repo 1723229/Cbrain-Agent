@@ -3,18 +3,20 @@ import { loadPanelConfig } from './config/panel-config.js';
 import { buildPanelApp } from './http/app.js';
 import { buildPanelDeps } from './panel-deps.js';
 import { ensureKnowledgeLlmBindings } from './startup/ensure-knowledge-llm-binding.js';
+import { startLdapSync } from './startup/ldap-sync.js';
 
 export function main(): void {
   const config = loadPanelConfig();
   const deps = buildPanelDeps(config);
   const app = buildPanelApp(deps);
+  const stopLdapSync = startLdapSync(deps);
 
   serve(
     { fetch: app.fetch, hostname: config.server.host, port: config.server.port },
     (info) => {
       deps.logger.info('panel listening', {
         url: `http://${config.server.host}:${info.port}`,
-        mode: 'stateless',
+        mode: 'http-only-session',
         metadataApi: '/api/v1/meta/*',
         instancesConfig: config.metadataInstancesConfig,
       });
@@ -37,6 +39,7 @@ export function main(): void {
   }
 
   const shutdown = (): void => {
+    stopLdapSync();
     deps.logger.info('panel shutting down');
     process.exit(0);
   };

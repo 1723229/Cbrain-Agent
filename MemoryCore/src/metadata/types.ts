@@ -71,6 +71,30 @@ export interface UserEntity {
   metadata_json: string;
 }
 
+/** 外部身份提供方与 Cbrain 用户的稳定映射。 */
+export interface ExternalIdentityEntity {
+  identity_id: string;
+  provider_id: string;
+  subject_id: string;
+  user_id: string;
+  profile_json: string;
+  created_at: string;
+  updated_at: string;
+  last_seen_at: string;
+}
+
+/** 浏览器后台会话；token_hash 存哈希，不保存原始 token。 */
+export interface AuthSessionEntity {
+  session_id: string;
+  user_id: string;
+  token_hash: string;
+  provider_id: string;
+  created_at: string;
+  expires_at: string;
+  last_seen_at: string;
+  revoked_at?: string | null;
+}
+
 export interface TeamEntity {
   team_id: string;
   name: string;
@@ -267,6 +291,11 @@ export interface UserKeyPublic {
   revoked_at?: string | null;
 }
 
+/** 仅 Key 所有人可见的完整结构。 */
+export interface UserKeyOwned extends UserKeyPublic {
+  key_value: string;
+}
+
 /** create 响应：仅此一次返回完整 key_value。 */
 export interface UserKeyCreated extends UserKeyPublic {
   key_value: string;
@@ -293,6 +322,13 @@ export interface UserPublic {
   user_type: UserType;
   username: string;
   created_at: string;
+}
+
+/** 团队管理员邀请成员时使用的最小候选人资料；不暴露邮箱等目录属性。 */
+export interface TeamMemberCandidate {
+  user_id: string;
+  username: string;
+  display_name?: string | null;
 }
 
 /** 公开 user/list 可选过滤（internal list-by-instance 另含 status / user_type）。 */
@@ -338,6 +374,33 @@ export interface CreateUserInput {
   user_type?: UserType;
   /** v3.1：新用户恒 NULL；仅 store 层写入。 */
   password?: string | null;
+  /** 联邦身份首次建用户时为 false；普通本地用户保持现有默认 Key 行为。 */
+  create_default_key?: boolean;
+}
+
+export interface FederatedLoginInput {
+  provider_id: string;
+  subject_id: string;
+  username: string;
+  display_name?: string | null;
+  email?: string | null;
+  raw_profile_json: string;
+}
+
+export interface CreateExternalIdentityInput {
+  identity_id?: string;
+  provider_id: string;
+  subject_id: string;
+  user_id: string;
+  profile_json?: string;
+}
+
+export interface CreateAuthSessionInput {
+  session_id?: string;
+  user_id: string;
+  token_hash: string;
+  provider_id: string;
+  expires_at: string;
 }
 
 export interface CreateUserKeyInput {

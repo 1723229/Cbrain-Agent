@@ -2,9 +2,10 @@ param()
 
 $ErrorActionPreference = "Stop"
 $packageRoot = Split-Path -Parent $PSScriptRoot
+$package = Get-Content -Raw -LiteralPath (Join-Path $packageRoot "package.json") | ConvertFrom-Json
 $archives = @(
-  @{ Client = "codex"; Path = "dist/cbrain-codex-plugin-offline-0.1.0.zip" },
-  @{ Client = "claude-code"; Path = "dist/cbrain-claude-code-plugin-offline-0.1.0.zip" }
+  @{ Client = "codex"; Path = "dist/cbrain-codex-plugin-offline-$($package.version).zip" },
+  @{ Client = "claude-code"; Path = "dist/cbrain-claude-code-plugin-offline-$($package.version).zip" }
 )
 $sourceConfig = Join-Path $env:USERPROFILE ".cbrain-agent/config.json"
 if (-not (Test-Path -LiteralPath $sourceConfig)) {

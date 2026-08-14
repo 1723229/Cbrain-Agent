@@ -15,7 +15,17 @@ import type { Logger } from "../../core/types.js";
 import { MetadataService, MetadataError } from "../service/metadata-service.js";
 import { extractInstanceId, normalizeInstanceIdForRoute } from "./instance.js";
 import { resolvePagination } from "./pagination.js";
-import { internalListUsersByInstanceSchema, initAdminSchema } from "./v3-meta-schemas.js";
+import {
+  federatedLoginSchema,
+  federatedSyncSchema,
+  adminApiKeyLoginSchema,
+  internalListUsersByInstanceSchema,
+  initAdminSchema,
+  internalOwnedAssetEnsureSchema,
+  webSessionIssueSchema,
+  webSessionTokenSchema,
+} from "./v3-meta-schemas.js";
+import { toPublicUser } from "../service/user-visibility.js";
 import {
   createMetaApiTraceContext,
   logMetaApiEntry,
@@ -69,11 +79,61 @@ const routeTable: Record<string, InternalHandler> = {
       });
     },
   ),
+  [`${V3_INTERNAL_PREFIX}/federated/login`]: bind(federatedLoginSchema, (d, svc) =>
+    svc.loginFederatedUser(d, { ttlSeconds: d.ttl_seconds }),
+  ),
+  [`${V3_INTERNAL_PREFIX}/session/login-admin-api-key`]: bind(adminApiKeyLoginSchema, (d, svc) =>
+    svc.loginSystemAdminWithApiKey(d.api_key, d.ttl_seconds),
+  ),
+  [`${V3_INTERNAL_PREFIX}/session/issue`]: bind(webSessionIssueSchema, async (d, svc) => {
+    const user = await svc.getUserById(d.user_id);
+    if (!user) throw new MetadataError("user_not_found", `user not found: ${d.user_id}`);
+    if (user.user_type !== "system_admin") {
+      throw new MetadataError("permission_denied", "recovery session requires system_admin");
+    }
+    const session = await svc.issueWebSession(user.user_id, d.provider_id, d.ttl_seconds);
+    return {
+      user: toPublicUser(user, {
+        token: session.session_token,
+        userId: user.user_id,
+        isAdmin: false,
+        isSystemAdmin: true,
+      }),
+      ...session,
+    };
+  }),
+  [`${V3_INTERNAL_PREFIX}/session/resolve`]: bind(webSessionTokenSchema, async (d, svc) => {
+    const user = await svc.resolveWebSession(d.session_token);
+    if (!user) throw new MetadataError("session_not_found", "session is invalid or expired");
+    return {
+      user: toPublicUser(user, {
+        token: d.session_token,
+        userId: user.user_id,
+        isAdmin: false,
+        isSystemAdmin: user.user_type === "system_admin",
+      }),
+    };
+  }),
+  [`${V3_INTERNAL_PREFIX}/session/revoke`]: bind(webSessionTokenSchema, async (d, svc) => {
+    await svc.revokeWebSession(d.session_token);
+    return { ok: true };
+  }),
+  [`${V3_INTERNAL_PREFIX}/asset/ensure-owned`]: bind(internalOwnedAssetEnsureSchema, (d, svc) =>
+    svc.ensureOwnedAssetInternal({
+      ...d,
+      content_ref: d.content_ref ?? undefined,
+      status: "approved",
+    }),
+  ),
+  [`${V3_INTERNAL_PREFIX}/federated/sync`]: bind(federatedSyncSchema, (d, svc) =>
+    svc.syncFederatedUsers(d.provider_id, d.users),
+  ),
 };
 
 export const V3_INTERNAL_ROUTES = Object.keys(routeTable);
 
 function mapErrorCode(code: string): number {
+  if (code === "invalid_credentials") return 401;
   if (code.endsWith("_not_found")) return 404;
   if (code === "permission_denied") return 403;
   if (code === "missing_instance_id" || code === "invalid_instance_id") return 400;

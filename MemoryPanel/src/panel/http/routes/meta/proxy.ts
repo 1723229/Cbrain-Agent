@@ -157,6 +157,7 @@ export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
       gatewayEndpoint: panelMeta.gatewayEndpoint,
       gatewayApiKey: panelMeta.gatewayApiKey,
       userKey: panelMeta.userKey,
+      userId: panelMeta.user.user_id,
       reqId: c.get('reqId'),
     };
 
@@ -167,6 +168,7 @@ export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
     }
 
     const envelope = await deps.metaKernel.invoke(action, body, ctx);
+    if (action.startsWith('user-key/')) c.header('Cache-Control', 'no-store');
     if (action === 'user/list' && envelope.code === 0) {
       hideKnowledgeServiceUser(envelope.data);
     }

@@ -10,6 +10,7 @@ fi
 : "${CBRAIN_GATEWAY_URL:?CBRAIN_GATEWAY_URL or CBRAIN_CONFIG_FILE is required}"
 
 package_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+package_version=$(node -p 'require(process.argv[1]).version' "$package_root/package.json")
 test_root=$(mktemp -d "${TMPDIR:-/tmp}/cbrain-offline-e2e.XXXXXX")
 cleanup() { rm -rf -- "$test_root"; }
 trap cleanup EXIT INT TERM
@@ -20,8 +21,8 @@ mkdir -p "$CODEX_HOME"
 
 for bundle in codex claude-code; do
   case "$bundle" in
-    codex) archive="$package_root/dist/cbrain-codex-plugin-offline-0.1.0.zip" ;;
-    claude-code) archive="$package_root/dist/cbrain-claude-code-plugin-offline-0.1.0.zip" ;;
+    codex) archive="$package_root/dist/cbrain-codex-plugin-offline-$package_version.zip" ;;
+    claude-code) archive="$package_root/dist/cbrain-claude-code-plugin-offline-$package_version.zip" ;;
   esac
   extract="$test_root/extract-$bundle"
   mkdir -p "$extract"

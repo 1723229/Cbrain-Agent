@@ -1,5 +1,5 @@
 /**
- * v3 元数据 API 请求体 Zod schema（54 公开接口）。
+ * v3 元数据 API 请求体 Zod schema（55 公开接口）。
  *
  * 对应设计文档 §7.1。每个 schema 校验对应路由的请求体；
  * 路由 handler 用 `schema.safeParse(body)` 校验后再调用 MetadataService。
@@ -47,6 +47,46 @@ export const userCreateSchema = z.object({
 export const initAdminSchema = z.object({
   username: nonEmpty,
   user_key: z.string().min(1).optional(),
+});
+export const federatedLoginSchema = z.object({
+  provider_id: nonEmpty.max(128),
+  subject_id: nonEmpty.max(512),
+  username: nonEmpty.max(256),
+  display_name: z.string().max(512).nullable().optional(),
+  email: z.string().email().max(512).nullable().optional(),
+  raw_profile_json: z.string().max(65_536).default("{}"),
+  ttl_seconds: z.number().int().min(60).max(86_400).optional(),
+});
+export const webSessionIssueSchema = z.object({
+  user_id: nonEmpty,
+  provider_id: nonEmpty.max(128).default("recovery"),
+  ttl_seconds: z.number().int().min(60).max(86_400).optional(),
+});
+export const adminApiKeyLoginSchema = z.object({
+  api_key: nonEmpty.max(512),
+  ttl_seconds: z.number().int().min(60).max(86_400).optional(),
+});
+export const webSessionTokenSchema = z.object({ session_token: z.string().min(20).max(256) });
+export const internalOwnedAssetEnsureSchema = z.object({
+  asset_id: nonEmpty,
+  team_id: nonEmpty,
+  asset_type: assetType,
+  name: nonEmpty,
+  owner_user_id: nonEmpty,
+  source_type: z.string().min(1).default("manual"),
+  visibility: visibility.default("team"),
+  content_ref: z.string().nullable().optional(),
+});
+export const federatedSyncSchema = z.object({
+  provider_id: nonEmpty.max(128),
+  complete: z.literal(true),
+  users: z.array(z.object({
+    subject_id: nonEmpty.max(512),
+    username: nonEmpty.max(256),
+    display_name: z.string().max(512).nullable().optional(),
+    email: z.string().email().max(512).nullable().optional(),
+    raw_profile_json: z.string().max(65_536).default("{}"),
+  })).max(5_000),
 });
 export const userGetSchema = userIdOrKeySchema;
 export const userDeleteSchema = z.object({ user_ids: idList });
@@ -107,6 +147,10 @@ export const teamMemberAddSchema = z.object({
 export const teamMemberRemoveSchema = z.object({ team_id: nonEmpty, user_id: nonEmpty });
 export const teamMemberListSchema = z.object({ team_id: nonEmpty }).merge(paginationInputSchema);
 export const teamMemberGetSchema = z.object({ team_id: nonEmpty, user_id: nonEmpty });
+export const teamMemberCandidateListSchema = z.object({
+  team_id: nonEmpty,
+  query: z.string().trim().max(128).optional(),
+}).merge(paginationInputSchema);
 
 // ── Agent ──
 export const agentCreateSchema = z.object({
@@ -362,7 +406,7 @@ export const internalListUsersByInstanceSchema = z.object({
   user_ids: optionalUserIdsFilter,
 }).merge(paginationInputSchema);
 
-/** 路由 → schema 映射（54 公开接口）。 */
+/** 路由 → schema 映射（55 公开接口）。 */
 // ── ConfigParam（v3.2）──
 export const instanceQuotaGetSchema = z.object({});
 
@@ -397,6 +441,7 @@ export const V3_SCHEMAS = {
   "/v3/meta/team-member/remove": teamMemberRemoveSchema,
   "/v3/meta/team-member/list": teamMemberListSchema,
   "/v3/meta/team-member/get": teamMemberGetSchema,
+  "/v3/meta/team-member/candidate/list": teamMemberCandidateListSchema,
   "/v3/meta/agent/create": agentCreateSchema,
   "/v3/meta/agent/get": agentGetSchema,
   "/v3/meta/agent/update": agentUpdateSchema,

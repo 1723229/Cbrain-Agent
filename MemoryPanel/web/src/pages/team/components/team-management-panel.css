@@ -512,6 +512,33 @@
   color: var(--tea-color-text-tertiary);
 }
 
+._memory-member-user-picker {
+  width: 100%;
+  min-width: 0;
+}
+
+._memory-member-user-option {
+  min-width: 0;
+  padding: 2px 0;
+  line-height: 18px;
+}
+
+._memory-member-user-option-name,
+._memory-member-user-option-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._memory-member-user-option-name {
+  color: var(--tea-color-text-primary);
+}
+
+._memory-member-user-option-meta {
+  font-size: 12px;
+  color: var(--tea-color-text-tertiary);
+}
+
 ._memory-form-error {
   border: 1px solid var(--tea-color-border-error-default);
   border-radius: 4px;
