@@ -11,11 +11,8 @@
  * owner 由登录 user_key 推断，前端不用也不能传别人的 user_id —— 天然满足
  * 「用户只能看到 / 管理自己的 key」。
  *
- * 安全设计（内核既有行为，不是本组件的取舍）：
- *   - key 明文只在 `create` 响应里出现这一次，之后 list/get 都不会再回传；
- *   - `key_prefix` 是内核给的可展示前缀（如 `sk-mem-ab12****`），用于免密识别
- *     具体是哪把 key，不等同于明文；
- *   - 因此列表里已存在的 key 无法「展开显示完整 key」，只能吊销。
+ * 当前用户自己的列表返回完整 key_value，可随时查看和复制；管理员代查他人时
+ * 仍只返回 key_prefix。
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -26,7 +23,6 @@ import {
   Table,
   Card,
   Button,
-  Alert,
   Copy,
   Text,
   DatePicker,
@@ -43,6 +39,7 @@ import { tea } from '@/lib/tea-bridge';
 import './api-key-panel.css';
 
 const { autotip } = Table.addons;
+const CBRAIN_AGENT_INSTALLER_VERSION = '0.1.2';
 
 export default function ApiKeyPanel() {
   const { t } = useTranslation();
@@ -50,16 +47,11 @@ export default function ApiKeyPanel() {
   const { auth } = useAuthStore();
   const [keys, setKeys] = useState<UserKey[]>([]);
   const [loading, setLoading] = useState(true);
-  // 客户端接入 base 地址（来自当前登录的 instance 元数据；每个实例不同）。
-  // 优先取 proxy_endpoint —— 开源本地部署 core+proxy 分开时客户端要接的是 proxy；
-  // 未配置时回落 gateway_endpoint，等同老行为（线上 gateway 前置 proxy，两者合一）。
-  const [clientBaseUrl, setClientBaseUrl] = useState<string | null>(null);
   const [agentGatewayUrl, setAgentGatewayUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     if (!auth?.instance_id) {
-      setClientBaseUrl(null);
       setAgentGatewayUrl(null);
       return;
     }
@@ -68,11 +60,10 @@ export default function ApiKeyPanel() {
       .then((list) => {
         if (cancelled) return;
         const hit = list.find((i) => i.instance_id === auth.instance_id);
-        setClientBaseUrl(hit?.proxy_endpoint ?? hit?.gateway_endpoint ?? null);
         setAgentGatewayUrl(hit?.agent_gateway_endpoint ?? null);
       })
       .catch(() => {
-        if (!cancelled) { setClientBaseUrl(null); setAgentGatewayUrl(null); }
+        if (!cancelled) setAgentGatewayUrl(null);
       });
     return () => {
       cancelled = true;
@@ -104,8 +95,6 @@ export default function ApiKeyPanel() {
   const [showCreate, setShowCreate] = useState(false);
   const [newExpiresAt, setNewExpiresAt] = useState<Moment | null>(null);
   const [creating, setCreating] = useState(false);
-  // 刚创建出来的 key（含完整明文，仅展示一次）
-  const [freshKey, setFreshKey] = useState<{ keyId: string; secret: string } | null>(null);
 
   async function handleCreate() {
     setCreating(true);
@@ -115,9 +104,7 @@ export default function ApiKeyPanel() {
       });
       setNewExpiresAt(null);
       setShowCreate(false);
-      if (key.key_value) {
-        setFreshKey({ keyId: key.key_id, secret: key.key_value });
-      }
+      void key;
       await refresh();
     } catch (e) {
       tea.notify.error(e);
@@ -149,27 +136,6 @@ export default function ApiKeyPanel() {
   };
   return (
     <div className="_memory-apikey-body">
-      {/* ===== 刚创建的 Key 提示（仅展示一次） ===== */}
-      {freshKey && (
-        <Alert type="success" onClose={() => setFreshKey(null)}>
-          <div className="_memory-apikey-fresh">
-            <p className="_memory-apikey-fresh-desc">
-              {t('apiKey.fresh.desc', { keyId: freshKey.keyId })}
-            </p>
-            <div className="_memory-apikey-fresh-code-row">
-              <code className="_memory-apikey-fresh-code">{freshKey.secret}</code>
-              <Copy
-                text={freshKey.secret}
-                onCopy={() => {
-                  // 复制成功后自动关闭完整 Key 显示，避免明文长时间停留在屏幕上
-                  setFreshKey(null);
-                }}
-              />
-            </div>
-          </div>
-        </Alert>
-      )}
-
       {/* ===== 页面头部（Justify 左右布局） ===== */}
       <Justify
         left={
@@ -223,12 +189,15 @@ export default function ApiKeyPanel() {
               ),
             },
             {
-              key: 'key_prefix',
-              header: t('apiKey.table.keyPrefix'),
+              key: 'key_value',
+              header: t('apiKey.table.keyValue'),
               render: (key) => (
-                <Text parent="code" style={{ fontSize: 12 }}>
-                  {key.key_prefix || '—'}
-                </Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520 }}>
+                  <code style={{ fontSize: 12, wordBreak: 'break-all' }}>
+                    {key.key_value || key.key_prefix || '—'}
+                  </code>
+                  {key.key_value ? <Copy text={key.key_value} /> : null}
+                </div>
               ),
             },
             {
@@ -281,88 +250,48 @@ export default function ApiKeyPanel() {
         />
       </Card>
 
-      {/* ===== 接入指引 ===== */}
-      {/*
-        instance-id 从当前登录态注入（auth.instance_id）—— 用户不用再手工替换
-        [instance-id] 占位符，也不用去别处找自己现在连的是哪个实例。
-        未登录理论上不会走到这个页（LoginGate 挡在外面），仍保留占位 fallback 兜底。
-      */}
-      <Card>
-        <Card.Body title={t('apiKey.endpoint.title')}>
-          {auth?.instance_name && (
-            <div style={{ marginBottom: 8, fontSize: 11, color: 'var(--text-weak)' }}>
-              {t('apiKey.endpoint.current')}
-              <code>{auth.instance_name}</code>
-              <span style={{ opacity: 0.6, marginLeft: 6 }}>({auth.instance_id})</span>
-            </div>
-          )}
-          <div className="_memory-apikey-endpoints">
-            {(() => {
-              // base 未拉到就显示加载中；防止用户误抄硬编码 URL
-              if (!clientBaseUrl) {
-                return (
-                  <Text theme="weak" style={{ fontSize: 11 }}>
-                    {t('apiKey.endpoint.loading')}
-                  </Text>
-                );
-              }
-              // 去掉结尾斜杠，避免 base + /path 拼成双斜杠（! 绕过闭包窄化）
-              const base = clientBaseUrl!.replace(/\/+$/, '');
-              const iid = auth?.instance_id ?? '[instance-id]';
-              const endpoints: Array<{ label: string; url: string }> = [
-                { label: 'CodeBuddy', url: `${base}/codebuddy/${iid}` },
-                { label: 'Claude Code', url: `${base}/claude-code/${iid}` },
-                { label: 'OpenClaw', url: `${base}/openclaw/default` },
-                { label: 'Hermes', url: `${base}/hermes/default` },
-              ];
-              return endpoints.map((ep) => (
-                <div className="_memory-apikey-endpoint" key={ep.label}>
-                  <Text theme="label" parent="div" style={{ marginBottom: 4 }}>
-                    {ep.label}
-                  </Text>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <code
-                      style={{
-                        flex: 1,
-                        fontSize: 11,
-                        wordBreak: 'break-all',
-                        background: 'var(--tea-color-bg-secondary-default)',
-                        padding: '4px 8px',
-                        borderRadius: 4,
-                      }}
-                    >
-                      {ep.url}
-                    </code>
-                    <Copy text={ep.url}>
-                      <Button>{t('apiKey.endpoint.copy')}</Button>
-                    </Copy>
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        </Card.Body>
-      </Card>
-
       {agentGatewayUrl && (
         <Card>
           <Card.Body title={t('apiKey.plugin.title')}>
             <Text theme="weak" parent="div" style={{ marginBottom: 12 }}>
               {t('apiKey.plugin.desc')}
             </Text>
+            <div style={{ marginBottom: 16, padding: '12px 16px', background: 'var(--tea-color-bg-secondary-default)', borderRadius: 4 }}>
+              <Text theme="label" parent="div" style={{ marginBottom: 8 }}>{t('apiKey.plugin.flow.title')}</Text>
+              <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
+                <li><strong>{t('apiKey.plugin.flow.install.title')}</strong>：{t('apiKey.plugin.flow.install.desc')}</li>
+                <li><strong>{t('apiKey.plugin.flow.update.title')}</strong>：{t('apiKey.plugin.flow.update.desc')}</li>
+                <li><strong>{t('apiKey.plugin.flow.uninstall.title')}</strong>：{t('apiKey.plugin.flow.uninstall.desc')}</li>
+              </ol>
+            </div>
             {(['codex', 'claude-code'] as const).map((client) => {
-              const command = `npx --yes cbrain-agent install ${client} --gateway ${agentGatewayUrl.replace(/\/+$/, '')}`;
+              const installerUrl = `"${window.location.origin}/downloads/cbrain-agent.tgz?v=${CBRAIN_AGENT_INSTALLER_VERSION}"`;
+              const commands = [
+                {
+                  action: 'install',
+                  label: t('apiKey.plugin.installOrUpdate'),
+                  command: `npx --yes ${installerUrl} install ${client} --gateway ${agentGatewayUrl.replace(/\/+$/, '')}`,
+                },
+                {
+                  action: 'uninstall',
+                  label: t('apiKey.plugin.uninstall'),
+                  command: `npx --yes ${installerUrl} uninstall ${client}`,
+                },
+              ];
               return (
                 <div className="_memory-apikey-endpoint" key={client}>
                   <Text theme="label" parent="div" style={{ marginBottom: 4 }}>
                     {client === 'codex' ? 'Codex' : 'Claude Code Plugin'}
                   </Text>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <code style={{ flex: 1, fontSize: 11, wordBreak: 'break-all', background: 'var(--tea-color-bg-secondary-default)', padding: '4px 8px', borderRadius: 4 }}>
-                      {command}
-                    </code>
-                    <Copy text={command}><Button>{t('apiKey.endpoint.copy')}</Button></Copy>
-                  </div>
+                  {commands.map(({ action, label, command }) => (
+                    <div key={action} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: action === 'uninstall' ? 6 : 0 }}>
+                      <Text theme="weak" style={{ width: 72, flexShrink: 0 }}>{label}</Text>
+                      <code style={{ flex: 1, fontSize: 11, wordBreak: 'break-all', background: 'var(--tea-color-bg-secondary-default)', padding: '4px 8px', borderRadius: 4 }}>
+                        {command}
+                      </code>
+                      <Copy text={command}><Button>{t('apiKey.endpoint.copy')}</Button></Copy>
+                    </div>
+                  ))}
                 </div>
               );
             })}

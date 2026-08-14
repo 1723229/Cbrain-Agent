@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access, chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, chmod, cp, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
@@ -9,10 +9,10 @@ const OFFLINE_MARKETPLACE = "cbrain-offline";
 const REPOSITORY = "1723229/TencentDB-Agent-Memory";
 
 export function parseArguments(values) {
-  if (values[0] !== "install" || !["codex", "claude-code"].includes(values[1])) {
-    throw new Error("usage: cbrain-agent install <codex|claude-code> --gateway <url>");
+  if (!["install", "uninstall"].includes(values[0]) || !["codex", "claude-code"].includes(values[1])) {
+    throw new Error("usage: cbrain-agent <install|uninstall> <codex|claude-code> [--gateway <url>]");
   }
-  const result = { client: values[1] };
+  const result = { action: values[0], client: values[1] };
   for (let index = 2; index < values.length; index++) {
     const value = values[index];
     if (value === "--gateway") result.gatewayUrl = values[++index];
@@ -20,8 +20,13 @@ export function parseArguments(values) {
     else if (value === "--ref") result.ref = values[++index];
     else throw new Error(`unknown option: ${value}`);
   }
-  if (!result.gatewayUrl) throw new Error("--gateway is required");
+  if (result.action === "install" && !result.gatewayUrl) throw new Error("--gateway is required for install");
+  if (result.action === "uninstall" && (result.gatewayUrl || result.apiKey || result.ref)) throw new Error("uninstall does not accept install options");
   return result;
+}
+
+export async function execute(options) {
+  return options.action === "uninstall" ? uninstall(options) : install(options);
 }
 
 export async function install(options) {
@@ -31,11 +36,19 @@ export async function install(options) {
   if (!apiKey) throw new Error("Cbrain API Key is required");
   const fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
   const identity = await verifyIdentity(gatewayUrl, apiKey, fetcher);
-  const runner = options.runner ?? runCommand;
-  if (options.client === "codex") await installCodex(runner, options.ref, options.sourceRoot);
-  else await installClaudeCode(runner, options.ref, options.sourceRoot);
   const path = await saveConfig({ gatewayUrl, apiKey }, options);
+  const runner = options.runner ?? runCommand;
+  const snapshot = options.client === "codex" ? await snapshotCodexState(options) : null;
+  try {
+    if (options.client === "codex") await installCodex(runner, options.ref, options.sourceRoot);
+    else await installClaudeCode(runner, options.ref, options.sourceRoot);
+  } catch (error) {
+    throw normalizePluginInstallError(error, options.client);
+  } finally {
+    if (snapshot) await restoreCodexVersions(snapshot);
+  }
   output(`Cbrain connected as ${identity.user_id}.`);
+  if (snapshot) output(`Previous Codex plugin versions preserved in ${snapshot.backupRoot}.`);
   output(`Configuration saved to ${path}. Restart ${options.client === "codex" ? "Codex" : "Claude Code"}.`);
   return { path, identity };
 }
@@ -54,7 +67,7 @@ async function installCodex(run, ref, sourceRoot) {
     if (ref) args.push("--ref", ref);
     await run("codex", args);
   }
-  await run("codex", ["plugin", "add", `cbrain-agent@${MARKETPLACE}`]);
+  await run("codex", ["plugin", "add", `cbrain-agent@${MARKETPLACE}`], { capture: true });
 }
 
 async function installClaudeCode(run, ref, sourceRoot) {
@@ -70,7 +83,30 @@ async function installClaudeCode(run, ref, sourceRoot) {
   } else {
     await run("claude", ["plugin", "marketplace", "add", REPOSITORY, "--scope", "user"]);
   }
-  await run("claude", ["plugin", "install", `cbrain-agent@${MARKETPLACE}`, "--scope", "user"]);
+  const plugins = await jsonCommand(run, "claude", ["plugin", "list", "--json"]);
+  const installed = Array.isArray(plugins) && plugins.some((item) => item.id === `cbrain-agent@${MARKETPLACE}`);
+  await run("claude", ["plugin", installed ? "update" : "install", `cbrain-agent@${MARKETPLACE}`, "--scope", "user"]);
+}
+
+export async function uninstall(options) {
+  const output = options.output ?? console.log;
+  const runner = options.runner ?? runCommand;
+  let removed = false;
+  if (options.client === "codex") {
+    const plugins = await jsonCommand(runner, "codex", ["plugin", "list", "--json"]);
+    const installed = Array.isArray(plugins.installed) && plugins.installed.some((item) => item.pluginId === `cbrain-agent@${MARKETPLACE}`);
+    if (installed) await runner("codex", ["plugin", "remove", `cbrain-agent@${MARKETPLACE}`, "--json"], { capture: true });
+    removed = installed;
+    output(installed ? "Cbrain plugin removed from Codex." : "Cbrain plugin is not installed in Codex.");
+  } else {
+    const plugins = await jsonCommand(runner, "claude", ["plugin", "list", "--json"]);
+    const installed = Array.isArray(plugins) && plugins.some((item) => item.id === `cbrain-agent@${MARKETPLACE}`);
+    if (installed) await runner("claude", ["plugin", "uninstall", `cbrain-agent@${MARKETPLACE}`, "--scope", "user", "--keep-data", "--yes"]);
+    removed = installed;
+    output(installed ? "Cbrain plugin removed from Claude Code." : "Cbrain plugin is not installed in Claude Code.");
+  }
+  output("Cbrain connection configuration and server-side data were preserved.");
+  return { removed, configPreserved: true };
 }
 
 async function replaceLocalMarketplace(run, client, sourceRoot) {
@@ -166,6 +202,48 @@ export async function resolveWindowsCommand(command, options = {}) {
     : { executable: targetPath, prefix: [] };
 }
 
+function normalizePluginInstallError(error, client) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (client === "codex" && /failed to back up plugin cache entry|os error 5|access is denied|拒绝访问/i.test(message)) {
+    return new Error("Codex is using the existing Cbrain plugin cache. Close all Codex windows and background processes, then run this command again.");
+  }
+  return error instanceof Error ? error : new Error(message);
+}
+
+async function snapshotCodexState(options = {}) {
+  const userHome = options.home || homedir();
+  const codexHome = options.codexHome || process.env.CODEX_HOME || resolve(userHome, ".codex");
+  const cacheRoot = resolve(codexHome, "plugins", "cache", MARKETPLACE, "cbrain-agent");
+  if (!(await exists(cacheRoot))) return null;
+  const backupRoot = resolve(userHome, ".cbrain-agent", "backups", "codex", timestamp());
+  const backupCache = resolve(backupRoot, "cache");
+  await mkdir(backupRoot, { recursive: true });
+  await cp(cacheRoot, backupCache, { recursive: true, errorOnExist: true });
+  const codexConfig = resolve(codexHome, "config.toml");
+  if (await exists(codexConfig)) await cp(codexConfig, resolve(backupRoot, "config.toml"), { errorOnExist: true });
+  return { backupRoot, backupCache, cacheRoot, versions: await directoryNames(backupCache) };
+}
+
+async function restoreCodexVersions(snapshot) {
+  await mkdir(snapshot.cacheRoot, { recursive: true });
+  for (const version of snapshot.versions) {
+    const destination = resolve(snapshot.cacheRoot, version);
+    if (!(await exists(destination))) await cp(resolve(snapshot.backupCache, version), destination, { recursive: true, errorOnExist: true });
+  }
+}
+
+async function directoryNames(path) {
+  return (await readdir(path, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+}
+
+async function exists(path) {
+  try { await access(path); return true; } catch { return false; }
+}
+
+function timestamp() {
+  return new Date().toISOString().replace(/[-:.]/g, "");
+}
+
 async function findWindowsShim(name, pathValue) {
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
     const candidate = join(directory.replace(/^"|"$/g, ""), name);
@@ -180,11 +258,17 @@ export function promptSecret(label, input = stdin, output = stdout) {
   return new Promise((resolvePromise, reject) => {
     let value = "";
     const cleanup = () => { input.off("data", onData); input.setRawMode(false); input.pause(); output.write("\n"); };
-    const onData = (key) => {
-      if (key === "\u0003") { cleanup(); reject(new Error("cancelled")); return; }
-      if (key === "\r" || key === "\n") { cleanup(); resolvePromise(value); return; }
-      if (key === "\u007f" || key === "\b") { if (value) { value = value.slice(0, -1); output.write("\b \b"); } return; }
-      if (/^[^\u0000-\u001f]+$/.test(key)) { value += key; output.write("*"); }
+    const onData = (chunk) => {
+      const text = String(chunk).replaceAll("\u001b[200~", "").replaceAll("\u001b[201~", "");
+      for (const key of text) {
+        if (key === "\u0003") { cleanup(); reject(new Error("cancelled")); return; }
+        if (key === "\r" || key === "\n") { cleanup(); resolvePromise(value); return; }
+        if (key === "\u007f" || key === "\b") {
+          if (value) { value = [...value].slice(0, -1).join(""); output.write("\b \b"); }
+          continue;
+        }
+        if (!/[\u0000-\u001f\u007f]/u.test(key)) { value += key; output.write("*"); }
+      }
     };
     input.on("data", onData);
   });

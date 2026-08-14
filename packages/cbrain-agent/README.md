@@ -10,3 +10,14 @@ npx --yes cbrain-agent install claude-code --gateway https://cbrain.example
 The installer asks for the API Key created on the Cbrain API Key page without
 echoing it, verifies the account, installs the remote plugin, and stores the
 credential in the current user's private configuration file.
+
+Installing again performs a non-destructive update: Codex uses a new cachebuster
+version and Claude Code uses its update command. Existing configuration, bindings,
+and older cache entries are not deleted.
+
+Remove only the client plugin while preserving Cbrain configuration and server data:
+
+```bash
+npx --yes cbrain-agent uninstall codex
+npx --yes cbrain-agent uninstall claude-code
+```
