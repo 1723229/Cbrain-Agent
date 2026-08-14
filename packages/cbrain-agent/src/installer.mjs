@@ -6,7 +6,7 @@ import { stdin, stdout } from "node:process";
 
 const MARKETPLACE = "cbrain";
 const OFFLINE_MARKETPLACE = "cbrain-offline";
-const REPOSITORY = "1723229/TencentDB-Agent-Memory";
+const REPOSITORY = "1723229/Cbrain-Agent";
 
 export function parseArguments(values) {
   if (!["install", "uninstall"].includes(values[0]) || !["codex", "claude-code"].includes(values[1])) {

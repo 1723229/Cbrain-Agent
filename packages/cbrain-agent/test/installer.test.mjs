@@ -14,7 +14,7 @@ describe("cbrain-agent installer", () => {
     const result = await install({client:"codex",gatewayUrl:"https://cbrain.example/mcp",apiKey:"page-key",home,platform:"linux",runner,fetcher,output:()=>{}});
     assert.deepEqual(JSON.parse(await readFile(result.path,"utf8")),{gatewayUrl:"https://cbrain.example",apiKey:"page-key"});
     if(process.platform!=="win32")assert.equal((await stat(result.path)).mode & 0o777,0o600);
-    assert.deepEqual(calls.slice(0,2),[["codex",["plugin","marketplace","list","--json"]],["codex",["plugin","marketplace","add","1723229/TencentDB-Agent-Memory"]]]);
+    assert.deepEqual(calls.slice(0,2),[["codex",["plugin","marketplace","list","--json"]],["codex",["plugin","marketplace","add","1723229/Cbrain-Agent"]]]);
     assert.ok(calls.some(([,args])=>args.includes("cbrain-agent@cbrain")));
   });
 
@@ -36,7 +36,7 @@ describe("cbrain-agent installer", () => {
     const runner=async(command,args,options={})=>{calls.push([command,args]);if(options.capture&&args.includes("marketplace"))return{stdout:JSON.stringify({marketplaces:[{name:"cbrain"}]})};if(options.capture)return{stdout:JSON.stringify({installed:[]})};return{stdout:""}};
     await install({client:"codex",gatewayUrl:"https://cbrain.example",apiKey:"key",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
     assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace upgrade cbrain"));
-    assert.ok(!calls.some(([,args])=>args.includes("add")&&args.includes("1723229/TencentDB-Agent-Memory")));
+    assert.ok(!calls.some(([,args])=>args.includes("add")&&args.includes("1723229/Cbrain-Agent")));
     assert.ok(!calls.some(([,args])=>args.includes("remove")));
   });
 
@@ -54,7 +54,7 @@ describe("cbrain-agent installer", () => {
     assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace remove cbrain-offline"));
     assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace add /media/cbrain"));
     assert.ok(calls.some(([,args])=>args.includes("cbrain-agent@cbrain-offline")));
-    assert.ok(!calls.some(([,args])=>args.includes("1723229/TencentDB-Agent-Memory")));
+    assert.ok(!calls.some(([,args])=>args.includes("1723229/Cbrain-Agent")));
   });
 
   it("installs Claude Code only from the bundled offline marketplace", async () => {
@@ -63,7 +63,7 @@ describe("cbrain-agent installer", () => {
     await install({client:"claude-code",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/media/cbrain",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
     assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace add /media/cbrain --scope user"));
     assert.ok(calls.some(([,args])=>args.includes("cbrain-agent@cbrain-offline")));
-    assert.ok(!calls.some(([,args])=>args.includes("1723229/TencentDB-Agent-Memory")));
+    assert.ok(!calls.some(([,args])=>args.includes("1723229/Cbrain-Agent")));
   });
 
   it("resolves standard Windows npm shims without invoking cmd.exe", async () => {
