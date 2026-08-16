@@ -31,12 +31,11 @@ export const authSessionApi = {
 
 // ========================= Environment Bindings =========================
 //
-// ⚠️ 新面板一期不注册 /api/v1/users/* 路由（09 设计文档 §6.1、§9 N1），
-// 以下接口在新面板 Control 下会 404。保留代码是为了兼容仍跑在链路 B（Legacy）
-// 的环境；若某个页面要切到新面板，请先隐藏/置灰调用这组接口的入口。
+// ⚠️ 当前部署未注册 /api/v1/users/* 路由，以下接口可能 404。
+// 保留代码用于兼容仍启用该路由的环境；若某个页面依赖这组接口，请先确认路由已注册。
 
 /**
- * 环境绑定（environment_bindings）：把用户在外部环境（CodeBuddy / Cursor 等）的
+ * 环境绑定（environment_bindings）：把用户在外部环境（IDE / 编程助手等）的
  * 外部 user_id 与本平台 user 关联，供 proxy 通过 (environment, environment_user_id)
  * 反查到团队 / agent / task。
  *

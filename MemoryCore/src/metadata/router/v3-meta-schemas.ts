@@ -44,6 +44,14 @@ export const userCreateSchema = z.object({
   // 仅 system_admin 可调用本接口（见 v3-meta-router assertCanManageUsers）。
   user_id: z.string().min(1).optional(),
 });
+
+// /v3/meta/user/create 的姊妹接口：允许 system_admin 在建号时显式指定 user_key。
+// user_id 不接受入参（zod 默认 strip），由内核生成后返回；user_key 格式由调用方负责，
+// 内核只做非空校验 + DB 层 UNIQUE 兜底（重复抛 duplicate_user_key）。
+export const userCreateWithKeySchema = z.object({
+  username: nonEmpty,
+  user_key: nonEmpty,
+});
 export const initAdminSchema = z.object({
   username: nonEmpty,
   user_key: z.string().min(1).optional(),
@@ -424,6 +432,7 @@ export const configUserSetSchema = z.object({
 
 export const V3_SCHEMAS = {
   "/v3/meta/user/create": userCreateSchema,
+  "/v3/meta/user/create-with-key": userCreateWithKeySchema,
   "/v3/meta/user/get": userGetSchema,
   "/v3/meta/user/delete": userDeleteSchema,
   "/v3/meta/user/list": userListSchema,

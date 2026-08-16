@@ -39,6 +39,14 @@ describe("team member candidates", () => {
     const team = await service.createTeamForCaller({ name: "test", owner_user_id: owner.user_id }, ownerContext);
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: alice.user_id }, ownerContext);
 
+    const aliceAgents = await store.listAgentsByTeam(team.team_id, null, {
+      owner_user_id: alice.user_id,
+      status: "active",
+    });
+    expect(aliceAgents.items).toMatchObject([
+      { name: "default-agent-alice", owner_user_id: alice.user_id, team_id: team.team_id },
+    ]);
+
     const all = await service.listTeamMemberCandidatesForCaller(team.team_id, undefined, ownerContext);
     expect(all.items.map((item) => item.username)).toEqual(["Carol_Dev"]);
     expect(all.items[0]).toMatchObject({ display_name: "Carol Developer" });

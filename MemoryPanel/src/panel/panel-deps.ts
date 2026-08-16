@@ -12,6 +12,7 @@ import type { Logger } from './infra/logger.js';
 import type { KnowledgeClientPort } from './kernel/ports/knowledge-client-port.js';
 import { HttpKnowledgeClient } from './kernel/adapters/http-knowledge-client.js';
 import { KnowledgeTaskRegistry } from './state/knowledge-task-registry.js';
+import { IngestProgressStore } from './state/ingest-progress-store.js';
 import { PanelAuthService } from './auth/panel-auth-service.js';
 
 export interface PanelDeps {
@@ -25,6 +26,8 @@ export interface PanelDeps {
   skillKernel: SkillKernelPort;
   /** Knowledge 抽取任务内存态：create 时 stash owner key，callback ready 时取出注册 meta asset。 */
   knowledgeTaskRegistry: KnowledgeTaskRegistry;
+  /** Wiki ingest 细粒度进度（KS ingest_progress 回调写入；wiki/get 聚合读出）。 */
+  ingestProgressStore: IngestProgressStore;
   authService: PanelAuthService;
 }
 
@@ -45,8 +48,20 @@ export function buildPanelDeps(config: PanelConfig): PanelDeps {
     });
   const skillKernel = new FetchSkillKernelAdapter(kernelHttp, config.metadataRemoteTimeoutMs);
   const knowledgeTaskRegistry = new KnowledgeTaskRegistry();
+  const ingestProgressStore = new IngestProgressStore();
   const authService = new PanelAuthService(config, instanceRegistry, kernelHttp);
-  return { config, logger, instanceRegistry, kernelHttp, metaKernel, knowledgeClientFactory, skillKernel, knowledgeTaskRegistry, authService };
+  return {
+    config,
+    logger,
+    instanceRegistry,
+    kernelHttp,
+    metaKernel,
+    knowledgeClientFactory,
+    skillKernel,
+    knowledgeTaskRegistry,
+    ingestProgressStore,
+    authService,
+  };
 }
 
 export type { InstanceEntry };

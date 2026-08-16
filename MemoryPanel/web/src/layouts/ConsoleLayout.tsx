@@ -1,8 +1,7 @@
 /**
- * ConsoleLayout — 主布局壳（Tea 组件重构版）
+ * ConsoleLayout — 主布局壳。
  *
- * 使用外部版 tea-component@2.8.0 的 `Layout` + `Menu` 组件替换手写布局。
- * 保留 TabBar、路由、菜单过滤等所有业务逻辑。
+ * 基于 tea-component 的 `Layout` + `Menu` 组件，包含 TabBar、路由、菜单过滤等业务逻辑。
  */
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -12,6 +11,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useCurrentRole, type TeamRole } from '@/services/useCurrentRole';
 import { GlobalHeader } from '@/layouts/GlobalHeader';
 import { TabBar } from '@/layouts/TabBar';
+import { OnboardingGuide, shouldShowOnboarding, resetOnboarding } from '@/layouts/OnboardingGuide';
 import { ITEM_ICON, usePageMeta, GROUP_ORDER_KEYS, type PageId } from '@/constants/menu';
 
 const { Body, Sider, Content } = Layout;
@@ -29,7 +29,7 @@ const PATH_TO_PAGE: Record<string, PageId> = {
 
 /** PageId → 路由 path */
 const PAGE_TO_PATH: Record<PageId, string> = Object.fromEntries(
-  Object.entries(PATH_TO_PAGE).map(([path, id]) => [id, path])
+  Object.entries(PATH_TO_PAGE).map(([path, id]) => [id, path]),
 ) as Record<PageId, string>;
 
 function legacyHashToPath(): string | null {
@@ -57,7 +57,7 @@ export function ConsoleLayout() {
 
   const activePage: PageId = useMemo(() => {
     const match = Object.entries(PATH_TO_PAGE).find(
-      ([path]) => path !== '/' && location.pathname.startsWith(path)
+      ([path]) => path !== '/' && location.pathname.startsWith(path),
     );
     return match ? match[1] : 'team_agents';
   }, [location.pathname]);
@@ -77,12 +77,33 @@ export function ConsoleLayout() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // 首次使用引导：登录后按「每用户仅首次」判定自动弹出
+  const currentUserId = auth?.user_id;
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
+  useEffect(() => {
+    if (currentUserId && shouldShowOnboarding(currentUserId)) {
+      setOnboardingVisible(true);
+    }
+  }, [currentUserId]);
+
+  /**
+   * 回顾引导入口（由 GlobalHeader 的「我的资料 → 回顾引导」菜单项触发）：
+   * 清掉 onboarded 标记 + 把 Guide 重新置为可见。
+   * 必须先清标记再 setVisible，否则 Guide 内部的 close→markOnboarded 链路里
+   * 立刻又会重新标记为已看过（虽然本次不冲突，但下次自动判定仍会按"已看过"处理）。
+   */
+  const handleReplayOnboarding = useCallback(() => {
+    if (!currentUserId) return;
+    resetOnboarding(currentUserId);
+    setOnboardingVisible(true);
+  }, [currentUserId]);
+
   const navigateTo = useCallback(
     (id: PageId) => {
       const path = PAGE_TO_PATH[id];
       if (path) navigate(path);
     },
-    [navigate]
+    [navigate],
   );
 
   const closePage = useCallback(
@@ -95,14 +116,14 @@ export function ConsoleLayout() {
         return next;
       });
     },
-    [activePage, navigateTo]
+    [activePage, navigateTo],
   );
 
   // ===== 基于 team role 的菜单过滤 =====
   // admin 可访问所有页面（含资源管理）
   // 「成员管理」项：reviewer 不可见
   const menuGroups = useMemo(() => {
-    const byGroup = new Map<string, typeof PAGE_META[PageId][]>();
+    const byGroup = new Map<string, (typeof PAGE_META)[PageId][]>();
 
     for (const meta of Object.values(PAGE_META)) {
       if (userRole === 'reviewer' && meta.id === 'team_members') continue;
@@ -111,8 +132,7 @@ export function ConsoleLayout() {
       byGroup.set(meta.group, list);
     }
 
-    return GROUP_ORDER_KEYS
-      .map((key) => t(`menu.group.${key}`))
+    return GROUP_ORDER_KEYS.map((key) => t(`menu.group.${key}`))
       .filter((g) => byGroup.has(g))
       .map((g) => ({
         title: g,
@@ -120,7 +140,7 @@ export function ConsoleLayout() {
       }));
   }, [userRole, PAGE_META, t]);
 
-  const renderMenuItem = (item: typeof PAGE_META[PageId]) => {
+  const renderMenuItem = (item: (typeof PAGE_META)[PageId]) => {
     const isActive = activePage === item.id;
     return (
       <Menu.Item
@@ -135,10 +155,18 @@ export function ConsoleLayout() {
 
   return (
     <div className="_memory-app-shell">
+      <OnboardingGuide
+        visible={onboardingVisible}
+        userId={currentUserId}
+        userRole={userRole}
+        onClose={() => setOnboardingVisible(false)}
+      />
       <GlobalHeader
         userRole={userRole}
         currentUser={auth?.user ?? ''}
         currentUserId={auth?.user_id}
+        instanceName={auth?.instance_name}
+        onReplayOnboarding={currentUserId ? handleReplayOnboarding : undefined}
         onLogout={logout}
       />
       <Layout>
@@ -165,7 +193,8 @@ export function ConsoleLayout() {
               onClose={closePage}
             />
             <Content.Body className="_memory-content-body">
-              <main className="_memory-page-frame">
+              {/* key 绑定 pathname：路由切换时重挂载页面帧，触发 _page-enter 过渡，保持跨页连续性 */}
+              <main key={location.pathname} className="_memory-page-frame">
                 <Outlet />
               </main>
             </Content.Body>

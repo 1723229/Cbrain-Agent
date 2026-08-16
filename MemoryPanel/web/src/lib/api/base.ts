@@ -1,5 +1,5 @@
 /**
- * api/base.ts — Control API 基础设施。
+ * api/base.ts — API 基础设施。
  *
  * 对接文档（唯一权威）：
  *   - docs/architecture/09-new-panel-control-backend-design.md  新面板设计（Header 鉴权、登录流程）
@@ -23,7 +23,7 @@ import { formatApiErrorMessage } from '../error-message';
 import type { MetaEnvelope, PaginatedResult, PublicUser } from './types';
 
 /**
- * 新面板一期能力开关（对齐 09 设计文档 §4.6、§9 N6）。
+ * 通用「资产」能力开关。
  * UI 消费 assetsApi / agentsApi.getAssets|getFixedAssets|setFixedAssets 前应先判断
  * `PANEL_CAPABILITIES.assets`，为 false 时展示"暂未开放"占位，不要发起注定 501 的请求。
  */

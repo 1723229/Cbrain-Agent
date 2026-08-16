@@ -154,6 +154,7 @@ export default function ApiKeyPanel() {
                 setShowCreate(true);
                 setNewExpiresAt(null);
               }}
+              data-guide="create-key"
             >
               <AddIcon size={14} />
               {t('apiKey.create')}

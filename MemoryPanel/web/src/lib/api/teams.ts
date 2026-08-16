@@ -1,5 +1,5 @@
 /**
- * api/teams.ts — Team + TeamMember（链路 A：meta/team/* + meta/team-member/*）。
+ * api/teams.ts — Team + TeamMember（meta/team/* + meta/team-member/*）。
  */
 import { metaPost, metaListAll, getCurrentUser } from './base';
 import type { PaginatedResult, Team, TeamMember } from './types';
@@ -12,8 +12,8 @@ export interface MemberCandidate {
 
 export const teamsApi = {
   /**
-   * 列出当前用户作为 active 成员的 team（内核 listTeamsByUser）。
-   * 内核 /v3/meta/team/list 要求 body 带 user_id 或 user_key；身份只在 header 不够。
+   * 列出当前用户作为 active 成员的 team。
+   * meta/team/list 要求 body 带 user_id 或 user_key；身份只在 header 不够。
    * admin 也传自己的 user_id（后端暂无 user/list 式「实例级列举全部 team」）。
    */
   list: async () => {
