@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { execute, install, parseArguments, promptSecret, resolveWindowsCommand, uninstall } from "../src/installer.mjs";
+import { execute, install, parseArguments, promptSecret, resolveWindowsCommand, saveConfig, uninstall } from "../src/installer.mjs";
 
 describe("cbrain-agent installer", () => {
   it("installs Codex from the remote marketplace and writes only apiKey", async () => {
@@ -73,6 +73,23 @@ describe("cbrain-agent installer", () => {
     const claude=await resolveWindowsCommand("claude",{finder:async()=>"C:\\npm\\claude.cmd",readText:async()=>`"%dp0%\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe" %*`,ensureExists:async()=>{}});
     assert.equal(claude.executable,"C:\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe");
     await assert.rejects(()=>resolveWindowsCommand("bad command",{}),/name is invalid/);
+  });
+
+  it("grants the Windows user modify access so atomic config upgrades can replace the file", async () => {
+    const calls = [], home = await mkdtemp(join(tmpdir(), "cbrain-windows-acl-"));
+    const previousUsername = process.env.USERNAME;
+    process.env.USERNAME = "cbrain-test-user";
+    try {
+      await saveConfig({ gatewayUrl: "https://cbrain.example", apiKey: "key" }, {
+        home,
+        platform: "win32",
+        runner: async (command, args) => { calls.push([command, args]); return { stdout: "" }; },
+      });
+      assert.deepEqual(calls, [["icacls.exe", [join(home, ".cbrain-agent", "config.json"), "/inheritance:r", "/grant:r", "cbrain-test-user:(M)"]]]);
+    } finally {
+      if (previousUsername === undefined) delete process.env.USERNAME;
+      else process.env.USERNAME = previousUsername;
+    }
   });
 
   it("accepts a pasted API Key and Enter delivered in one terminal chunk", async () => {

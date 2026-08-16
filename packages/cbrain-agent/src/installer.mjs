@@ -158,7 +158,9 @@ export async function saveConfig({ gatewayUrl, apiKey }, options = {}) {
 async function hardenWindowsAcl(path, run) {
   const username = process.env.USERNAME;
   if (!username) return;
-  try { await run("icacls.exe", [path, "/inheritance:r", "/grant:r", `${username}:(R,W)`]); }
+  // Atomic upgrades replace config.json with rename(), which requires delete
+  // permission on Windows in addition to read/write permission.
+  try { await run("icacls.exe", [path, "/inheritance:r", "/grant:r", `${username}:(M)`]); }
   catch { /* The user profile ACL remains the fallback. */ }
 }
 

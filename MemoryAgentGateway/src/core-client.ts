@@ -53,7 +53,13 @@ export class CoreClient {
     } else ids = ids.filter((assetId) => bound.has(assetId) && allowed.has(assetId));
     if (ids.length === 0) return [];
     const result = await this.postData<{ items?: KnowledgeResource[] }>("/knowledge/list", { team_id: this.identity.teamId, knowledge_ids: ids },timeoutMs);
-    return result.items ?? [];
+    // Core only creates knowledge entities after the asset-ready callback, and its
+    // public entity contract does not include status. Normalize that contract at
+    // the adapter boundary while preserving an explicit status if Core adds one.
+    return (result.items ?? []).map((item) => ({
+      ...item,
+      status: typeof item.status === "string" && item.status.trim() ? item.status : "ready",
+    }));
   }
 
   private async listAccessibleAssetIds(timeoutMs?:number): Promise<string[]> {
