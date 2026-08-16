@@ -1,0 +1,4 @@
+import { describe,expect,it } from "vitest";
+import { traverseRelatedPages } from "./manager.js";
+
+describe("traverseRelatedPages",()=>{it("returns a degree-ranked traversal capped at two hops",()=>{const meta=new Map([["a",{id:"a",title:"A",type:"concept",relPath:"wiki/a.md",snippet:""}],["b",{id:"b",title:"B",type:"concept",relPath:"wiki/b.md",snippet:""}],["c",{id:"c",title:"C",type:"concept",relPath:"wiki/c.md",snippet:""}],["d",{id:"d",title:"D",type:"concept",relPath:"wiki/d.md",snippet:""}]]);const graph={outAdj:new Map([["a",new Set(["b"])],["b",new Set(["c"])],["c",new Set(["d"])]]),inAdj:new Map([["b",new Set(["a"])],["c",new Set(["b"])],["d",new Set(["c"])]]),degree:new Map([["b",3],["c",2],["d",1]])};expect(traverseRelatedPages("wiki/a.md",graph,meta,5,20).map((item)=>[item.id,item.hop])).toEqual([["b",1],["c",2]])});});

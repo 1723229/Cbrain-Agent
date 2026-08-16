@@ -1,6 +1,6 @@
 {
   "name": "cbrain-agent",
-  "version": "0.2.5",
+  "version": "0.3.0+codex.20260816120858",
   "description": "Cbrain memory, Wiki/RAG, and CodeGraph tools for Codex",
   "mcpServers": "./.mcp.json",
   "author": {

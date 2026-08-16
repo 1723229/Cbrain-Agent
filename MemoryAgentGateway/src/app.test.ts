@@ -6,19 +6,29 @@ import { createAgentGatewayApp } from "./app.js";
 import { GatewayAuthenticationError } from "./auth.js";
 import { GatewayStore } from "./gateway-store.js";
 import type { AgentGatewayService } from "./service.js";
+import { AGENT_TOOLS, WORKSPACE_TOOLS } from "./tools.js";
 
 const principal={id:"user-1",userId:"usr-1",userKey:"uk-test"};
 function fixture(){
   const store=new GatewayStore(join(mkdtempSync(join(tmpdir(),"gateway-test-")),"gateway.sqlite"));
   const service={renderSessionContext:vi.fn(async()=>"profile"),renderRecallContext:vi.fn(async()=>"recall")} as unknown as AgentGatewayService;
   const directory={options:vi.fn(async()=>({teams:[{team_id:"team-1",name:"Team One"}],agents:[{agent_id:"agent-1",team_id:"team-1",name:"Agent"}]})),validate:vi.fn(async()=>({identity:{teamId:"team-1",userId:"usr-1",userKey:"uk-test",agentId:"agent-1",agentName:"Agent"},agent:{}}))};
-  const app=createAgentGatewayApp({authenticate:async(authorization)=>{if(authorization!=="Bearer page-api-key")throw new GatewayAuthenticationError("unauthorized");return principal},store,directory:directory as never,serviceFactory:()=>service});
+  const wikiService={resources:vi.fn(async()=>[]),search:vi.fn(),list:vi.fn(),read:vi.fn(),readSources:vi.fn(),related:vi.fn()};
+  const app=createAgentGatewayApp({authenticate:async(authorization)=>{if(authorization!=="Bearer page-api-key")throw new GatewayAuthenticationError("unauthorized");return principal},store,directory:directory as never,serviceFactory:()=>service,wikiServiceFactory:()=>wikiService as never});
   return{app,store,service,directory};
 }
 const headers={"Content-Type":"application/json",Authorization:"Bearer page-api-key"};
 describe("agent gateway lifecycle",()=>{
   it("rejects unauthenticated requests",async()=>{const{app}=fixture();expect((await app.request("http://localhost/v1/bindings/options",{method:"POST"})).status).toBe(401)});
   it("reports the authenticated identity without exposing its credential",async()=>{const{app}=fixture();const response=await app.request("http://localhost/v1/auth/me",{headers});expect(response.status).toBe(200);expect(await response.json()).toEqual({principal_id:"user-1",user_id:"usr-1"})});
+  it("serves the standalone Wiki MCP over the authenticated HTTP protocol",async()=>{
+    const{app}=fixture();const rpcHeaders={...headers,Accept:"application/json, text/event-stream"};
+    const initialized=await app.request("http://localhost/mcp/wiki",{method:"POST",headers:rpcHeaders,body:JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2025-03-26",capabilities:{},clientInfo:{name:"test",version:"1"}}})});
+    expect(initialized.status).toBe(200);const init=await initialized.json() as {result:{instructions:string;serverInfo:{name:string}}};expect(init.result).toMatchObject({serverInfo:{name:"cbrain-wiki-rag"}});expect(init.result.instructions).toContain("API Key");
+    const listed=await app.request("http://localhost/mcp/wiki",{method:"POST",headers:rpcHeaders,body:JSON.stringify({jsonrpc:"2.0",id:2,method:"tools/list",params:{}})});
+    expect(listed.status).toBe(200);const body=await listed.json() as {result:{tools:Array<{name:string}>}};expect(body.result.tools.map((tool)=>tool.name)).toEqual(["wiki_resources","wiki_search","wiki_list","wiki_read","wiki_source_read","wiki_related"]);
+  });
+  it("serves the exact full Agent tool profile over HTTP",async()=>{const{app}=fixture();const response=await app.request("http://localhost/mcp",{method:"POST",headers:{...headers,Accept:"application/json, text/event-stream"},body:JSON.stringify({jsonrpc:"2.0",id:3,method:"tools/list",params:{}})});expect(response.status).toBe(200);const body=await response.json() as {result:{tools:Array<{name:string;annotations?:Record<string,boolean>}>}};expect(body.result.tools.map((tool)=>tool.name)).toEqual([...WORKSPACE_TOOLS,...AGENT_TOOLS].map((tool)=>tool.name));expect(body.result.tools.find((tool)=>tool.name==="workspace_unbind")?.annotations).toMatchObject({readOnlyHint:false,destructiveHint:true});});
   it("opens a validated context, recalls, and durably deduplicates capture",async()=>{
     const{app,store,directory}=fixture();
     const opened=await app.request("http://localhost/v1/sessions/open",{method:"POST",headers,body:JSON.stringify({host:"codex",session_id:"s1",workspace:"C:/repo",team_id:"team-1",agent_id:"agent-1"})});

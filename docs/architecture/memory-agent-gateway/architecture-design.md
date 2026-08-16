@@ -322,7 +322,7 @@ sequenceDiagram
 
 ### 7.3 Context 安全
 
-`context_id` 是短期不透明 ID，服务端关联 Principal、User、Team、Agent、Session、Workspace 和过期时间。所有 Memory/Skill/Wiki/CodeGraph MCP 工具都必须携带它。Gateway 再校验 Context 属于当前 Principal，避免客户端自行传 Team/Agent 绕过绑定。
+`context_id` 是短期不透明 ID，服务端关联 Principal、User、Team、Agent、Session、Workspace 和过期时间。完整编码 Agent Profile 中的 Memory/Skill/Wiki/CodeGraph MCP 工具都必须携带它。Gateway 再校验 Context 属于当前 Principal，避免客户端自行传 Team/Agent 绕过绑定。独立 Wiki/RAG Profile 不进入会话记忆，因此只用 API Key 自动解析 Wiki 范围，不接受 `context_id/team_id/agent_id`。
 
 ## 8. L0–L3 记忆机制
 
@@ -434,7 +434,7 @@ flowchart TD
 
 ### 9.4 运行时使用
 
-SessionStart 只加载压缩后的 Skill listing，不把所有 Skill 正文塞进上下文。Codex 根据当前任务选择 Skill 后，再调用 `skill_get` 或 `skill_read_file` 读取内容。这样控制上下文开销，也避免无关 Skill 自动执行。
+SessionStart 只加载压缩后的 Skill listing，不把所有 Skill 正文塞进上下文。Codex 根据当前任务选择 Skill 后，再调用 `skill_get` 或 `skill_file_read` 读取内容。这样控制上下文开销，也避免无关 Skill 自动执行。公开 MCP 用可选 query 的 `skill_search` 同时承担列举和检索，内部 listing 仅供 SessionStart 编排。
 
 ## 10. Wiki 与 Wiki Graph 完整机制
 
@@ -504,10 +504,10 @@ flowchart LR
 
 ### 10.4 原文与加工页读取
 
-- `wiki_raw_list/wiki_raw_read` 读取上传原文。
-- `wiki_search/wiki_list/wiki_read` 查询和读取加工页面。
-- `wiki_graph` 返回页面节点和关系边。
-- 所有路径都必须通过 Context 和固定资产权限交集；路径解析限制在对应 Wiki 根目录，拒绝目录穿越。
+- `wiki_search/wiki_list/wiki_read` 查询和读取加工页面；搜索结果返回不透明 `page_ref`。
+- `wiki_source_read` 通过页面返回的 `source_ref` 读取上传原文，调用方不直接拼文件路径。
+- `wiki_related` 在内部图数据上做 1–2 跳有界遍历，不向模型暴露整张图。
+- 完整 Agent Profile 的路径必须通过 Context 和固定资产权限交集；独立 Wiki/RAG Profile 则通过 API Key 解析用户拥有的所有 active Agent，再对每个 Agent 做固定绑定与可读资产交集。两条路径都在每次读取前重新授权并拒绝目录穿越。
 
 ## 11. CodeGraph 完整机制
 
@@ -534,11 +534,10 @@ flowchart LR
 
 - `code_search`：按关键词搜索符号/文件。
 - `code_explore`：探索与查询相关的源文件。
-- `code_callers/code_callees`：调用关系。
+- `code_relationships`：按 `callers/callees/both` 查询调用关系。
 - `code_impact`：变更符号的影响分析。
 - `code_node`：符号详情，可选源码。
 - `code_files`：文件树/列表。
-- `code_status`：索引状态和统计。
 
 Gateway 将工具名映射到 Knowledge ToolHandler，但必须先验证该 CodeGraph 是当前 Agent 可用的固定资产，不能把任意仓库 ID 当作授权。
 
@@ -590,13 +589,16 @@ sequenceDiagram
 
 ### 13.2 MCP 工具分组
 
+- 完整 `/mcp` Profile 共 24 个工具：Workspace 4、Memory 5、Skill 3、资源发现 1、Wiki/RAG 5、CodeGraph 6。
 - Workspace：bind/status/rebind/unbind。
-- Memory：L0 查询、L1 搜索、L2/L3 读取。
-- Skill：listing/get/read-file。
-- Wiki：info/search/list/read/graph/raw-list/raw-read。
-- CodeGraph：info/search/explore/callers/callees/impact/node/status/files。
+- Memory：status/profile/search/conversation-search/scene-read；profile 合并 Agent prompt、L3 与分页 L2 索引。
+- Skill：search/get/file-read；search 的 query 可选，省略即列举。
+- Wiki/RAG：search/list/read/source-read/related；默认跨当前 Agent 绑定的全部 Wiki 搜索。
+- CodeGraph：search/explore/relationships/impact/node/files。
 
 除未绑定阶段的 Workspace 工具外，领域工具都要求 `context_id`。
+
+独立 `/mcp/wiki` Profile 面向只需要参考既有方案、业务文档和踩坑沉淀的外部 Agent，共 6 个工具：resources/search/list/read/source-read/related。客户端只传页面 API Key；Gateway 自动按“用户 → 跨 Team 的 active 自有 Agent → 固定 Wiki → 可读 Asset → ready Knowledge”解析并去重范围。多 Wiki 搜索在每个 Wiki 内沿用 BM25，跨 Wiki 用 RRF 合并；单 Wiki 失败返回 warning，全部失败才返回 MCP error。
 
 ### 13.3 异步捕获
 
@@ -623,6 +625,7 @@ Hook 只向当前客户端环境按 Gateway 配置共享的本机 Event Relay �
 | Plugin → Gateway | workspace resolve/bind/status/rebind/unbind | Bearer Principal、一次性 binding request |
 | Plugin → Gateway | session/prompt/hook batch | context_id、turn_id、批量上限、逐事件幂等 |
 | Client MCP → Gateway | Memory/Skill/Wiki/Code tools | context_id + 资源 ID，服务端二次授权 |
+| Wiki-only MCP → Gateway | `/mcp/wiki` 只读检索 | Bearer API Key，自动 Agent/Wiki 范围，无 context_id |
 | Gateway → Core | Metadata、L0–L3、Skill | service token + user key + isolation fields |
 | Gateway → Knowledge | Wiki/Code read tools | 仅使用已授权固定资产 ID |
 | Panel → Core | Team/Agent/Task/Asset/ACL | 用户身份和角色权限 |

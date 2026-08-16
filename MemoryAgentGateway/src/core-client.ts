@@ -6,7 +6,7 @@ export interface SearchData { items?: SearchItem[]; messages?: SearchItem[] }
 export interface SceneData { entries?: Array<{ path: string; summary?: string }>; total?: number }
 export interface SceneFile { path?: string; content?: string; [key: string]: unknown }
 interface FixedAssetDetail { agent?: { prompt?: string | null }; items?: Array<{ asset_id: string; asset_type: string; status?: string }> }
-interface AgentRecord { agent_id: string; team_id: string; owner_user_id: string; name: string; prompt?: string | null; status: string }
+export interface AgentRecord { agent_id: string; team_id: string; owner_user_id: string; name: string; prompt?: string | null; status: string }
 interface AuthVerification { valid: boolean; user: { user_id?: string } | null }
 
 export class UpstreamRequestError extends Error { constructor(message:string,readonly status:number,readonly retryable:boolean){super(message)} }
@@ -112,6 +112,11 @@ export class CoreDirectoryClient {
   async options(principal: GatewayPrincipal): Promise<unknown> {
     const [teams,agents]=await Promise.all([this.metaPages("/team/list", identityField(principal), principal),this.metaPages("/agent/list", principal.userKey ? { owner_user_key: principal.userKey } : { owner_user_id: principal.userId }, principal)]);
     return { teams, agents };
+  }
+
+  async listOwnedActiveAgents(principal: GatewayPrincipal): Promise<AgentRecord[]> {
+    const agents = await this.metaPages("/agent/list", principal.userKey ? { owner_user_key: principal.userKey } : { owner_user_id: principal.userId }, principal) as AgentRecord[];
+    return agents.filter((agent) => agent.owner_user_id === principal.userId && agent.status === "active" && Boolean(agent.agent_id && agent.team_id));
   }
 
   private async metaPages(path: string, body: Record<string, unknown>, principal: GatewayPrincipal): Promise<unknown[]> {

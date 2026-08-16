@@ -1,6 +1,6 @@
 {
   "name": "cbrain-agent",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "description": "Cbrain memory, Wiki/RAG, and CodeGraph integration for Claude Code",
   "author": {
     "name": "Cbrain"

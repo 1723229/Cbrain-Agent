@@ -33,6 +33,32 @@ Page API Keys are request-scoped and are never persisted in Gateway SQLite.
 `CBRAIN_SERVICE_TOKEN` is an optional internal service-to-service credential;
 it is never exposed to plugins or users.
 
+## MCP profiles
+
+`/mcp` is the full coding-agent profile. It exposes 24 task-oriented tools:
+four explicit workspace-binding operations plus Memory, Skill, Wiki/RAG, and
+CodeGraph retrieval. Every non-workspace call requires the opaque `context_id`
+provided when the coding session starts.
+
+`/mcp/wiki` is the standalone Wiki/RAG profile for external Agents that only
+need to reference existing plans, operating documents, and lessons learned. It
+exposes six read-only tools: `wiki_resources`, `wiki_search`, `wiki_list`,
+`wiki_read`, `wiki_source_read`, and `wiki_related`.
+
+The standalone profile requires only the normal page API Key as a Bearer token.
+The Gateway resolves every active Agent owned by that user across Teams,
+intersects each Agent's fixed Wiki bindings with its readable assets, keeps only
+ready Wikis, and deduplicates shared Wikis. Callers never send `team_id`,
+`agent_id`, or `context_id`. `wiki_search` searches the whole resolved scope by
+default and merges per-Wiki BM25 rankings with reciprocal-rank fusion; one
+failed Wiki is reported as a warning while successful results remain usable.
+
+MCP clients should configure the Streamable HTTP URL as
+`https://<gateway>/mcp/wiki` and send `Authorization: Bearer <Cbrain API Key>`.
+Future additive tools or optional fields require only a Gateway update and MCP
+reconnection. Renaming tools or adding required parameters is a breaking
+contract change and must use a new profile/version.
+
 The Gateway stores opaque session contexts and durable capture/extraction queues
 in `CBRAIN_AGENT_GATEWAY_DB` (default `./data/gateway.sqlite`). It sends each
 completed root prompt/final answer pair independently to Core L0 and Skill
@@ -73,3 +99,10 @@ Failures use bounded exponential retry; exhausted work is retained as a dead
 letter for seven days. `/health/ready` reports pending counts, dead-letter counts,
 and the oldest pending age. Health endpoints are `/health/live` and
 `/health/ready`. Build with `pnpm build`.
+
+For a read-only validation against an existing Core/Knowledge deployment, first
+build the Gateway and configure the current user's normal Cbrain API Key, then
+run `pnpm test:e2e:real`. The script starts a local Gateway with a fresh
+temporary SQLite database, exercises both MCP profiles, and removes only that
+temporary directory. Override the upstreams with `CBRAIN_E2E_CORE_URL` and
+`CBRAIN_E2E_KNOWLEDGE_URL` when needed.

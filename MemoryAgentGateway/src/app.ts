@@ -2,15 +2,17 @@ import { Hono } from "hono";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { AgentBindingInvalidError, CoreDirectoryClient, UpstreamRequestError } from "./core-client.js";
 import { GatewayStore } from "./gateway-store.js";
-import { createMcpServer } from "./mcp-server.js";
+import { createMcpServer, createWikiMcpServer } from "./mcp-server.js";
 import { GatewayAuthenticationError } from "./auth.js";
 import type { AgentGatewayService } from "./service.js";
 import type { GatewayPrincipal } from "./types.js";
+import type { WikiAccessService } from "./wiki-service.js";
 
 export interface CreateAppOptions {
   authenticate: (authorization: string | undefined) => Promise<GatewayPrincipal>;
   store: GatewayStore; directory: CoreDirectoryClient;
   serviceFactory: (contextId: string, principal: GatewayPrincipal) => AgentGatewayService;
+  wikiServiceFactory: (principal: GatewayPrincipal) => WikiAccessService;
   contextTtlMs?: number;
   skillSettleMs?: number;
 }
@@ -151,6 +153,12 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
       rebind:(input)=>beginWorkspaceSelection(principal,input,true),
       unbind:(workspaceKey)=>unbindWorkspace(principal,workspaceKey),
     });await server.connect(transport);return transport.handleRequest(c.req.raw);
+  });
+  app.all("/mcp/wiki",async(c)=>{
+    const principal=await authenticate(c.req.header("authorization"));
+    const transport=new WebStandardStreamableHTTPServerTransport({enableJsonResponse:true});
+    const server=createWikiMcpServer(options.wikiServiceFactory(principal));
+    await server.connect(transport);return transport.handleRequest(c.req.raw);
   });
   return app;
 }

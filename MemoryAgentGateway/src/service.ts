@@ -1,6 +1,7 @@
 import { CoreClient } from "./core-client.js";
 import { KnowledgeClient } from "./knowledge-client.js";
 import type { CoreClientConfig, KnowledgeResource, SessionContext } from "./types.js";
+import { WikiAccessService } from "./wiki-service.js";
 
 export interface AgentGatewayServiceOptions { core: CoreClientConfig; knowledge: KnowledgeClient; knowledgeIds?: readonly string[]; profileMaxChars?: number; recallTimeoutMs?: number; recallMinScore?:number; sessionContextTimeoutMs?:number; knowledgeCacheTtlMs?:number; extractionStatus?: () => unknown }
 
@@ -8,14 +9,18 @@ const knowledgeCache=new Map<string,{expiresAt:number,value:Promise<KnowledgeRes
 
 export class AgentGatewayService {
   private readonly core: CoreClient;
-  constructor(private readonly options: AgentGatewayServiceOptions, readonly context: SessionContext, core?: CoreClient) { this.core = core ?? new CoreClient(options.core, context); }
+  private readonly wiki: WikiAccessService;
+  constructor(private readonly options: AgentGatewayServiceOptions, readonly context: SessionContext, core?: CoreClient) { this.core = core ?? new CoreClient(options.core, context); this.wiki = new WikiAccessService(() => this.listKnowledgeResources(), options.knowledge); }
 
-  async profile(): Promise<unknown> {
-    const [l3, l2, fixed] = await Promise.allSettled([this.core.readProfile(), this.core.listScenes(), this.core.agentAndAssets()]);
+  async profile(scenePrefix = "", cursor?: string, limit = 50): Promise<unknown> {
+    const [l3, l2, fixed] = await Promise.allSettled([this.core.readProfile(), this.core.listScenes(scenePrefix), this.core.agentAndAssets()]);
+    const offset = decodeSceneCursor(cursor), pageSize = bounded(limit, 1, 100, 50);
+    const sceneData = l2.status === "fulfilled" ? l2.value : { entries: [], total: 0 };
+    const entries = sceneData.entries ?? [];
     return {
       team_id: this.context.teamId, agent_id: this.context.agentId, agent_name: this.context.agentName,
       l3: l3.status === "fulfilled" ? l3.value : null,
-      l2: l2.status === "fulfilled" ? l2.value : { entries: [], total: 0 },
+      l2: { entries: entries.slice(offset, offset + pageSize), total: sceneData.total ?? entries.length, next_cursor: offset + pageSize < entries.length ? encodeSceneCursor(offset + pageSize) : null },
       agent_prompt: fixed.status === "fulfilled" ? fixed.value.agent?.prompt ?? null : null,
       errors: [l3, l2, fixed].filter((v) => v.status === "rejected").map((v) => String((v as PromiseRejectedResult).reason)),
     };
@@ -27,6 +32,7 @@ export class AgentGatewayService {
   readProfile(): Promise<unknown> { return this.core.readProfile(); }
   listSkills(limit = 50, offset = 0): Promise<unknown> { return this.core.listSkills(bounded(limit, 1, 1000, 50), bounded(offset, 0, 1_000_000, 0)); }
   searchSkills(query: string, topK = 10): Promise<unknown> { return this.core.searchSkills(required(query, "query"), bounded(topK, 1, 50, 10)); }
+  findSkills(query: string | undefined, limit = 10, offset = 0): Promise<unknown> { return query ? this.searchSkills(query, limit) : this.listSkills(bounded(limit, 1, 50, 10), offset); }
   getSkill(skillId: string, version?: number): Promise<unknown> { return this.core.getSkill(required(skillId, "skill_id"), version); }
   readSkillFile(skillId: string, path: string, version?: number, encoding?: string): Promise<unknown> { return this.core.readSkillFile(required(skillId, "skill_id"), required(path, "path"), version, encoding); }
   skillListing(query = "", charBudget = 8_000): Promise<unknown> { return this.core.skillListing(query, bounded(charBudget, 0, 64_000, 8_000)); }
@@ -36,6 +42,19 @@ export class AgentGatewayService {
     const value=this.core.listBoundKnowledge(this.options.knowledgeIds??[]);knowledgeCache.set(key,{expiresAt:now+ttl,value});value.catch(()=>knowledgeCache.delete(key));return value;
   }
   extractionStatus(): unknown { return this.options.extractionStatus?.() ?? null; }
+
+  wikiResources(): Promise<KnowledgeResource[]> { return this.wiki.resources(); }
+  wikiSearch(query:string,wikiIds?:string[],limit?:number){return this.wiki.search(query,wikiIds,limit)}
+  wikiList(wikiId:string,cursor?:string,limit?:number){return this.wiki.list(wikiId,cursor,limit)}
+  wikiRead(pageRefs:string[],maxChars?:number){return this.wiki.read(pageRefs,maxChars)}
+  wikiSourceRead(sourceRefs:string[],maxChars?:number){return this.wiki.readSources(sourceRefs,maxChars)}
+  wikiRelated(pageRef:string,depth?:number,limit?:number){return this.wiki.related(pageRef,depth,limit)}
+
+  async codeRelationships(resourceId:string,symbol:string,direction:"callers"|"callees"|"both",limit:number):Promise<unknown>{
+    if(direction!=="both")return this.callKnowledge(resourceId,"code-graph",direction,{symbol,limit});
+    const [callers,callees]=await Promise.all([this.callKnowledge(resourceId,"code-graph","callers",{symbol,limit}),this.callKnowledge(resourceId,"code-graph","callees",{symbol,limit})]);
+    return{callers,callees};
+  }
 
   async callKnowledge(resourceId: string, expectedType: "wiki" | "code-graph", toolName: string, params: Record<string, unknown>): Promise<unknown> {
     const resources = await this.listKnowledgeResources();
@@ -99,3 +118,5 @@ function boundedJson(payload:Record<string,unknown>,max:number):string{
 }
 function compactUnknown(value:unknown,max:number):unknown{const json=JSON.stringify(value);return !json||json.length<=max?value:{truncated:true,preview:truncate(json,max)}}
 function compactResource(value:unknown):unknown{if(!value||typeof value!=="object")return value;return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([key,item])=>[key,typeof item==="string"?truncate(item,300):item]))}
+function encodeSceneCursor(offset:number):string{return `cbrain-scene:${Buffer.from(String(offset)).toString("base64url")}`}
+function decodeSceneCursor(cursor?:string):number{if(!cursor)return 0;try{if(!cursor.startsWith("cbrain-scene:"))throw new Error();const value=Number(Buffer.from(cursor.slice(13),"base64url").toString());if(!Number.isSafeInteger(value)||value<0)throw new Error();return value}catch{throw new Error("invalid scene cursor")}}

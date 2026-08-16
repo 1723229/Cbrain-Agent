@@ -45,7 +45,7 @@ interface HttpToolDef {
   params: Record<string, HttpToolParam>;
 }
 
-/** Wiki tools (7) — read-only query tools for LLM agents. */
+/** Wiki tools (8) — read-only query tools for Gateway orchestration. */
 const WIKI_TOOLS: HttpToolDef[] = [
   {
     name: "get_info",
@@ -76,6 +76,11 @@ const WIKI_TOOLS: HttpToolDef[] = [
     name: "get_graph",
     description: "获取知识图谱结构（nodes, edges, communities）。",
     params: {},
+  },
+  {
+    name:"related_pages",
+    description:"按页面引用返回最多两跳的有限关联页面，不传输整张知识图谱。",
+    params:{ref:{type:"string",required:true,description:"页面引用（id 或路径）"},depth:{type:"integer",required:false,default:1,description:"遍历深度，最多 2"},limit:{type:"integer",required:false,default:10,description:"返回结果上限，最多 20"}},
   },
   {
     name: "list_raw",
@@ -352,6 +357,12 @@ async function executeWikiTool(
       }
       const graphData = wikiMgr.graph(wiki_id);
       return Response.json(wrapOk(graphData));
+    }
+    case "related_pages": {
+      const ref=params.ref;if(typeof ref!=="string"||!ref)return Response.json(wrapError(400,"ref is required"),{status:400});
+      if(row.status!=="ready")return Response.json(wrapOk({items:[]}));
+      const depth=typeof params.depth==="number"?params.depth:1,limit=typeof params.limit==="number"?params.limit:10;
+      return Response.json(wrapOk({items:wikiMgr.related(wiki_id,ref,depth,limit)}));
     }
     case "list_raw": {
       const items = wikiService.rawLs(serviceId, team_id, wiki_id);

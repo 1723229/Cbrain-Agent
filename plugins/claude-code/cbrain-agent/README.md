@@ -41,7 +41,9 @@ continues.
   explicit `conversation_search` tool and is never injected automatically.
 - PostToolUse, Stop, and SessionEnd enqueue best-effort events through a local
   loopback relay. They do not wait for the remote Gateway and may be dropped.
-- MCP exposes workspace binding, Memory, Skill, Wiki/RAG, and CodeGraph tools.
+- MCP exposes a task-oriented workspace, Memory, Skill, Wiki/RAG, and CodeGraph
+  surface. Wiki search spans every Wiki bound to the active Agent by default;
+  page and source reads use opaque references returned by the Gateway.
 - Bindings are stored centrally by user and portable workspace key. Git remote
   is only the workspace fingerprint; it does not choose a Team.
 - Multiple directories may bind to the same Team and Agent.

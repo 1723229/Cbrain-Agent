@@ -10,6 +10,10 @@ const context: SessionContext = {
 const coreConfig = { baseUrl: "http://core", serviceId: "service", timeoutMs: 1000 };
 
 describe("AgentGatewayService automatic recall", () => {
+  it("returns the combined profile with a bounded, paginated L2 index",async()=>{
+    const core=new CoreClient(coreConfig,context);vi.spyOn(core,"readProfile").mockResolvedValue({content:"L3"});vi.spyOn(core,"listScenes").mockResolvedValue({entries:Array.from({length:3},(_,i)=>({path:`project/${i}.md`})),total:3});vi.spyOn(core,"agentAndAssets").mockResolvedValue({agent:{prompt:"Prompt"},items:[]});const service=new AgentGatewayService({core:coreConfig,knowledge:{} as never},context,core);
+    const first=await service.profile("project/",undefined,2) as {l2:{entries:unknown[];next_cursor:string}};expect(first.l2.entries).toHaveLength(2);expect(first.l2.next_cursor).toMatch(/^cbrain-scene:/);const second=await service.profile("project/",first.l2.next_cursor,2) as {l2:{entries:unknown[];next_cursor:null}};expect(second.l2.entries).toHaveLength(1);expect(second.l2.next_cursor).toBeNull();expect(core.listScenes).toHaveBeenCalledWith("project/");
+  });
   it("injects L1/L2/L3 in parallel and leaves raw L0 to the explicit conversation tool", async () => {
     const core = new CoreClient(coreConfig, context);
     const memory = vi.spyOn(core, "searchMemory").mockResolvedValue({ items: [

@@ -8,6 +8,7 @@
     "dev": "tsx src/server.ts",
     "build": "tsdown",
     "test": "vitest run",
+    "test:e2e:real": "node scripts/real-e2e.mjs",
     "typecheck": "tsc --noEmit"
   },
   "engines": {

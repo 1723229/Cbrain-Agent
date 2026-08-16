@@ -111,6 +111,7 @@ export interface WikiSourceManager {
   remove(name: string): void;
   search(name: string, query: string, limit?: number, options?: SearchOptions): SearchResponse;
   graph(name: string): { nodes: GraphNode[]; edges: GraphEdge[]; communities: CommunityInfo[] };
+  related(name:string,ref:string,depth?:number,limit?:number):Array<{id:string;title:string;path:string;type:string;hop:number}>;
   readPage(name: string, relPath: string): string | null;
   getPages(name: string): WikiPage[];
   init(config: WikiSourceConfig): WikiSourceState;
@@ -136,7 +137,7 @@ export interface PageGraph {
 }
 
 /** 页元数据（读模型；正文不在库，snippet 为写入时预生成的静态摘要）。 */
-interface PageMeta {
+export interface PageMeta {
   id: string;
   title: string;
   type: string;
@@ -424,6 +425,18 @@ function buildRelated(
     return db - da;
   });
   return items.slice(0, RELATED_CAP);
+}
+
+export function traverseRelatedPages(ref:string,pg:Pick<PageGraph,"outAdj"|"inAdj"|"degree">,metaById:Map<string,PageMeta>,depth=1,limit=10):Array<{id:string;title:string;path:string;type:string;hop:number}>{
+  const normalized=idFromPath(ref);const start=metaById.has(normalized)?normalized:[...metaById.values()].find((meta)=>idFromPath(meta.relPath)===normalized)?.id;
+  if(!start)return[];
+  const visited=new Set([start]);let frontier=[start];const result:Array<{id:string;title:string;path:string;type:string;hop:number}>=[];
+  for(let hop=1;hop<=clamp(depth,1,2)&&frontier.length;hop++){
+    const candidates=new Set<string>();for(const id of frontier){for(const neighbor of pg.outAdj.get(id)??[])candidates.add(neighbor);for(const neighbor of pg.inAdj.get(id)??[])candidates.add(neighbor)}
+    frontier=[...candidates].filter((id)=>!visited.has(id)).sort((a,b)=>(pg.degree.get(b)??0)-(pg.degree.get(a)??0)).slice(0,200);
+    for(const id of frontier){visited.add(id);const meta=metaById.get(id);if(meta)result.push({id,title:meta.title,path:meta.relPath,type:meta.type,hop})}
+  }
+  return result.slice(0,clamp(limit,1,20));
 }
 
 function idFromPath(relPath: string): string {
@@ -870,6 +883,10 @@ export function createWikiSourceManager(dataDir: string): WikiSourceManager {
       } catch {
         return { nodes: [], edges: [], communities: [] };
       }
+    },
+    related:(name,ref,depth,limit)=>{
+      const state=sources.get(name);if(!state)return[];
+      try{const db=getReadDb(name,state.path),model=loadReadModel(db);return traverseRelatedPages(ref,model.pg,model.metaById,depth,limit)}catch{return[]}
     },
     readPage: (name, relPath) => {
       const state = sources.get(name);
