@@ -15,6 +15,7 @@ import { validatePanelMetaHeaders } from '../../middleware/validate-panel-header
 import { respondControlError } from '../../envelope.js';
 import type { PanelDeps } from '../../../panel-deps.js';
 import type { WikiRawWriteFile } from '../../../kernel/ports/knowledge-client-port.js';
+import { resolveWikiUploadLimits } from '../../../config/panel-config.js';
 import { respondEnvelope } from '../../envelope.js';
 import {
   buildCtx,
@@ -253,9 +254,11 @@ export function registerKnowledgeWikiRoutes(api: Hono, deps: PanelDeps): void {
   });
 
   // W9 raw/write — team 门控 + 上传大小限制
-  const MAX_FILE_SIZE = 512 * 1024;        // 单文件 512KB
-  const MAX_FILES_PER_REQUEST = 10;        // 单次最多 10 个文件
-  const MAX_TOTAL_SIZE = 5 * 1024 * 1024;  // 单次总大小 5MB
+  const {
+    maxFileBytes: MAX_FILE_SIZE,
+    maxFilesPerRequest: MAX_FILES_PER_REQUEST,
+    maxTotalBytes: MAX_TOTAL_SIZE,
+  } = deps.config.wikiUpload ?? resolveWikiUploadLimits();
 
   api.post('/knowledge/wiki/raw/write', mw, async (c) => {
     const ctx = buildCtx(c);

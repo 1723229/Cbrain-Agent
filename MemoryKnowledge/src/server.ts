@@ -47,6 +47,7 @@ export function createApp() {
     db,
     llmConfig: config.llm,
     tmcCallbackUrl: config.tmcCallbackUrl,
+    wikiUpload: config.wikiUpload,
   });
 
   // Hono app
@@ -67,6 +68,7 @@ export function createApp() {
     wikiService: knowledgeModule.wikiService,
     wikiMgr: knowledgeModule.wikiMgr,
     publicBaseUrl: config.publicBaseUrl,
+    uploadLimits: config.wikiUpload,
   }));
   api.route("/code-graph", createCodeGraphRoutes({
     cgService: knowledgeModule.cgService,

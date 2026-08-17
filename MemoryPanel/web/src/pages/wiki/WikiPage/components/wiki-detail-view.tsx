@@ -21,7 +21,7 @@ import {
 } from 'tea-icons-react';
 import { knowledgeApi } from '@/lib/knowledge-api';
 import { tea } from '@/lib/tea-bridge';
-import { WIKI_ALLOWED_FILE_RE, TYPE_COLORS, TYPE_COLOR_FALLBACK, type DetailTab } from './wiki-constants';
+import { partitionWikiUploadFiles, TYPE_COLORS, TYPE_COLOR_FALLBACK, type DetailTab } from './wiki-constants';
 import { WikiStatusBadge } from './wiki-ui';
 import { GraphTabContent, PagesTabContent } from './wiki-detail-components';
 import type { WikiSourcesStore } from './useWikiSources';
@@ -471,14 +471,14 @@ export function WikiDetailView({ store }: { store: WikiSourcesStore }) {
                     onDrop={(e) => {
                       e.preventDefault();
                       const all = Array.from(e.dataTransfer.files);
-                      const allowed = all.filter((f) => WIKI_ALLOWED_FILE_RE.test(f.name));
-                      const rejected = all.length - allowed.length;
-                      if (rejected > 0) {
+                      const { accepted, unsupportedCount, oversizedCount } = partitionWikiUploadFiles(all);
+                      if (unsupportedCount > 0) {
                         tea.notify.warning(
-                          t('wiki.detail.ignored', { count: rejected }),
+                          t('wiki.detail.ignored', { count: unsupportedCount }),
                         );
                       }
-                      if (allowed.length > 0) setPendingFiles((prev) => [...prev, ...allowed]);
+                      if (oversizedCount > 0) tea.notify.warning(t('wiki.detail.upload.tooLarge', { count: oversizedCount, size: 10 }));
+                      if (accepted.length > 0) setPendingFiles((prev) => [...prev, ...accepted]);
                     }}
                   >
                     <Text theme="weak">{t('wiki.detail.dropzone')}</Text>
@@ -604,14 +604,14 @@ export function WikiDetailView({ store }: { store: WikiSourcesStore }) {
                 // accept 属性只是浏览器建议，用户可在选择器切换"所有文件"绕过，
                 // 这里做二次校验，与拖拽入口一致，避免二进制文件被读成乱码上传。
                 const all = Array.from(e.target.files ?? []);
-                const allowed = all.filter((f) => WIKI_ALLOWED_FILE_RE.test(f.name));
-                const rejected = all.length - allowed.length;
-                if (rejected > 0) {
+                const { accepted, unsupportedCount, oversizedCount } = partitionWikiUploadFiles(all);
+                if (unsupportedCount > 0) {
                   tea.notify.warning(
-                    t('wiki.detail.ignored', { count: rejected }),
+                    t('wiki.detail.ignored', { count: unsupportedCount }),
                   );
                 }
-                if (allowed.length > 0) setPendingFiles((prev) => [...prev, ...allowed]);
+                if (oversizedCount > 0) tea.notify.warning(t('wiki.detail.upload.tooLarge', { count: oversizedCount, size: 10 }));
+                if (accepted.length > 0) setPendingFiles((prev) => [...prev, ...accepted]);
                 e.target.value = '';
               }}
             />

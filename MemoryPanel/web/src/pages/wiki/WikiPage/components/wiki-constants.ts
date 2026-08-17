@@ -6,6 +6,27 @@ import type { WikiDetail } from '@/lib/knowledge-api';
 
 /** Wiki 仅允许上传 Markdown 类文件（.md / .markdown / .txt）。 */
 export const WIKI_ALLOWED_FILE_RE = /\.(md|txt|markdown)$/i;
+export const WIKI_UPLOAD_MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+export function partitionWikiUploadFiles(files: File[]): {
+  accepted: File[];
+  unsupportedCount: number;
+  oversizedCount: number;
+} {
+  const accepted: File[] = [];
+  let unsupportedCount = 0;
+  let oversizedCount = 0;
+  for (const file of files) {
+    if (!WIKI_ALLOWED_FILE_RE.test(file.name)) unsupportedCount += 1;
+    else if (file.size > WIKI_UPLOAD_MAX_FILE_BYTES) oversizedCount += 1;
+    else accepted.push(file);
+  }
+  return { accepted, unsupportedCount, oversizedCount };
+}
+
+export function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).byteLength;
+}
 
 // Wiki 状态徽章：draft=建壳未加工（待用户点 ingest）；pending=排队；processing=加工中；ready=就绪；failed=失败；missing=KS 数据丢失。
 // 走 Tea Tag 的语义 theme（soft 变体），随主题响应，不用硬编码调色板色。

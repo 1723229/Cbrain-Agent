@@ -24,7 +24,7 @@ import { createWikiSourceManager, type WikiSourceManager } from "./engines/wiki/
 import { indexProject, openIndex, syncIndex, getStats, closeIndex, type CodeGraphInstance } from "./engines/code/index.js";
 import { SourceFetcherRegistry } from "./source-fetcher/index.js";
 import { createLogger } from "./logger.js";
-import type { LlmConfig } from "./config.js";
+import type { LlmConfig, WikiUploadLimits } from "./config.js";
 import { getGlobalLlmConcurrency } from "./config.js";
 import { buildProgressFn } from "./callback.js";
 import { AutoSyncScheduler, resolveAutoSyncConfig, type AutoSyncConfig } from "./store/auto-sync-scheduler.js";
@@ -43,6 +43,8 @@ export interface KnowledgeModuleConfig {
   llmConfig: LlmConfig;
   /** TMC callback URL for status notifications (empty = no callback). */
   tmcCallbackUrl?: string;
+  /** Raw Wiki source upload limits. */
+  wikiUpload?: WikiUploadLimits;
   /** Optional: externally injected wiki worker (for testing). */
   wikiWorker?: WikiWorker;
   /** Optional: externally injected code worker (for testing). */
@@ -214,6 +216,7 @@ export function createKnowledgeModule(config: KnowledgeModuleConfig): KnowledgeM
     queue: sharedQueue,
     logger: { info: log.info.bind(log), warn: log.warn.bind(log), error: log.error.bind(log) },
     callbackConfig,
+    rawWriteMaxBytes: config.wikiUpload?.maxFileBytes,
   });
   const cgService = new CodeGraphService({
     store,

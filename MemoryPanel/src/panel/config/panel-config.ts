@@ -23,6 +23,7 @@ export interface PanelConfig {
   log: { level: LogLevel; format: 'json' | 'pretty' };
   /** Knowledge Service (KS :8421) 连接配置。serviceId 按请求 instanceId 注入。 */
   knowledge: { baseUrl: string; authToken: string; timeoutMs: number };
+  wikiUpload: WikiUploadLimits;
   /**
    * 启动时为每个实例确保 knowledge-service LLM 绑定（走 proxy 记账）。
    * sync=false 时完全跳过（不改变现有部署行为）。
@@ -79,6 +80,7 @@ export function loadPanelConfig(): PanelConfig {
       authToken: env('KNOWLEDGE_AUTH_TOKEN', ''),
       timeoutMs: envInt('KNOWLEDGE_TIMEOUT_MS', 15_000),
     },
+    wikiUpload: resolveWikiUploadLimits(),
     knowledgeLlmBinding: {
       sync: envBool('KNOWLEDGE_LLM_BINDING_SYNC', true),
       proxyBaseUrl: env('KNOWLEDGE_LLM_PROXY_BASE_URL', 'http://127.0.0.1:8096'),
@@ -102,5 +104,25 @@ export function loadPanelConfig(): PanelConfig {
       secure: envBool('CBRAIN_SESSION_COOKIE_SECURE', true),
       ttlSeconds: envInt('CBRAIN_SESSION_TTL_SECONDS', 12 * 60 * 60),
     },
+  };
+}
+
+export interface WikiUploadLimits {
+  maxFileBytes: number;
+  maxFilesPerRequest: number;
+  maxTotalBytes: number;
+}
+
+export function resolveWikiUploadLimits(source: NodeJS.ProcessEnv = process.env): WikiUploadLimits {
+  const positiveInt = (key: string, fallback: number): number => {
+    const raw = source[key];
+    if (raw === undefined || raw === '') return fallback;
+    const value = Number(raw);
+    return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+  };
+  return {
+    maxFileBytes: positiveInt('CBRAIN_WIKI_UPLOAD_MAX_FILE_BYTES', 10 * 1024 * 1024),
+    maxFilesPerRequest: positiveInt('CBRAIN_WIKI_UPLOAD_MAX_FILES', 10),
+    maxTotalBytes: positiveInt('CBRAIN_WIKI_UPLOAD_MAX_TOTAL_BYTES', 50 * 1024 * 1024),
   };
 }

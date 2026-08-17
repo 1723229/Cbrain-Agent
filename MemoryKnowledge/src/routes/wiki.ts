@@ -21,6 +21,7 @@ import { Hono } from "hono";
 import type { WikiService } from "../store/index.js";
 import type { WikiSourceManager } from "../engines/wiki/index.js";
 import type { WikiStatus } from "../store/index.js";
+import type { WikiUploadLimits } from "../config.js";
 import {
   extractIdFields,
   isValidIdSegment,
@@ -35,6 +36,7 @@ export interface WikiRouteDeps {
   wikiMgr: WikiSourceManager;
   /** Public base URL for service_url; should already include the API prefix (e.g. http://host:8421/v3). */
   publicBaseUrl: string;
+  uploadLimits?: WikiUploadLimits;
 }
 
 /** Handle WriteOutcome error codes → HTTP response. Returns Response if handled, null otherwise. */
@@ -260,9 +262,9 @@ export function createWikiRoutes(deps: WikiRouteDeps): Hono {
     }
 
     // 上传大小限制（防御纵深，Panel 侧已有同样校验）
-    const MAX_FILE_SIZE = 512 * 1024;
-    const MAX_FILES = 10;
-    const MAX_TOTAL = 5 * 1024 * 1024;
+    const MAX_FILE_SIZE = deps.uploadLimits?.maxFileBytes ?? 10 * 1024 * 1024;
+    const MAX_FILES = deps.uploadLimits?.maxFilesPerRequest ?? 10;
+    const MAX_TOTAL = deps.uploadLimits?.maxTotalBytes ?? 50 * 1024 * 1024;
     if (files.length > MAX_FILES) {
       return c.json(wrapError(413, `too many files (max ${MAX_FILES})`), 413);
     }

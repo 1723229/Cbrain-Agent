@@ -9,7 +9,7 @@ import { useTeams, useAgents } from '@/services';
 import { readAuth } from '@/components/LoginGate';
 import { tea } from '@/lib/tea-bridge';
 import { findExistingRawFilenames, formatOverwriteFilenames } from './wiki-upload-utils';
-import { type DetailTab, type SearchResult, type StatusFilter, type SubView, type ViewMode, type WikiScopeTab } from './wiki-constants';
+import { utf8ByteLength, WIKI_UPLOAD_MAX_FILE_BYTES, type DetailTab, type SearchResult, type StatusFilter, type SubView, type ViewMode, type WikiScopeTab } from './wiki-constants';
 
 export function useWikiSources() {
   const { t } = useTranslation();
@@ -559,6 +559,11 @@ export function useWikiSources() {
     if (!activeTeamId || !selectedWikiId) return;
     const valid = mdDocs.filter((d) => d.filename.trim() && d.content.trim());
     if (valid.length === 0) return;
+    const oversized = valid.filter((doc) => utf8ByteLength(doc.content) > WIKI_UPLOAD_MAX_FILE_BYTES);
+    if (oversized.length > 0) {
+      tea.notify.warning(t('wiki.detail.upload.tooLarge', { count: oversized.length, size: 10 }));
+      return;
+    }
     if (uploadInFlightRef.current) return;
     uploadInFlightRef.current = true;
     setSubmitting(true);

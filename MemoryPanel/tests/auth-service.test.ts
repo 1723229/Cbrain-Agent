@@ -18,6 +18,7 @@ function config(): PanelConfig {
     ui: { distDir: '' },
     log: { level: 'error', format: 'json' },
     knowledge: { baseUrl: '', authToken: '', timeoutMs: 1000 },
+    wikiUpload: { maxFileBytes: 10 * 1024 * 1024, maxFilesPerRequest: 10, maxTotalBytes: 50 * 1024 * 1024 },
     knowledgeLlmBinding: { sync: false, proxyBaseUrl: '' },
     ldap: {
       enabled: false,

@@ -12,7 +12,7 @@
  *   lib 层 cascadeDeleteWikiPagesWithRefs 做引用级联。
  */
 
-import { join, resolve, normalize } from "node:path";
+import { join, resolve, normalize, sep } from "node:path";
 import {
   rmSync,
   mkdirSync,
@@ -84,6 +84,8 @@ export interface WikiServiceOptions {
   worker: WikiWorker;
   queue?: BuildQueue;
   logger?: WikiServiceLogger;
+  /** Maximum UTF-8 bytes accepted for one raw source document. */
+  rawWriteMaxBytes?: number;
   /** Callback config for TMC status notifications. Optional. */
   callbackConfig?: {
     tmcCallbackUrl: string;
@@ -186,7 +188,7 @@ export type WriteOutcome<T> =
   | "too_large";
 
 const PAGE_WRITE_MAX_BYTES = 512 * 1024;
-const RAW_WRITE_MAX_BYTES = 5 * 1024 * 1024;
+const DEFAULT_RAW_WRITE_MAX_BYTES = 10 * 1024 * 1024;
 const PAGE_RM_MAX = 20;
 const RAW_RM_MAX = 50;
 const RAW_READ_MAX = 50;
@@ -210,6 +212,7 @@ export class WikiService {
   private readonly worker: WikiWorker;
   private readonly queue: BuildQueue;
   private readonly logger?: WikiServiceLogger;
+  private readonly rawWriteMaxBytes: number;
   private readonly callbackConfig?: {
     tmcCallbackUrl: string;
     resolveLlm: (serviceId: string) => import("../config.js").LlmConfig;
@@ -227,6 +230,7 @@ export class WikiService {
     this.worker = opts.worker;
     this.queue = opts.queue ?? new BuildQueue();
     this.logger = opts.logger;
+    this.rawWriteMaxBytes = opts.rawWriteMaxBytes ?? DEFAULT_RAW_WRITE_MAX_BYTES;
     this.callbackConfig = opts.callbackConfig;
   }
 
@@ -480,7 +484,7 @@ export class WikiService {
    * - wiki 不存在 → null
    * - processing 中 → "processing"
    * - 路径穿越 → "invalid_path"
-   * - 超 5MB → "too_large"
+   * - 超过配置的单文件上限 → "too_large"
    */
   rawWrite(
     serviceId: string,
@@ -495,7 +499,7 @@ export class WikiService {
     if (row.status === "processing") return "processing";
 
     const size = Buffer.byteLength(content, "utf-8");
-    if (size > RAW_WRITE_MAX_BYTES) return "too_large";
+    if (size > this.rawWriteMaxBytes) return "too_large";
 
     const sourcesDir = join(this.dirFor(serviceId, teamId, wikiId), "raw", "sources");
     const safe = this.resolveRawPath(sourcesDir, filename);
@@ -509,7 +513,7 @@ export class WikiService {
 
   /**
    * 批量写入 raw 文件（整批原子）。
-   * - 先全部校验：路径穿越 → "invalid_path"；任一项超 5MB → "too_large"
+   * - 先全部校验：路径穿越 → "invalid_path"；任一项超过配置上限 → "too_large"
    * - 全部通过后逐文件落盘；任一落盘失败回滚之前已写文件（删原有的不在请求里
    *   的文件），保证整批要么都成功要么都没生效。
    * 错误码同 rawWrite。
@@ -540,7 +544,7 @@ export class WikiService {
     for (const { filename, content } of files) {
       if (typeof content !== "string") return "invalid_path";
       const size = Buffer.byteLength(content, "utf-8");
-      if (size > RAW_WRITE_MAX_BYTES) return "too_large";
+      if (size > this.rawWriteMaxBytes) return "too_large";
       const safe = this.resolveRawPath(sourcesDir, filename);
       if (!safe) return "invalid_path";
       let pre: string | null = null;
@@ -909,7 +913,7 @@ export class WikiService {
     // （如 KNOWLEDGE_DATA_DIR=./data）与 resolve 出来的绝对路径比较失败。
     const base = resolve(sourcesDir);
     const safe = resolve(base, normalized);
-    const dirWithSep = base.endsWith("/") ? base : base + "/";
+    const dirWithSep = base.endsWith(sep) ? base : base + sep;
     if (safe !== base && !safe.startsWith(dirWithSep)) return null;
     return safe;
   }

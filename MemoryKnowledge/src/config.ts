@@ -70,6 +70,27 @@ export interface ServiceConfig {
   tmcCallbackUrl: string;
   /** Optional ClickHouse request telemetry. Disabled by default. */
   clickhouse: ClickHouseTelemetryConfig;
+  wikiUpload: WikiUploadLimits;
+}
+
+export interface WikiUploadLimits {
+  maxFileBytes: number;
+  maxFilesPerRequest: number;
+  maxTotalBytes: number;
+}
+
+export function resolveWikiUploadLimits(source: NodeJS.ProcessEnv = process.env): WikiUploadLimits {
+  const positiveInt = (key: string, fallback: number): number => {
+    const raw = source[key];
+    if (raw === undefined || raw === '') return fallback;
+    const value = Number(raw);
+    return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+  };
+  return {
+    maxFileBytes: positiveInt('CBRAIN_WIKI_UPLOAD_MAX_FILE_BYTES', 10 * 1024 * 1024),
+    maxFilesPerRequest: positiveInt('CBRAIN_WIKI_UPLOAD_MAX_FILES', 10),
+    maxTotalBytes: positiveInt('CBRAIN_WIKI_UPLOAD_MAX_TOTAL_BYTES', 50 * 1024 * 1024),
+  };
 }
 
 function env(key: string, fallback: string): string {
@@ -154,6 +175,7 @@ export function loadConfig(): ServiceConfig {
     apiPrefix: env("API_PREFIX", "/v3"),
     publicBaseUrl: env("KNOWLEDGE_PUBLIC_BASE_URL", ""),
     tmcCallbackUrl: env("TMC_CALLBACK_URL", ""),
+    wikiUpload: resolveWikiUploadLimits(),
     clickhouse,
     llm: {
       mode: env("LLM_MODE", "proxy") === "custom" ? "custom" : "proxy",
