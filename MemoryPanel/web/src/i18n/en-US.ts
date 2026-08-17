@@ -866,7 +866,7 @@ export const enUS = {
   // ===== MemberSection =====
   'member.title': 'Members ({{count}})',
   'member.subtitle':
-    'Human members of "{{name}}". Admins manage team assets, members use assets and create tasks · Click cards for details',
+    'Members of "{{name}}". Admins manage team assets, and members use authorized assets · Click cards for details',
   'member.add': 'Add Member',
   'member.add.tooltip': 'Select an existing user to join the team',
   'member.remove.confirm': 'Remove member {{userId}}?',
@@ -956,7 +956,7 @@ export const enUS = {
   // ===== ApiKeyPanel =====
   'apiKey.title': 'User_Key Management',
   'apiKey.desc':
-    'Manage your User Keys for external client access (e.g. CodeBuddy / ClaudeCode CLI).',
+    'Manage your User Keys for Codex / Claude Code Plugin access to Cbrain.',
   'apiKey.create': 'New Key',
   'apiKey.fresh.desc':
     'Here is the full Key for {{keyId}} (shown only once. Please copy and save it securely immediately. You will not be able to view it again after closing):',
@@ -1189,10 +1189,10 @@ export const enUS = {
   'onboarding.start': 'Get started',
   'onboarding.finish': 'Finish',
   // Welcome (startContent, role-specific)
-  'onboarding.guide.start.admin.title': 'Welcome to TDAI Panel',
+  'onboarding.guide.start.admin.title': 'Welcome to Cbrain',
   'onboarding.guide.start.admin.desc':
     'You are an administrator: you manage teams and members. Let\'s walk through the core features — click "Next" to begin.',
-  'onboarding.guide.start.member.title': 'Welcome to TDAI Panel',
+  'onboarding.guide.start.member.title': 'Welcome to Cbrain',
   'onboarding.guide.start.member.desc':
     'You are a team member: you can manage Agents and assets within the team. Let\'s walk through the core features — click "Next" to begin.',
   // Login identity (shared by Admin / Member)
@@ -1223,7 +1223,7 @@ export const enUS = {
   // Member: key management
   'onboarding.guide.apikey.title': 'Manage your User_Keys',
   'onboarding.guide.apikey.desc':
-    'Create keys in "User_Key management" for external clients (e.g. CodeBuddy / ClaudeCode CLI). The plaintext key is shown only once — copy and store it safely.',
+    'Create keys in "User_Key management" for Codex / Claude Code Plugin access to Cbrain. The plaintext key is shown only once — copy and store it safely.',
   // Create and allocate assets (same for Admin and Member; each asset page is visited.
   // Each description follows "what it is → how to import → how to use" for first-time users)
   'onboarding.guide.asset.wiki.title': 'Wiki: team document assets',

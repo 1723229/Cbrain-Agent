@@ -847,7 +847,7 @@ export const zhCN = {
   // ===== MemberSection =====
   'member.title': '成员（{{count}}）',
   'member.subtitle':
-    '「{{name}}」的人类成员；admin 可管理 team 资产，member 可使用资产并创建 task · 点击卡片查看详情',
+    '「{{name}}」的成员；admin 可管理团队资产，member 可使用已授权资产 · 点击卡片查看详情',
   'member.add': '添加成员',
   'member.add.tooltip': '选择已有用户加入团队',
   'member.remove.confirm': '移除成员 {{userId}}？',
@@ -928,7 +928,7 @@ export const zhCN = {
 
   // ===== ApiKeyPanel =====
   'apiKey.title': 'User_Key 管理',
-  'apiKey.desc': '管理你的 User Key，用于外部客户端接入（如 CodeBuddy / ClaudeCode CLI）。',
+  'apiKey.desc': '管理你的 User Key，用于 Codex / Claude Code Plugin 接入 Cbrain。',
   'apiKey.create': '新建 Key',
   'apiKey.fresh.desc':
     '以下是 {{keyId}} 的完整 Key（仅展示这一次，请立即复制并安全保存；关闭后将无法再次查看明文）：',
@@ -1156,10 +1156,10 @@ export const zhCN = {
   'onboarding.start': '开始使用',
   'onboarding.finish': '完成',
   // 欢迎（startContent，按角色区分）
-  'onboarding.guide.start.admin.title': '欢迎使用 TDAI 面板',
+  'onboarding.guide.start.admin.title': '欢迎使用 Cbrain',
   'onboarding.guide.start.admin.desc':
     '你是管理员：负责团队与成员的组织管理。接下来将带你了解面板核心能力，按「下一步」开始。',
-  'onboarding.guide.start.member.title': '欢迎使用 TDAI 面板',
+  'onboarding.guide.start.member.title': '欢迎使用 Cbrain',
   'onboarding.guide.start.member.desc':
     '你是团队成员：可在团队内管理 Agent 与资产。接下来将带你了解面板核心能力，按「下一步」开始。',
   // 登录身份（Admin / Member 共有）
@@ -1189,7 +1189,7 @@ export const zhCN = {
   // Member：key 管理
   'onboarding.guide.apikey.title': '管理你的 User_Key',
   'onboarding.guide.apikey.desc':
-    '在「User_Key 管理」中创建用于外部客户端接入的密钥（如 CodeBuddy / ClaudeCode CLI）。key 明文仅展示一次，请复制并妥善保存。',
+    '在「User_Key 管理」中创建用于 Codex / Claude Code Plugin 接入 Cbrain 的密钥。key 明文仅展示一次，请复制并妥善保存。',
   // 资产创建与分配（Admin 与 Member 一致；每个资产页都跳入介绍。
   // 文案统一按「是什么 → 怎么导入 → 怎么使用」三段展开，帮首次用户建立完整心智）
   'onboarding.guide.asset.wiki.title': 'Wiki 知识库：团队文档资产',
