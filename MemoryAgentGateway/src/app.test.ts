@@ -71,12 +71,20 @@ describe("agent gateway lifecycle",()=>{
     const oversized=await app.request("http://localhost/v1/hooks/batch",{method:"POST",headers,body:JSON.stringify({events:[{type:"unknown",body:{payload:"x".repeat(513*1024)}}]})});
     expect(oversized.status).toBe(400);
   });
-  it("resolves and completes a central workspace binding before opening memory",async()=>{
+  it("auto-binds a workspace when the user has exactly one active Team-Agent pair",async()=>{
+    const{app,store,directory}=fixture();
+    const response=await app.request("http://localhost/v1/workspaces/resolve",{method:"POST",headers,body:JSON.stringify({workspace_key:"git:single",workspace_label:"repo",host:"codex",session_id:"single",workspace:"C:/repo"})});
+    expect(response.status).toBe(200);expect(await response.json()).toMatchObject({status:"bound",team_id:"team-1",agent_id:"agent-1",additionalContext:"profile"});
+    expect(store.getWorkspaceBinding(principal.id,"git:single")).toMatchObject({teamId:"team-1",agentId:"agent-1"});
+    expect(directory.validate).toHaveBeenCalledWith(principal,"team-1","agent-1");
+  });
+  it("resolves and completes a central workspace binding before opening memory when multiple pairs exist",async()=>{
     const{app,directory}=fixture();
+    directory.options.mockResolvedValueOnce({teams:[{team_id:"team-1",name:"Team One"},{team_id:"team-2",name:"Team Two"}],agents:[{agent_id:"agent-1",team_id:"team-1",name:"Agent One"},{agent_id:"agent-2",team_id:"team-2",name:"Agent Two"}]});
     const resolveBody={workspace_key:"git:abc",workspace_label:"repo",host:"codex",session_id:"s3",workspace:"C:/repo"};
     const first=await app.request("http://localhost/v1/workspaces/resolve",{method:"POST",headers,body:JSON.stringify(resolveBody)});
     expect(first.status).toBe(200);const unbound=await first.json() as {status:string;binding_request_id:string;teams:unknown[];agents:unknown[]};
-    expect(unbound).toMatchObject({status:"unbound"});expect(unbound.teams).toHaveLength(1);expect(unbound.agents).toHaveLength(1);
+    expect(unbound).toMatchObject({status:"unbound"});expect(unbound.teams).toHaveLength(2);expect(unbound.agents).toHaveLength(2);
     const boundResponse=await app.request("http://localhost/v1/workspaces/bind",{method:"POST",headers,body:JSON.stringify({binding_request_id:unbound.binding_request_id,team_id:"team-1",agent_id:"agent-1"})});
     expect(boundResponse.status).toBe(200);expect(await boundResponse.json()).toMatchObject({status:"bound",team_id:"team-1",agent_id:"agent-1",additionalContext:"profile"});
     expect(directory.validate).toHaveBeenCalledWith(principal,"team-1","agent-1");

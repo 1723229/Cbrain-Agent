@@ -30,8 +30,9 @@ account, and writes `~/.cbrain-agent/config.json`. No source checkout or
 administrator-created Gateway Token is required. Windows and WSL are separate
 environments and must each be installed once.
 
-Start a fresh Claude Code session or run `/reload-plugins`. On the first prompt
-in an unbound project, select a Team and Agent; the original prompt then
+Start a fresh Claude Code session or run `/reload-plugins`. If the account has
+exactly one active Team-Agent pair, an unbound project is bound automatically.
+If there are multiple pairs, select a Team and Agent; the original prompt then
 continues.
 
 ## Behavior

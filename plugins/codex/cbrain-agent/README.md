@@ -31,8 +31,9 @@ administrator-created Gateway Token is required. Windows and WSL have separate
 home directories, so run the command once in each environment you use.
 
 Start a fresh Codex session after installation. Review and approve the plugin's
-hooks when Codex asks. On the first prompt in an unbound project, select a Team
-and Agent; the original prompt then continues.
+hooks when Codex asks. If the account has exactly one active Team-Agent pair,
+an unbound project is bound automatically. If there are multiple pairs, select
+a Team and Agent; the original prompt then continues.
 
 ## Behavior
 

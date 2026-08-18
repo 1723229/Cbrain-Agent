@@ -248,7 +248,7 @@ npx --yes cbrain-agent install claude-code --gateway https://cbrain.example
 ```
 
 安装器会隐藏提示输入页面 Key。无需下载本仓库，也无需管理员额外创建 Gateway Token。
-Windows 与 WSL 是两个独立环境，需要分别执行一次。首次进入未绑定项目时，插件会让用户选择 Team 和 Agent。
+Windows 与 WSL 是两个独立环境，需要分别执行一次。首次进入未绑定项目时，若账户只有一个有效的 Team-Agent 组合会自动绑定；存在多个组合时才会让用户选择 Team 和 Agent。
 
 ## 通过 Proxy 使用 Claude Code（模型代理方式）
 

@@ -300,14 +300,19 @@ sequenceDiagram
         G-->>P: context_id + session context
     else 未绑定或绑定失效
         G->>MC: 列出当前用户可选 Team/Agent
-        G-->>P: binding_request_id + options
-        P-->>C: 注入选择说明
-        C->>U: 请求选择 Team 与 Agent
-        U-->>C: 选择
-        C->>G: workspace_bind(request, team, agent)
-        G->>MC: 再次校验
-        G->>G: 原子写 workspace binding
-        G-->>C: context_id + session context
+        alt 只有一个有效 Team-Agent 组合
+            G->>G: 自动校验并原子写 workspace binding
+            G-->>C: context_id + session context
+        else 存在多个有效组合
+            G-->>P: binding_request_id + options
+            P-->>C: 注入选择说明
+            C->>U: 请求选择 Team 与 Agent
+            U-->>C: 选择
+            C->>G: workspace_bind(request, team, agent)
+            G->>MC: 再次校验
+            G->>G: 原子写 workspace binding
+            G-->>C: context_id + session context
+        end
     end
 ```
 
@@ -698,7 +703,7 @@ Hook 只向当前客户端环境按 Gateway 配置共享的本机 Event Relay �
 |---|---|---|---|
 | Team/Agent | 创建 Team、成员、Agent | 跨 Team Agent、inactive Agent | 隔离不变量 |
 | 权限 | owner/admin/member/ACL | private、restricted、跨 Team | 不越权 |
-| Workspace | 首次选择、重启复用、多目录同 Team | 请求过期、失效绑定、改绑/解绑 | 不静默默认 |
+| Workspace | 单一组合自动绑定、多组合首次选择、重启复用、多目录同 Team | 请求过期、失效绑定、改绑/解绑 | 单一有效组合自动绑定，多组合不静默默认 |
 | Memory | L0 写入、L1→L2→L3、跨 Session L1 召回 | Pipeline notify 失败、锁丢失、DLQ | L0 不丢、异步不阻塞 |
 | Skill | 工具型会话 create/update | 简单聊天跳过、超长工具、并发 Agent | 不滥生成、版本幂等 |
 | Wiki | 上传、增量 ingest、原文/页/图读取 | 全源失败、部分失败、locked page、路径穿越 | 状态和来源正确 |
@@ -721,7 +726,7 @@ Hook 只向当前客户端环境按 Gateway 配置共享的本机 Event Relay �
 
 - 以本文领域模型统一 Team、Agent、Workspace、Task 和 Asset 术语。
 - Codex 插件文档明确首次绑定、改绑、解绑、Windows/WSL 可移植身份和异步语义。
-- 禁止默认 Team/Agent 掩盖未绑定状态，除非显式配置为无人值守模式。
+- 只有一个有效 Team-Agent 组合时允许自动绑定；多个组合必须显式选择，不能用默认值掩盖隔离边界。
 
 ### Phase 2：完整运行时装配
 

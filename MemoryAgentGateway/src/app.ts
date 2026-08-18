@@ -56,8 +56,13 @@ export function createAgentGatewayApp(options: CreateAppOptions): Hono {
   const beginWorkspaceSelection = async (principal:GatewayPrincipal,input:{workspaceKey:string;workspaceLabel:string;host:string;sessionId:string;workspace:string},rebind=false) => {
     const safe={workspaceKey:bounded(input.workspaceKey,"workspace_key",256),workspaceLabel:bounded(input.workspaceLabel,"workspace_label",256),host:bounded(input.host,"host",64),sessionId:bounded(input.sessionId,"session_id",512),workspace:bounded(input.workspace,"workspace",4096)};
     const current=options.store.getWorkspaceBinding(principal.id,safe.workspaceKey);
-    const request=options.store.issueWorkspaceBindingRequest(principal.id,safe,10*60_000);
     const directory=await options.directory.options(principal) as {teams?:unknown[];agents?:unknown[]};
+    const candidate=!rebind?singleBindingCandidate(directory):null;
+    if(candidate){
+      const request=options.store.issueWorkspaceBindingRequest(principal.id,safe,10*60_000);
+      return openBoundWorkspace(principal,request.requestId,candidate.teamId,candidate.agentId);
+    }
+    const request=options.store.issueWorkspaceBindingRequest(principal.id,safe,10*60_000);
     return {status:rebind?"selection_required" as const:"unbound" as const,binding_request_id:request.requestId,binding_expires_at:request.expiresAt,workspace_key:safe.workspaceKey,workspace_label:safe.workspaceLabel,...(current?{current_binding:{team_id:current.teamId,agent_id:current.agentId,agent_name:current.agentName}}:{}),teams:directory.teams??[],agents:directory.agents??[]};
   };
   const unbindWorkspace = async (principal:GatewayPrincipal,workspaceKey:string) => {
@@ -176,3 +181,17 @@ function bounded(value:string,key:string,maxLength:number):string{const result=v
 function turnId(body:Record<string,unknown>):string{return optionalField(body,"turn_id")||"current"}
 function message(error:unknown):string{return error instanceof Error?error.message:String(error)}
 async function renderSessionContext(options:CreateAppOptions,contextId:string,principal:GatewayPrincipal):Promise<string>{return options.serviceFactory(contextId,principal).renderSessionContext(contextId).catch((error)=>{console.error(`[gateway] session context degraded: ${message(error)}`);return `<cbrain_agent_context>\n${JSON.stringify({context_id:contextId,instructions:"Every cbrain-agent MCP tool call must include this context_id."})}\n</cbrain_agent_context>`})}
+function singleBindingCandidate(directory:{teams?:unknown[];agents?:unknown[]}):{teamId:string;agentId:string}|null{
+  const activeTeams=new Set((directory.teams??[]).filter(activeRecord).map((item)=>field(item,"team_id")).filter(Boolean));
+  const candidates=new Map<string,{teamId:string;agentId:string}>();
+  for(const item of directory.agents??[]){
+    const agent=record(item),teamId=agent?field(agent,"team_id"):"",agentId=agent?field(agent,"agent_id"):"";
+    if(!agent||!isActive(agent)||!teamId||!agentId||!activeTeams.has(teamId))continue;
+    candidates.set(`${teamId}\0${agentId}`,{teamId,agentId});
+  }
+  return candidates.size===1?[...candidates.values()][0]??null:null;
+}
+function record(value:unknown):Record<string,unknown>|null{return value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:null}
+function activeRecord(value:unknown):value is Record<string,unknown>{const item=record(value);if(!item)return false;return isActive(item)}
+function field(value:Record<string,unknown>,name:string):string{return typeof value[name]==="string"?value[name].trim():""}
+function isActive(value:Record<string,unknown>):boolean{const status=field(value,"status").toLowerCase();return !status||status==="active"}
