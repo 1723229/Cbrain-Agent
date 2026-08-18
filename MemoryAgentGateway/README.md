@@ -93,6 +93,8 @@ PostToolUse events can arrive before the transcript is read. New clients submit 
 to 32 ordered write events through `POST /v1/hooks/batch`; invalid events are isolated
 within the batch and existing single-event endpoints remain backward compatible.
 Batch requests are limited to 512 KiB and reuse the same durable idempotency rules.
+If a SessionEnd arrives without any completed conversation, the extraction is recorded
+as `skipped` rather than retried or reported as a dead letter.
 
 The worker processes independent events and Core/Skill sinks concurrently.
 Failures use bounded exponential retry; exhausted work is retained as a dead

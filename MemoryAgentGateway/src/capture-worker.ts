@@ -62,7 +62,7 @@ export class CaptureWorker {
           return;
         }
         if (event.messages.length === 0) {
-          this.retryOrDeadSkill(event.eventId, event.attempts, "session transcript is empty");
+          this.store.markSkillExtractionSkipped(event.eventId, "no completed conversation was captured");
           return;
         }
         const toolCalls = event.messages.filter((message) => message.role === "tool_call").length;
