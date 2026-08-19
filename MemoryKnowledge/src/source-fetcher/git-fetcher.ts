@@ -13,6 +13,15 @@
 
 import simpleGit, { CleanOptions, ResetMode } from "simple-git";
 import type { ISourceFetcher, FetchResult, SourceType } from "./types.js";
+import {
+  applyGitAuth,
+  createGitAuth,
+  loadGitAuthFromEnv,
+  normalizeHost,
+  parseHostList,
+  type GitAuthConfig,
+  type GitAuthInput,
+} from "./git-auth.js";
 
 /**
  * 内网 / 环回 / link-local 地址黑名单（标准网段）：
@@ -38,14 +47,7 @@ function ssrfCheckEnabledFromEnv(): boolean {
 }
 
 function allowedHostsFromEnv(): string[] {
-  return (process.env.KNOWLEDGE_GIT_ALLOWED_HOSTS ?? "")
-    .split(/[\s,]+/)
-    .map((host) => normalizeHost(host))
-    .filter(Boolean);
-}
-
-function normalizeHost(host: string): string {
-  return host.trim().toLowerCase().replace(/\.$/, "");
+  return parseHostList(process.env.KNOWLEDGE_GIT_ALLOWED_HOSTS);
 }
 
 export interface GitSourceFetcherOptions {
@@ -56,6 +58,8 @@ export interface GitSourceFetcherOptions {
   ssrfCheck?: boolean;
   /** 精确放行的 Git 主机名/IP；仅用于绕过私网地址拦截，不改变协议校验。 */
   allowedHosts?: string[];
+  /** 可选的服务端 Git HTTP(S) 凭证；未传入时读取 KNOWLEDGE_GIT_* 环境变量。 */
+  gitAuth?: GitAuthInput;
 }
 
 export class GitSourceFetcher implements ISourceFetcher {
@@ -65,10 +69,13 @@ export class GitSourceFetcher implements ISourceFetcher {
   private readonly ssrfCheck: boolean;
   /** 显式允许访问的 Git 主机，仅按 hostname 精确匹配。 */
   private readonly allowedHosts: ReadonlySet<string>;
+  /** 仅允许发往配置的 Git 主机；token 不进入 URL、数据库或 remote。 */
+  private readonly gitAuth?: GitAuthConfig;
 
   constructor(opts?: GitSourceFetcherOptions) {
     this.ssrfCheck = opts?.ssrfCheck ?? ssrfCheckEnabledFromEnv();
     this.allowedHosts = new Set((opts?.allowedHosts ?? allowedHostsFromEnv()).map(normalizeHost).filter(Boolean));
+    this.gitAuth = opts?.gitAuth ? createGitAuth(opts.gitAuth) : loadGitAuthFromEnv();
   }
 
   validate(sourceUrl: string): void {
@@ -90,6 +97,9 @@ export class GitSourceFetcher implements ISourceFetcher {
     if (!host) {
       throw new Error(`invalid repo_url: cannot parse host from ${sourceUrl}`);
     }
+    if (parsed.username || parsed.password) {
+      throw new Error("repo_url must not contain embedded credentials; configure KNOWLEDGE_GIT_TOKEN_FILE instead");
+    }
     // R2: SSRF 防护 —— 禁止指向内网 / 环回地址（可经 KNOWLEDGE_SSRF_CHECK=off 关闭）。
     if (this.ssrfCheck && this.isPrivateAddress(host) && !this.allowedHosts.has(host)) {
       throw new Error(
@@ -103,7 +113,9 @@ export class GitSourceFetcher implements ISourceFetcher {
     // 浅克隆单分支。注：git clone/fetch 不会拉取远端的 .git/hooks（hooks 是本地态），
     // 所以正常仓库 clone 出来不带可执行钩子；此处不再配置 core.hooksPath
     // （加固版 git 会拒绝该配置：需 allowUnsafeHooksPath）。
-    await simpleGit().clone(sourceUrl, localPath, {
+    const git = simpleGit();
+    applyGitAuth(git, sourceUrl, this.gitAuth);
+    await git.clone(sourceUrl, localPath, {
       "--depth": 1,
       "--branch": branch,
     });
@@ -114,6 +126,7 @@ export class GitSourceFetcher implements ISourceFetcher {
   async sync(sourceUrl: string, branch: string, localPath: string): Promise<FetchResult> {
     this.validate(sourceUrl);
     const git = simpleGit(localPath);
+    applyGitAuth(git, sourceUrl, this.gitAuth);
     await git.fetch("origin", branch, { "--depth": 1 });
     await git.reset(ResetMode.HARD, [`origin/${branch}`]);
     // Bug 修复（方案 A）：clean 排除 .codegraph/，否则会删掉 codegraph 的索引库，

@@ -83,10 +83,29 @@ KNOWLEDGE_SERVICE_URL=http://127.0.0.1:8421
 | Panel `KNOWLEDGE_SERVICE_URL` | Panel → 调 KS 管理 API | 不要 |
 | `TMC_CALLBACK_URL` | KS → 回调 Panel | 不要（只填根） |
 | `KNOWLEDGE_GIT_ALLOWED_HOSTS` | KS → 精确放行内网/环回 Git 主机 | 不适用 |
+| `KNOWLEDGE_GIT_AUTH_HOSTS` | KS → 精确限制 Git token 可发送到的主机 | 不适用 |
+| `KNOWLEDGE_GIT_USERNAME` | Git HTTP Basic 用户名；GitLab PAT 默认 `oauth2` | `oauth2` |
+| `KNOWLEDGE_GIT_TOKEN_FILE` | KS → 读取服务端只读 Git token 文件 | 不适用 |
+| `KNOWLEDGE_GIT_TOKEN` | 本地临时测试 token；生产不建议使用 | 不适用 |
 | `KNOWLEDGE_SSRF_CHECK` | KS → Git 拉取 SSRF 校验开关 | 不适用 |
 
 `LLM_MODE=proxy`（默认）：Wiki 用 Panel 按 `x-tdai-service-id` 推送的 `llm_binding`，本地不必起 Proxy。  
 `LLM_MODE=custom`：在 `.env` 设 `LLM_API_KEY` / `LLM_BASE_URL`（及可选 `LLM_PROTOCOL=anthropic`）。
+
+### 私有 GitLab 仓库
+
+Code-Graph 仍只保存普通的 HTTP/HTTPS `repo_url`，认证由 Knowledge 服务端在拉取进程中注入；token 不进入 URL、数据库、前端或 Git remote。
+
+生产环境推荐挂载只读 token 文件，并同时配置两个精确主机列表：
+
+```dotenv
+KNOWLEDGE_GIT_ALLOWED_HOSTS=10.0.0.5
+KNOWLEDGE_GIT_AUTH_HOSTS=10.0.0.5
+KNOWLEDGE_GIT_USERNAME=oauth2
+KNOWLEDGE_GIT_TOKEN_FILE=/run/secrets/gitlab-read-token
+```
+
+GitLab PAT 使用 `oauth2` 用户名；Deploy Token 则填写该 Deploy Token 的用户名。`KNOWLEDGE_GIT_TOKEN` 仅用于本地临时测试。HTTP 仓库会明文传输 Basic 认证，生产应优先使用 HTTPS 或受控内网，并使用最小权限、可轮换的只读 token。
 
 ## 常用命令
 

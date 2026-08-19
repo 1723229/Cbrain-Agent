@@ -120,12 +120,30 @@ docker run -d --name memory-hub \
 | `KNOWLEDGE_DATA_DIR` | `/data/knowledge` | KS 数据目录（SQLite、git clone、wiki 文件、日志） |
 | `KNOWLEDGE_DB_PATH` | `/data/knowledge/knowledge.db` | KS SQLite 数据库路径 |
 | `TMC_CALLBACK_URL` | `http://127.0.0.1:8125` | KS ingest 完成回调 Panel 的根地址（容器内自动回环，一般不用改） |
+| `KNOWLEDGE_GIT_ALLOWED_HOSTS` | 空 | 精确放行内网/环回 Git 主机，例如 `10.0.0.5` |
+| `KNOWLEDGE_GIT_AUTH_HOSTS` | 空 | 精确限制 Git token 可发送到的主机；配置 token 时必填 |
+| `KNOWLEDGE_GIT_USERNAME` | `oauth2` | GitLab PAT 用户名；Deploy Token 填其用户名 |
+| `KNOWLEDGE_GIT_TOKEN_FILE` | 空 | 容器内只读 token 文件路径，推荐 `/run/secrets/gitlab-read-token` |
 | `KNOWLEDGE_TIMEOUT_MS` | `15000` | Panel 调 KS 的请求超时 |
 | `METADATA_REMOTE_TIMEOUT_MS` | `15000` | Panel 调远端 Gateway 的请求超时 |
 | `REMOTE_INSTANCE_PROXY_URL` | 空 | Panel UI "客户端接入地址"卡片显示的 base URL。开源本地部署 core+proxy 分开跑时填 proxy 的外部地址（如 `http://host.docker.internal:8096`），Panel UI 复制的 CodeBuddy/ClaudeCode 接入地址就会指向 proxy。留空则老行为 —— UI 回落到 `gateway_endpoint`。**Panel 后端 → Kernel 的转发始终走 `REMOTE_INSTANCE_URL`，与此变量无关。**（挂载了 `metadata-instances.json` 时忽略此变量，直接在 JSON 里加 `proxy_endpoint` 字段） |
 | `REMOTE_AGENT_GATEWAY_URL` | 空 | Cbrain Agent Gateway 对外根地址，例如 `https://cbrain.example` 或测试环境的 `http://10.0.0.50:8430`。配置后 API Key 页面显示 Codex / Claude Code Plugin 一键安装命令。 |
 
 合并镜像内置并通过 `/downloads/cbrain-agent.tgz` 提供安装器，页面的一键命令不依赖安装器是否已发布到 npm。
+
+### 私有 GitLab 仓库认证
+
+Code-Graph 的 `repo_url` 只填写普通 HTTP/HTTPS 地址，例如 `http://10.0.0.5/yt-mes/yatong-mes.git`，不要拼接用户名、密码或 token。将 GitLab PAT/Deploy Token 保存到宿主机只读文件后挂载到容器，并设置：
+
+```bash
+-v /secure/gitlab-read-token:/run/secrets/gitlab-read-token:ro \
+-e KNOWLEDGE_GIT_ALLOWED_HOSTS=10.0.0.5 \
+-e KNOWLEDGE_GIT_AUTH_HOSTS=10.0.0.5 \
+-e KNOWLEDGE_GIT_USERNAME=oauth2 \
+-e KNOWLEDGE_GIT_TOKEN_FILE=/run/secrets/gitlab-read-token \
+```
+
+token 只在服务端 Git 子进程中使用，不写入数据库、前端、仓库 URL 或 remote。`KNOWLEDGE_GIT_TOKEN` 只适合本地临时测试；HTTP 仓库请确保运行在受控内网，生产优先使用 HTTPS。
 
 ### TLS 证书
 

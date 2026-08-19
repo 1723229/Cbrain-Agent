@@ -18,6 +18,14 @@ describe("GitSourceFetcher URL policy", () => {
     expect(() => fetcher.validate("ssh://git@gitlab.com/team/repository.git")).toThrow(/HTTP or HTTPS/);
   });
 
+  it("rejects credentials embedded in repository URLs", () => {
+    const fetcher = new GitSourceFetcher();
+
+    expect(() => fetcher.validate("https://user:password@gitlab.com/team/repository.git")).toThrow(
+      /embedded credentials/,
+    );
+  });
+
   it("keeps private and loopback hosts blocked by default", () => {
     const fetcher = new GitSourceFetcher({ ssrfCheck: true });
 

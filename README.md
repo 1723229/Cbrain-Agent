@@ -254,7 +254,7 @@ PersonaMem tests whether an Agent can correctly understand and apply user inform
 ## Notes
 
 - Wiki and CodeGraph are built asynchronously; allow some processing time before they reach `ready` status.
-- CodeGraph supports HTTP/HTTPS repositories from GitLab, GitHub, and similar Git services. Private or loopback hosts remain blocked by default; allow an internal GitLab host explicitly with `KNOWLEDGE_GIT_ALLOWED_HOSTS`. SSH credentials are not supported yet.
+- CodeGraph supports HTTP/HTTPS repositories from GitLab, GitHub, and similar Git services. Private or loopback hosts remain blocked by default; allow an internal GitLab host explicitly with `KNOWLEDGE_GIT_ALLOWED_HOSTS`. Private repository credentials are injected server-side from `KNOWLEDGE_GIT_TOKEN_FILE` and restricted by `KNOWLEDGE_GIT_AUTH_HOSTS`; credentials must not be embedded in `repo_url`. SSH credentials are not supported yet.
 - The Hub supports manual asset binding; fully automated memory routing is still under iteration.
 - TencentDB Agent Memory currently supports OpenClaw, Hermes, Claude Code, CodeBuddy, and SDK integration; broader cross-framework migration is on the roadmap.
 

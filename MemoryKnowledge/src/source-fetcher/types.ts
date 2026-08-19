@@ -24,7 +24,7 @@ export interface FetchResult {
  *   3. 返回版本标识
  *
  * 实现：
- *   - GitSourceFetcher：simple-git，支持 HTTP/HTTPS Git 仓库；SSH 凭证暂不支持
+ *   - GitSourceFetcher：simple-git，支持 HTTP/HTTPS Git 仓库和服务端 token；SSH 凭证暂不支持
  *   - LocalSourceFetcher / FtpSourceFetcher：未来扩展
  */
 export interface ISourceFetcher {
