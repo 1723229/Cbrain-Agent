@@ -82,6 +82,8 @@ KNOWLEDGE_SERVICE_URL=http://127.0.0.1:8421
 | `KNOWLEDGE_PUBLIC_BASE_URL` | KS → 写入资源 `service_url` | 要 |
 | Panel `KNOWLEDGE_SERVICE_URL` | Panel → 调 KS 管理 API | 不要 |
 | `TMC_CALLBACK_URL` | KS → 回调 Panel | 不要（只填根） |
+| `KNOWLEDGE_GIT_ALLOWED_HOSTS` | KS → 精确放行内网/环回 Git 主机 | 不适用 |
+| `KNOWLEDGE_SSRF_CHECK` | KS → Git 拉取 SSRF 校验开关 | 不适用 |
 
 `LLM_MODE=proxy`（默认）：Wiki 用 Panel 按 `x-tdai-service-id` 推送的 `llm_binding`，本地不必起 Proxy。  
 `LLM_MODE=custom`：在 `.env` 设 `LLM_API_KEY` / `LLM_BASE_URL`（及可选 `LLM_PROTOCOL=anthropic`）。

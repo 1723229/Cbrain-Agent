@@ -1055,6 +1055,7 @@ components:
           properties:
             repo_url:
               type: string
+              description: GitLab、GitHub 等 HTTP/HTTPS Git 仓库地址；SSH 地址不支持。内网/环回主机需由服务端通过 KNOWLEDGE_GIT_ALLOWED_HOSTS 精确放行。
             branch:
               type: string
               default: main

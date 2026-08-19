@@ -6,7 +6,8 @@
  * 安全防护（002 §4-5）：
  *   - R1 git hooks：clone/fetch 本就不拉取远端 .git/hooks（hooks 为本地态），故不额外
  *     配置 core.hooksPath（加固版 git 会拒绝该配置，需 allowUnsafeHooksPath）。
- *   - R2 SSRF：只允许 public HTTPS + 内网/环回地址黑名单（对齐项目 security_rules）。
+ *   - R2 SSRF：只允许 HTTP(S) + 内网/环回地址黑名单（对齐项目 security_rules）。
+ *     内网 GitLab 可通过 KNOWLEDGE_GIT_ALLOWED_HOSTS 精确放行主机，不需要关闭全局校验。
  *   - Bug 修复（方案 A）：增量 sync 的 git clean 排除 .codegraph/，避免删掉 codegraph 索引库。
  */
 
@@ -36,38 +37,64 @@ function ssrfCheckEnabledFromEnv(): boolean {
   return !(v === "off" || v === "false" || v === "0" || v === "no");
 }
 
+function allowedHostsFromEnv(): string[] {
+  return (process.env.KNOWLEDGE_GIT_ALLOWED_HOSTS ?? "")
+    .split(/[\s,]+/)
+    .map((host) => normalizeHost(host))
+    .filter(Boolean);
+}
+
+function normalizeHost(host: string): string {
+  return host.trim().toLowerCase().replace(/\.$/, "");
+}
+
 export interface GitSourceFetcherOptions {
   /**
    * 是否启用 SSRF 私网 / 环回地址黑名单校验。
    * 默认读环境变量 KNOWLEDGE_SSRF_CHECK（默认开启）；显式传入时优先于环境变量。
    */
   ssrfCheck?: boolean;
+  /** 精确放行的 Git 主机名/IP；仅用于绕过私网地址拦截，不改变协议校验。 */
+  allowedHosts?: string[];
 }
 
 export class GitSourceFetcher implements ISourceFetcher {
   readonly supportedType: SourceType = "git";
 
-  /** SSRF 私网黑名单校验开关（https-only 协议校验始终生效，不受此开关影响）。 */
+  /** SSRF 私网黑名单校验开关。HTTP/HTTPS 协议校验始终生效。 */
   private readonly ssrfCheck: boolean;
+  /** 显式允许访问的 Git 主机，仅按 hostname 精确匹配。 */
+  private readonly allowedHosts: ReadonlySet<string>;
 
   constructor(opts?: GitSourceFetcherOptions) {
     this.ssrfCheck = opts?.ssrfCheck ?? ssrfCheckEnabledFromEnv();
+    this.allowedHosts = new Set((opts?.allowedHosts ?? allowedHostsFromEnv()).map(normalizeHost).filter(Boolean));
   }
 
   validate(sourceUrl: string): void {
-    // 第一版：仅支持 public HTTPS 仓库（SSH / 私有仓库鉴权见文档 005）。
-    if (!sourceUrl.startsWith("https://")) {
+    if (sourceUrl.startsWith("git@") || sourceUrl.startsWith("ssh://")) {
+      throw new Error("repo_url must use HTTP or HTTPS; SSH repository URLs are not supported");
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(sourceUrl);
+    } catch {
+      throw new Error(`invalid repo_url: cannot parse URL from ${sourceUrl}`);
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
       throw new Error(
-        "first version only supports public HTTPS repos; SSH/private repo support coming soon",
+        "repo_url must use HTTP or HTTPS; SSH repository URLs are not supported",
       );
     }
-    const host = this.extractHost(sourceUrl);
+    const host = normalizeHost(parsed.hostname);
     if (!host) {
       throw new Error(`invalid repo_url: cannot parse host from ${sourceUrl}`);
     }
     // R2: SSRF 防护 —— 禁止指向内网 / 环回地址（可经 KNOWLEDGE_SSRF_CHECK=off 关闭）。
-    if (this.ssrfCheck && this.isPrivateAddress(host)) {
-      throw new Error(`repo_url must not point to private/loopback address: ${host}`);
+    if (this.ssrfCheck && this.isPrivateAddress(host) && !this.allowedHosts.has(host)) {
+      throw new Error(
+        `repo_url must not point to private/loopback address: ${host}; add it to KNOWLEDGE_GIT_ALLOWED_HOSTS or disable the SSRF check explicitly`,
+      );
     }
   }
 
@@ -103,14 +130,6 @@ export class GitSourceFetcher implements ISourceFetcher {
       return (await simpleGit(localPath).revparse(["HEAD"])).trim().slice(0, 12);
     } catch {
       return null;
-    }
-  }
-
-  private extractHost(url: string): string {
-    try {
-      return new URL(url).hostname;
-    } catch {
-      return "";
     }
   }
 

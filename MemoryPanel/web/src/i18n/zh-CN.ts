@@ -333,15 +333,15 @@ export const zhCN = {
   'code.table.selected': '已选中',
   'code.register.caption': '注册代码仓库',
   'code.register.gitUrl': 'Git URL',
-  'code.register.gitUrlExtra': '注册后将自动 clone 并建立代码索引。',
+  'code.register.gitUrlExtra': '支持 GitLab、GitHub 等 HTTP(S) Git 地址。注册后将自动 clone 并建立代码索引；内网仓库需由服务端配置允许的主机。',
   'code.register.gitUrlPlaceholder': 'https://gitlab.example.com/namespace/repo.git',
   'code.register.branch': '分支',
   'code.register.sshWarning':
-    '当前版本不支持 SSH 格式的仓库地址，请改用 HTTPS 格式（如 https://gitlab.example.com/namespace/repo.git）。',
+    '当前版本不支持 SSH 格式的仓库地址，请改用 HTTP 或 HTTPS 格式（如 http://10.0.0.5/group/repo.git）。',
   'code.register.urlError':
     '请输入合法的 HTTP(S) Git 仓库地址，且必须以 .git 结尾（如 https://gitlab.example.com/namespace/repo.git），不能含空格。',
   'code.register.invalidUrl':
-    '请输入合法的 HTTPS Git 仓库地址，且必须以 .git 结尾（如 https://gitlab.example.com/namespace/repo.git），不能含空格。',
+    '请输入合法的 HTTP(S) Git 仓库地址，且必须以 .git 结尾（如 http://10.0.0.5/group/repo.git），不能含空格。',
   'code.register.submitting': '注册中…',
   'code.register.submit': '注册',
   'code.confirm.delete': '确定要删除仓库「{{name}} ({{branch}})」吗？',
@@ -1198,7 +1198,7 @@ export const zhCN = {
     '是什么：沉淀团队共享文档的知识库。怎么导入：点击「新建 Wiki」创建知识库 → 进入详情上传 Markdown 文件（.md/.txt，支持多选与拖拽）→ 手动触发「知识抽取」生成可检索的知识页面。怎么用：在 Wiki 卡片点「分配给 Agent」，或在 Agent 编辑弹窗勾选；绑定后 Agent 对话时即可检索引用这些文档。',
   'onboarding.guide.asset.code.title': 'CodeGraph：团队代码资产',
   'onboarding.guide.asset.code.desc':
-    '是什么：对团队代码仓库建立的索引与调用关系图谱。怎么导入：点击「注册仓库」，粘贴 Git HTTPS 地址，系统自动完成索引构建。怎么用：「分配给 Agent」后，Agent 对话时可直接检索代码、探索调用链，回答仓库相关问题。',
+    '是什么：对团队代码仓库建立的索引与调用关系图谱。怎么导入：点击「注册仓库」，粘贴 GitLab、GitHub 等 HTTP(S) 地址，系统自动完成索引构建。怎么用：「分配给 Agent」后，Agent 对话时可直接检索代码、探索调用链，回答仓库相关问题。',
   'onboarding.guide.asset.skill.title': 'Skill：先分清「团队资产」与「Agent 资产」',
   'onboarding.guide.asset.skill.desc':
     '归属：本页有「团队资产」「Agent 资产」两个 tab。团队资产 = 团队共用池，成员都能使用和配置；Agent 资产 = 绑定给某个 Agent 的技能，随该 Agent 可用。导入：点「导入 Skill」（需先创建 Agent），技能默认归属选中的 Agent。使用：绑定后 Agent 命中技能场景即按 SKILL.md 执行；在「Agent 资产」里可对你自己 owner 的技能切换「共享 / 私密」。',

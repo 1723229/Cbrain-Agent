@@ -343,15 +343,15 @@ export const enUS = {
   'code.register.caption': 'Register Repository',
   'code.register.gitUrl': 'Git URL',
   'code.register.gitUrlExtra':
-    'After registration, it will automatically clone and build a code index.',
+    'GitLab, GitHub, and other HTTP(S) Git URLs are supported. After registration, the service automatically clones the repository and builds a code index. Internal repositories require an allowed host configured on the service.',
   'code.register.gitUrlPlaceholder': 'https://gitlab.example.com/namespace/repo.git',
   'code.register.branch': 'Branch',
   'code.register.sshWarning':
-    'SSH format repository URLs are not supported in this version. Please use HTTPS format (e.g. https://gitlab.example.com/namespace/repo.git).',
+    'SSH format repository URLs are not supported in this version. Please use HTTP or HTTPS format (e.g. http://10.0.0.5/group/repo.git).',
   'code.register.urlError':
     'Please enter a valid HTTP(S) Git repository URL ending with .git (e.g. https://gitlab.example.com/namespace/repo.git). No spaces allowed.',
   'code.register.invalidUrl':
-    'Please enter a valid HTTPS Git repository URL ending with .git (e.g. https://gitlab.example.com/namespace/repo.git). No spaces allowed.',
+    'Please enter a valid HTTP(S) Git repository URL ending with .git (e.g. http://10.0.0.5/group/repo.git). No spaces allowed.',
   'code.register.submitting': 'Registering…',
   'code.register.submit': 'Register',
   'code.confirm.delete': 'Are you sure you want to delete repo "{{name}} ({{branch}}"?',
@@ -1232,7 +1232,7 @@ export const enUS = {
     'What: a knowledge base for shared team documents. Import: click "Create Wiki" → open it and upload Markdown files (.md/.txt, multi-select & drag-drop supported) → trigger "Extract" to build searchable knowledge pages. Use: click "Allocate to Agent" on a Wiki card, or tick it in the Agent edit dialog — bound Agents can then retrieve and cite these documents in chat.',
   'onboarding.guide.asset.code.title': 'CodeGraph: team code assets',
   'onboarding.guide.asset.code.desc':
-    'What: an index and call graph built over team code repositories. Import: click "Register repo" and paste a Git HTTPS URL — indexing runs automatically. Use: once allocated to an Agent, the Agent can search code and explore call chains in chat to answer repo-related questions.',
+    'What: an index and call graph built over team code repositories. Import: click "Register repo" and paste a GitLab, GitHub, or other HTTP(S) URL — indexing runs automatically. Use: once allocated to an Agent, the Agent can search code and explore call chains in chat to answer repo-related questions.',
   'onboarding.guide.asset.skill.title': 'Skill: tell apart "Team assets" vs "Agent assets"',
   'onboarding.guide.asset.skill.desc':
     'Ownership: this page has two tabs — "Team assets" (a shared pool every member can use and configure) and "Agent assets" (skills bound to a specific Agent, usable by that Agent). Import: click "Import Skill" (create an Agent first) — the skill is bound to the chosen Agent. Use: once bound, the Agent follows the SKILL.md playbook when a matching scenario arises; in "Agent assets" you can toggle "Shared / Private" for skills you own.',

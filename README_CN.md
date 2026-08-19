@@ -269,7 +269,7 @@ PersonaMem 检验 Agent 能否在长期交互后正确理解和运用用户信�
 ## 注意事项
 
 - Wiki 和 CodeGraph 异步构建，需要等待一定时间处理才能 `ready`。
-- CodeGraph 当前首先支持公开 HTTPS 仓库；私有仓库和 SSH 凭证接入仍在完善。
+- CodeGraph 支持 GitLab、GitHub 等 HTTP/HTTPS 仓库；默认阻止内网/环回地址，内网 GitLab 可通过 `KNOWLEDGE_GIT_ALLOWED_HOSTS` 精确放行主机。SSH 凭证接入暂不支持。
 - Hub 已支持人工绑定资产；全自动记忆路由仍在迭代。
 - 当前提供 OpenClaw、Hermes、Claude Code、CodeBuddy 和 SDK 接入；更广泛的跨框架迁移仍在 Roadmap 中。
 

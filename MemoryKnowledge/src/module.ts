@@ -121,7 +121,7 @@ export function createKnowledgeModule(config: KnowledgeModuleConfig): KnowledgeM
   const realCodeWorker: CodeGraphWorker = async (ctx) => {
     const { dir, repoUrl, branch, codeGraphId, setInternalStatus } = ctx;
 
-    // Resolve protocol-specific fetcher (validates url: https-only + SSRF blocklist).
+    // Resolve protocol-specific fetcher (validates HTTP(S) URL + SSRF blocklist/allowlist).
     const fetcher = fetcherRegistry.resolve(repoUrl);
 
     const isExistingRepo = existsSync(join(dir, ".git"));
