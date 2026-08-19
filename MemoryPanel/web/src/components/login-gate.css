@@ -91,3 +91,27 @@
   0%, 100% { transform: translate(-50%, -50%) translateY(3px); }
   50% { transform: translate(-50%, -50%) translateY(-5px); }
 }
+
+/* 登录主视觉是 Cbrain 的品牌动效。即使系统开启减少动态效果，也保留这组
+ * 低速、低幅度的主视觉动画；平台其他页面仍遵守 tea-override 的全局规则。 */
+@media (prefers-reduced-motion: reduce) {
+  .cbrain-login-hero__glow {
+    animation-duration: 5s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .cbrain-login-hero__orbit--outer {
+    animation-duration: 10s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .cbrain-login-hero__orbit--inner {
+    animation-duration: 7s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .cbrain-login-hero__core {
+    animation-duration: 4.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
