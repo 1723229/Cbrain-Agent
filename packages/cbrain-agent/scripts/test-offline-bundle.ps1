@@ -51,10 +51,10 @@ try {
     $claudeMarkets = claude plugin marketplace list --json | ConvertFrom-Json
     $claudePlugins = claude plugin list --json | ConvertFrom-Json
     $checks = [ordered]@{
-      codex_marketplace_present = [bool]($codexMarkets.marketplaces | Where-Object name -eq "cbrain-offline")
-      codex_plugin_installed = [bool]($codexPlugins.installed | Where-Object pluginId -eq "cbrain-agent@cbrain-offline")
-      claude_marketplace_present = [bool]($claudeMarkets | Where-Object name -eq "cbrain-offline")
-      claude_plugin_installed = [bool]($claudePlugins | Where-Object id -eq "cbrain-agent@cbrain-offline")
+      codex_marketplace_present = [bool]($codexMarkets.marketplaces | Where-Object name -eq "cbrain")
+      codex_plugin_installed = [bool]($codexPlugins.installed | Where-Object pluginId -eq "cbrain-agent@cbrain")
+      claude_marketplace_present = [bool]($claudeMarkets | Where-Object name -eq "cbrain")
+      claude_plugin_installed = [bool]($claudePlugins | Where-Object id -eq "cbrain-agent@cbrain")
       config_gateway_matches = $saved.gatewayUrl -eq $connection.gatewayUrl
       config_has_api_key = [bool]$saved.apiKey
       stable_codex_bundle = Test-Path -LiteralPath (Join-Path $testHome ".cbrain-agent/offline/codex/bundle.json")

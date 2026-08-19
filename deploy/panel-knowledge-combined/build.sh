@@ -96,6 +96,20 @@ copy_tree "$KNOWLEDGE_DIR" "$CTX_DIR/knowledge" \
 copy_tree "$CBRAIN_AGENT_PACKAGE_DIR" "$CTX_DIR/cbrain-agent-package" \
   node_modules dist test scripts
 
+# 生成真正自包含的安装包：将两个客户端插件和本地 Marketplace 放进
+# cbrain-agent.tgz，安装时不再访问 GitHub/SSH。
+echo "[build-combined] copy bundled plugin sources → $CTX_DIR/cbrain-agent-source/"
+copy_tree "$REPO_ROOT/plugins/codex/cbrain-agent" "$CTX_DIR/cbrain-agent-source/plugins/codex/cbrain-agent" \
+  '*.test.mjs'
+copy_tree "$REPO_ROOT/plugins/claude-code/cbrain-agent" "$CTX_DIR/cbrain-agent-source/plugins/claude-code/cbrain-agent" \
+  '*.test.mjs'
+mkdir -p "$CTX_DIR/cbrain-agent-source/.agents/plugins" "$CTX_DIR/cbrain-agent-source/.claude-plugin"
+cp "$REPO_ROOT/.agents/plugins/marketplace.json" "$CTX_DIR/cbrain-agent-source/.agents/plugins/marketplace.json"
+cp "$REPO_ROOT/.claude-plugin/marketplace.json" "$CTX_DIR/cbrain-agent-source/.claude-plugin/marketplace.json"
+mkdir -p "$CTX_DIR/cbrain-agent-package/scripts"
+cp "$CBRAIN_AGENT_PACKAGE_DIR/scripts/bundle-builder.mjs" "$CTX_DIR/cbrain-agent-package/scripts/bundle-builder.mjs"
+cp "$CBRAIN_AGENT_PACKAGE_DIR/scripts/prepare-embedded-bundle.mjs" "$CTX_DIR/cbrain-agent-package/scripts/prepare-embedded-bundle.mjs"
+
 # 拷 Dockerfile + start-combined.sh + .dockerignore + README（rsync 已过滤敏感文件，.dockerignore 作兜底）
 cp "$SCRIPT_DIR/Dockerfile" "$CTX_DIR"/
 cp "$SCRIPT_DIR/start-combined.sh" "$CTX_DIR"/

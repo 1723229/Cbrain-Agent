@@ -7,15 +7,17 @@ import assert from "node:assert/strict";
 import { execute, install, parseArguments, promptSecret, resolveWindowsCommand, saveConfig, uninstall } from "../src/installer.mjs";
 
 describe("cbrain-agent installer", () => {
-  it("installs Codex from the remote marketplace and writes only apiKey", async () => {
+  it("installs Codex from the bundled local marketplace and writes only apiKey", async () => {
     const calls = [], home = await mkdtemp(join(tmpdir(), "cbrain-installer-"));
     const runner = async (command, args, options = {}) => { calls.push([command, args]);if(options.capture&&args.includes("marketplace"))return{stdout:JSON.stringify({marketplaces:[]})};if(options.capture)return{stdout:JSON.stringify({installed:[]})};return{stdout:""} };
     const fetcher = async (_url, init) => { assert.equal(init.headers.Authorization, "Bearer page-key");return new Response(JSON.stringify({principal_id:"user:u1",user_id:"u1"}),{status:200}) };
-    const result = await install({client:"codex",gatewayUrl:"https://cbrain.example/mcp",apiKey:"page-key",home,platform:"linux",runner,fetcher,output:()=>{}});
+    const result = await install({client:"codex",gatewayUrl:"https://cbrain.example/mcp",apiKey:"page-key",sourceRoot:"/bundle/codex",home,platform:"linux",runner,fetcher,output:()=>{}});
     assert.deepEqual(JSON.parse(await readFile(result.path,"utf8")),{gatewayUrl:"https://cbrain.example",apiKey:"page-key"});
     if(process.platform!=="win32")assert.equal((await stat(result.path)).mode & 0o777,0o600);
-    assert.deepEqual(calls.slice(0,2),[["codex",["plugin","marketplace","list","--json"]],["codex",["plugin","marketplace","add","1723229/Cbrain-Agent"]]]);
+    assert.deepEqual(calls.slice(0,2),[["codex",["plugin","marketplace","list","--json"]],["codex",["plugin","list","--json"]]]);
+    assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace add /bundle/codex"));
     assert.ok(calls.some(([,args])=>args.includes("cbrain-agent@cbrain")));
+    assert.equal(calls.some(([,args])=>args.includes("1723229/Cbrain-Agent")),false);
   });
 
   it("installs Claude Code and rejects a bad API key before changing plugins", async () => {
@@ -34,17 +36,18 @@ describe("cbrain-agent installer", () => {
   it("refreshes an existing marketplace before reinstalling", async () => {
     const calls=[];const home=await mkdtemp(join(tmpdir(),"cbrain-update-"));
     const runner=async(command,args,options={})=>{calls.push([command,args]);if(options.capture&&args.includes("marketplace"))return{stdout:JSON.stringify({marketplaces:[{name:"cbrain"}]})};if(options.capture)return{stdout:JSON.stringify({installed:[]})};return{stdout:""}};
-    await install({client:"codex",gatewayUrl:"https://cbrain.example",apiKey:"key",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
-    assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace upgrade cbrain"));
-    assert.ok(!calls.some(([,args])=>args.includes("add")&&args.includes("1723229/Cbrain-Agent")));
-    assert.ok(!calls.some(([,args])=>args.includes("remove")));
+    await install({client:"codex",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/bundle/codex",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
+    assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace remove cbrain"));
+    assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace add /bundle/codex"));
+    assert.equal(calls.some(([,args])=>args.join(" ")==="plugin marketplace upgrade cbrain"),false);
   });
 
   it("updates an installed Claude Code plugin without uninstalling it", async () => {
-    const calls=[];const runner=async(command,args,options={})=>{calls.push([command,args]);if(options.capture&&args.includes("marketplace"))return{stdout:JSON.stringify([{name:"cbrain"}])};if(options.capture&&args.includes("list"))return{stdout:JSON.stringify([{id:"cbrain-agent@cbrain"}])};return{stdout:""}};
-    await install({client:"claude-code",gatewayUrl:"https://cbrain.example",apiKey:"key",home:await mkdtemp(join(tmpdir(),"cbrain-claude-update-")),platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
+    const calls=[];const runner=async(command,args,options={})=>{calls.push([command,args]);if(options.capture&&args.includes("marketplace"))return{stdout:JSON.stringify([{name:"cbrain",path:"/bundle/claude-code"}])};if(options.capture&&args.includes("list"))return{stdout:JSON.stringify([{id:"cbrain-agent@cbrain"}])};return{stdout:""}};
+    await install({client:"claude-code",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/bundle/claude-code",home:await mkdtemp(join(tmpdir(),"cbrain-claude-update-")),platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
     assert.ok(calls.some(([,args])=>args.join(" ")==="plugin update cbrain-agent@cbrain --scope user"));
     assert.ok(!calls.some(([,args])=>args.includes("uninstall")));
+    assert.ok(!calls.some(([,args])=>args.join(" ")==="plugin marketplace add /bundle/claude-code --scope user"));
   });
 
   it("installs Codex only from the bundled offline marketplace", async () => {
@@ -53,7 +56,7 @@ describe("cbrain-agent installer", () => {
     await install({client:"codex",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/media/cbrain",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
     assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace remove cbrain-offline"));
     assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace add /media/cbrain"));
-    assert.ok(calls.some(([,args])=>args.includes("cbrain-agent@cbrain-offline")));
+    assert.ok(calls.some(([,args])=>args.includes("cbrain-agent@cbrain")));
     assert.ok(!calls.some(([,args])=>args.includes("1723229/Cbrain-Agent")));
   });
 
@@ -62,7 +65,7 @@ describe("cbrain-agent installer", () => {
     const runner=async(command,args,options={})=>{calls.push([command,args]);return{stdout:options.capture?"[]":""}};
     await install({client:"claude-code",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/media/cbrain",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
     assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace add /media/cbrain --scope user"));
-    assert.ok(calls.some(([,args])=>args.includes("cbrain-agent@cbrain-offline")));
+    assert.ok(calls.some(([,args])=>args.includes("cbrain-agent@cbrain")));
     assert.ok(!calls.some(([,args])=>args.includes("1723229/Cbrain-Agent")));
   });
 
@@ -114,14 +117,30 @@ describe("cbrain-agent installer", () => {
     const calls = [], home = await mkdtemp(join(tmpdir(), "cbrain-cache-lock-")), runner = async (command, args, options = {}) => {
       calls.push([command, args, options]);
       if (options.capture && args.includes("marketplace")) return { stdout: JSON.stringify({ marketplaces: [{ name: "cbrain" }] }) };
+      if (options.capture && args.includes("list")) return { stdout: JSON.stringify({ installed: [] }) };
       if (args.join(" ") === "plugin add cbrain-agent@cbrain") throw new Error("failed to back up plugin cache entry: 拒绝访问。 (os error 5)");
       return { stdout: "" };
     };
     await assert.rejects(
-      () => install({ client: "codex", gatewayUrl: "https://cbrain.example", apiKey: "key", home, runner, fetcher: async () => new Response(JSON.stringify({ user_id: "u" }), { status: 200 }), output: () => {} }),
+      () => install({ client: "codex", gatewayUrl: "https://cbrain.example", apiKey: "key", sourceRoot: "/bundle/codex", home, runner, fetcher: async () => new Response(JSON.stringify({ user_id: "u" }), { status: 200 }), output: () => {} }),
       /Close all Codex windows and background processes/,
     );
     assert.equal(calls.at(-1)[2].capture, true);
+  });
+
+  it("does not save the shared config when plugin installation fails", async () => {
+    const home = await mkdtemp(join(tmpdir(), "cbrain-config-rollback-"));
+    const runner = async (_command, args, options = {}) => {
+      if (options.capture && args.includes("marketplace")) return { stdout: JSON.stringify({ marketplaces: [] }) };
+      if (options.capture && args.includes("list")) return { stdout: JSON.stringify({ installed: [] }) };
+      if (args.join(" ") === "plugin add cbrain-agent@cbrain") throw new Error("plugin install failed");
+      return { stdout: "" };
+    };
+    await assert.rejects(
+      () => install({ client: "codex", gatewayUrl: "https://cbrain.example", apiKey: "key", sourceRoot: "/bundle/codex", home, runner, fetcher: async () => new Response(JSON.stringify({ user_id: "u" }), { status: 200 }), output: () => {} }),
+      /plugin install failed/,
+    );
+    await assert.rejects(access(join(home, ".cbrain-agent", "config.json")), { code: "ENOENT" });
   });
 
   it("restores previous Codex cachebuster versions after a non-destructive update", async () => {
@@ -131,6 +150,7 @@ describe("cbrain-agent installer", () => {
     await writeFile(join(cacheRoot, "0.2.3+codex.old", "marker.txt"), "old");
     const runner = async (_command, args, options = {}) => {
       if (options.capture && args.includes("marketplace")) return { stdout: JSON.stringify({ marketplaces: [{ name: "cbrain" }] }) };
+      if (options.capture && args.includes("list")) return { stdout: JSON.stringify({ installed: [] }) };
       if (args.join(" ") === "plugin add cbrain-agent@cbrain") {
         await rm(cacheRoot, { recursive: true, force: true });
         await mkdir(join(cacheRoot, "0.2.3+codex.new"), { recursive: true });
@@ -138,7 +158,7 @@ describe("cbrain-agent installer", () => {
       }
       return { stdout: "" };
     };
-    await install({client:"codex",gatewayUrl:"https://cbrain.example",apiKey:"key",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
+    await install({client:"codex",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/bundle/codex",home,platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
     await access(join(cacheRoot, "0.2.3+codex.old", "marker.txt"));
     await access(join(cacheRoot, "0.2.3+codex.new", "marker.txt"));
     const backups = await readdir(join(home, ".cbrain-agent", "backups", "codex"));

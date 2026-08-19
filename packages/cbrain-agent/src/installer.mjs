@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process";
-import { access, chmod, cp, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { access, chmod, cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
+import { fileURLToPath } from "node:url";
 
 const MARKETPLACE = "cbrain";
 const OFFLINE_MARKETPLACE = "cbrain-offline";
-const REPOSITORY = "1723229/Cbrain-Agent";
 
 export function parseArguments(values) {
   if (!["install", "uninstall"].includes(values[0]) || !["codex", "claude-code"].includes(values[1])) {
@@ -36,56 +36,36 @@ export async function install(options) {
   if (!apiKey) throw new Error("Cbrain API Key is required");
   const fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
   const identity = await verifyIdentity(gatewayUrl, apiKey, fetcher);
-  const path = await saveConfig({ gatewayUrl, apiKey }, options);
   const runner = options.runner ?? runCommand;
+  const sourceRoot = options.sourceRoot || await materializeEmbeddedMarketplace(options.client, options);
+  if (!sourceRoot) throw new Error("Cbrain installer bundle is missing the embedded plugin Marketplace.");
+  if (options.ref) throw new Error("--ref is not supported by the self-contained Cbrain installer");
   const snapshot = options.client === "codex" ? await snapshotCodexState(options) : null;
   try {
-    if (options.client === "codex") await installCodex(runner, options.ref, options.sourceRoot);
-    else await installClaudeCode(runner, options.ref, options.sourceRoot);
+    if (options.client === "codex") await installCodex(runner, sourceRoot);
+    else await installClaudeCode(runner, sourceRoot);
   } catch (error) {
     throw normalizePluginInstallError(error, options.client);
   } finally {
     if (snapshot) await restoreCodexVersions(snapshot);
   }
-  output(`Cbrain connected as ${identity.user_id}.`);
-  if (snapshot) output(`Previous Codex plugin versions preserved in ${snapshot.backupRoot}.`);
-  output(`Configuration saved to ${path}. Restart ${options.client === "codex" ? "Codex" : "Claude Code"}.`);
+  const path = await saveConfig({ gatewayUrl, apiKey }, options);
+  output("Cbrain connected as " + identity.user_id + ".");
+  if (snapshot) output("Previous Codex plugin versions preserved in " + snapshot.backupRoot + ".");
+  output("Configuration saved to " + path + ". Restart " + (options.client === "codex" ? "Codex" : "Claude Code") + ".");
   return { path, identity };
 }
 
-async function installCodex(run, ref, sourceRoot) {
-  if (sourceRoot) {
-    await replaceLocalMarketplace(run, "codex", sourceRoot);
-    await run("codex", ["plugin", "add", `cbrain-agent@${OFFLINE_MARKETPLACE}`]);
-    return;
-  }
-  const marketplaces = await jsonCommand(run, "codex", ["plugin", "marketplace", "list", "--json"]);
-  if (marketplaces.marketplaces?.some((item) => item.name === MARKETPLACE)) {
-    await run("codex", ["plugin", "marketplace", "upgrade", MARKETPLACE]);
-  } else {
-    const args = ["plugin", "marketplace", "add", REPOSITORY];
-    if (ref) args.push("--ref", ref);
-    await run("codex", args);
-  }
-  await run("codex", ["plugin", "add", `cbrain-agent@${MARKETPLACE}`], { capture: true });
+async function installCodex(run, sourceRoot) {
+  await replaceLocalMarketplace(run, "codex", sourceRoot);
+  await run("codex", ["plugin", "add", "cbrain-agent@" + MARKETPLACE], { capture: true });
 }
 
-async function installClaudeCode(run, ref, sourceRoot) {
-  if (ref) throw new Error("--ref is only supported by the Codex marketplace command");
-  if (sourceRoot) {
-    await replaceLocalMarketplace(run, "claude-code", sourceRoot);
-    await run("claude", ["plugin", "install", `cbrain-agent@${OFFLINE_MARKETPLACE}`, "--scope", "user"]);
-    return;
-  }
-  const marketplaces = await jsonCommand(run, "claude", ["plugin", "marketplace", "list", "--json"]);
-  if (marketplaces.some?.((item) => item.name === MARKETPLACE)) {
-    await run("claude", ["plugin", "marketplace", "update", MARKETPLACE]);
-  } else {
-    await run("claude", ["plugin", "marketplace", "add", REPOSITORY, "--scope", "user"]);
-  }
+async function installClaudeCode(run, sourceRoot) {
+  await replaceLocalMarketplace(run, "claude-code", sourceRoot);
   const plugins = await jsonCommand(run, "claude", ["plugin", "list", "--json"]);
-  const installed = Array.isArray(plugins) && plugins.some((item) => item.id === `cbrain-agent@${MARKETPLACE}`);
-  await run("claude", ["plugin", installed ? "update" : "install", `cbrain-agent@${MARKETPLACE}`, "--scope", "user"]);
+  const installed = Array.isArray(plugins) && plugins.some((item) => item.id === "cbrain-agent@" + MARKETPLACE);
+  await run("claude", ["plugin", installed ? "update" : "install", "cbrain-agent@" + MARKETPLACE, "--scope", "user"]);
 }
 
 export async function uninstall(options) {
@@ -110,25 +90,62 @@ export async function uninstall(options) {
 }
 
 async function replaceLocalMarketplace(run, client, sourceRoot) {
-  if (client === "codex") {
-    const marketplaces = await jsonCommand(run, "codex", ["plugin", "marketplace", "list", "--json"]);
-    if (marketplaces.marketplaces?.some((item) => item.name === OFFLINE_MARKETPLACE)) {
-      await run("codex", ["plugin", "marketplace", "remove", OFFLINE_MARKETPLACE]);
-    }
-    await run("codex", ["plugin", "marketplace", "add", sourceRoot]);
-    return;
+  const command = client === "codex" ? "codex" : "claude";
+  const marketplaces = await jsonCommand(run, command, ["plugin", "marketplace", "list", "--json"]);
+  const plugins = await jsonCommand(run, command, ["plugin", "list", "--json"]);
+  const entries = client === "codex" ? (marketplaces.marketplaces || []) : (Array.isArray(marketplaces) ? marketplaces : []);
+  const current = entries.find((item) => item.name === MARKETPLACE);
+  const legacy = entries.find((item) => item.name === OFFLINE_MARKETPLACE);
+  const legacyPluginId = "cbrain-agent@" + OFFLINE_MARKETPLACE;
+  const legacyPluginInstalled = client === "codex"
+    ? plugins.installed?.some((item) => item.pluginId === legacyPluginId)
+    : Array.isArray(plugins) && plugins.some((item) => item.id === legacyPluginId);
+  if (current && !sameLocalPath(marketplaceRoot(current), sourceRoot)) await removeMarketplaceInstallation(run, client, MARKETPLACE, plugins, entries);
+  if (legacy || legacyPluginInstalled) await removeMarketplaceInstallation(run, client, OFFLINE_MARKETPLACE, plugins, entries);
+  const refreshed = current && sameLocalPath(marketplaceRoot(current), sourceRoot);
+  if (!refreshed) {
+    if (client === "codex") await run("codex", ["plugin", "marketplace", "add", sourceRoot]);
+    else await run("claude", ["plugin", "marketplace", "add", sourceRoot, "--scope", "user"]);
   }
-  const marketplaces = await jsonCommand(run, "claude", ["plugin", "marketplace", "list", "--json"]);
-  if (marketplaces.some?.((item) => item.name === OFFLINE_MARKETPLACE)) {
-    await run("claude", ["plugin", "marketplace", "remove", OFFLINE_MARKETPLACE]);
+}
+
+async function removeMarketplaceInstallation(run, client, name, plugins, marketplaces) {
+  const pluginId = "cbrain-agent@" + name;
+  const installed = client === "codex"
+    ? plugins.installed?.some((item) => item.pluginId === pluginId)
+    : Array.isArray(plugins) && plugins.some((item) => item.id === pluginId);
+  if (installed) {
+    if (client === "codex") await run("codex", ["plugin", "remove", pluginId, "--json"], { capture: true });
+    else await run("claude", ["plugin", "uninstall", pluginId, "--scope", "user"]);
   }
-  await run("claude", ["plugin", "marketplace", "add", sourceRoot, "--scope", "user"]);
+  const present = marketplaces.some((item) => item.name === name);
+  if (present) {
+    if (client === "codex") await run("codex", ["plugin", "marketplace", "remove", name]);
+    else await run("claude", ["plugin", "marketplace", "remove", name, "--scope", "user"]);
+  }
+}
+
+function marketplaceRoot(entry) { return entry?.root || entry?.path || entry?.source?.path || ""; }
+function sameLocalPath(left, right) { return normalizeLocalPath(left) === normalizeLocalPath(right); }
+function normalizeLocalPath(value) {
+  const text = String(value || "").replace(/^\\\\\?\\/, "");
+  return text ? resolve(text).replace(/\\+$/, "").replaceAll("\\", "/").toLowerCase() : "";
 }
 
 async function jsonCommand(run, command, args) {
   const result = await run(command, args, { capture: true });
   try { return JSON.parse(result.stdout || "null"); }
   catch { throw new Error(`${command} returned invalid JSON while inspecting plugins`); }
+}
+
+async function materializeEmbeddedMarketplace(client, options = {}) {
+  const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const embeddedRoot = resolve(packageRoot, "bundled", client);
+  if (!(await exists(embeddedRoot))) return null;
+  const installedRoot = resolve(options.home || homedir(), ".cbrain-agent", "bundled", client);
+  await rm(installedRoot, { recursive: true, force: true });
+  await cp(embeddedRoot, installedRoot, { recursive: true });
+  return installedRoot;
 }
 
 async function verifyIdentity(gatewayUrl, apiKey, fetcher) {

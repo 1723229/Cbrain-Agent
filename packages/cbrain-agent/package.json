@@ -1,6 +1,6 @@
 {
   "name": "cbrain-agent",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "One-command Cbrain plugin installer for Codex and Claude Code",
   "type": "module",
   "bin": {
@@ -9,6 +9,7 @@
   "files": [
     "bin",
     "src",
+    "bundled",
     "README.md"
   ],
   "scripts": {

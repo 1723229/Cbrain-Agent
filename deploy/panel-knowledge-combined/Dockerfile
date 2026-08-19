@@ -44,7 +44,9 @@ RUN npm run build
 FROM base AS cbrain-agent-builder
 WORKDIR /build/cbrain-agent
 COPY cbrain-agent-package/ ./
+COPY cbrain-agent-source/ /build/cbrain-agent-source/
 RUN mkdir -p /build/downloads \
+    && node scripts/prepare-embedded-bundle.mjs --repository-root /build/cbrain-agent-source --output /build/cbrain-agent/bundled \
     && npm pack --pack-destination /build/downloads \
     && mv /build/downloads/cbrain-agent-*.tgz /build/downloads/cbrain-agent.tgz
 

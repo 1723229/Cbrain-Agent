@@ -39,7 +39,7 @@ import { tea } from '@/lib/tea-bridge';
 import './api-key-panel.css';
 
 const { autotip } = Table.addons;
-const CBRAIN_AGENT_INSTALLER_VERSION = '0.1.4';
+const CBRAIN_AGENT_INSTALLER_VERSION = '0.1.5';
 
 export default function ApiKeyPanel() {
   const { t } = useTranslation();

@@ -41,5 +41,5 @@ const config=JSON.parse(readFileSync(process.env.HOME+"/.cbrain-agent/config.jso
 if(config.gatewayUrl!==process.env.CBRAIN_GATEWAY_URL||!config.apiKey)process.exit(1);
 console.log(JSON.stringify({config_gateway_matches:true,config_has_api_key:true}));
 '
-codex plugin list --json | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const x=JSON.parse(s);if(!x.installed?.some(p=>p.pluginId==="cbrain-agent@cbrain-offline"))process.exit(1);console.log(JSON.stringify({codex_plugin_installed:true}))})'
-claude plugin list --json | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const x=JSON.parse(s);if(!x.some(p=>p.id==="cbrain-agent@cbrain-offline"))process.exit(1);console.log(JSON.stringify({claude_plugin_installed:true}))})'
+codex plugin list --json | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const x=JSON.parse(s);if(!x.installed?.some(p=>p.pluginId==="cbrain-agent@cbrain"))process.exit(1);console.log(JSON.stringify({codex_plugin_installed:true}))})'
+claude plugin list --json | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const x=JSON.parse(s);if(!x.some(p=>p.id==="cbrain-agent@cbrain"))process.exit(1);console.log(JSON.stringify({claude_plugin_installed:true}))})'
