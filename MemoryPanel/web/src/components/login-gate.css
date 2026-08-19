@@ -27,6 +27,10 @@
   position: absolute;
   left: 50%;
   top: 50%;
+  /* 居中必须由基础样式负责，不能只依赖动画中的 transform。
+   * prefers-reduced-motion 会让动画快速结束，缺少基础 transform 时元素会落到 50% 定位点。 */
+  transform: translate(-50%, -50%);
+  transform-origin: center;
   will-change: transform;
 }
 
@@ -39,6 +43,8 @@
 }
 
 .cbrain-login-hero__core {
+  transform: translate(-50%, -50%);
+  transform-origin: center;
   animation: cbrain-hero-float 4.5s ease-in-out infinite;
   will-change: transform;
 }
@@ -49,6 +55,7 @@
   top: -4px;
   display: block;
   border-radius: 9999px;
+  transform: translateX(-50%);
 }
 
 .cbrain-login-hero__dot--cyan {
