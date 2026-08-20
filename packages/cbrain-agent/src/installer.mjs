@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { access, chmod, cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { delimiter, dirname, extname, join, resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -121,7 +121,9 @@ async function removeMarketplaceInstallation(run, client, name, plugins, marketp
   const present = marketplaces.some((item) => item.name === name);
   if (present) {
     if (client === "codex") await run("codex", ["plugin", "marketplace", "remove", name]);
-    else await run("claude", ["plugin", "marketplace", "remove", name, "--scope", "user"]);
+    // Older Claude Code releases support --scope for marketplace add, but not remove.
+    // Omitting it works on both those releases and the current CLI.
+    else await run("claude", ["plugin", "marketplace", "remove", name]);
   }
 }
 
@@ -207,9 +209,14 @@ export function runCommand(command, args, options = {}) {
 export async function resolveWindowsCommand(command, options = {}) {
   if (!/^[A-Za-z0-9._-]+$/.test(command)) throw new Error("Windows command name is invalid");
   const pathValue = options.pathValue ?? process.env.PATH ?? "";
-  const finder = options.finder ?? findWindowsShim;
-  const shim = await finder(`${command}.cmd`, pathValue);
-  if (!shim) throw new Error(`cannot find ${command}.cmd on PATH`);
+  const finder = options.finder ?? findWindowsCommand;
+  const executable = await finder(command, pathValue);
+  if (!executable) throw new Error(`cannot find ${command}.exe or ${command}.cmd on PATH`);
+  const extension = extname(executable).toLowerCase();
+  if (extension === ".exe") return { executable, prefix: [] };
+  if (extension !== ".cmd") throw new Error(`unsupported Windows command launcher: ${executable}`);
+
+  const shim = executable;
   const content = await (options.readText ?? readFile)(shim, "utf8");
   const matches = [...content.matchAll(/"%dp0%\\([^"\r\n]+\.(?:js|exe))"/gi)];
   const target = matches.at(-1)?.[1];
@@ -263,10 +270,13 @@ function timestamp() {
   return new Date().toISOString().replace(/[-:.]/g, "");
 }
 
-async function findWindowsShim(name, pathValue) {
+async function findWindowsCommand(name, pathValue) {
+  const names = extname(name) ? [name] : [`${name}.exe`, `${name}.cmd`];
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
-    const candidate = join(directory.replace(/^"|"$/g, ""), name);
-    try { await access(candidate); return candidate; } catch { /* Continue searching PATH. */ }
+    for (const candidateName of names) {
+      const candidate = join(directory.replace(/^"|"$/g, ""), candidateName);
+      try { await access(candidate); return candidate; } catch { /* Continue searching PATH. */ }
+    }
   }
   return null;
 }

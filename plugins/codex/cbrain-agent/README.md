@@ -18,17 +18,19 @@ By default, Cbrain displays the Git root directory name. A project can define a 
 ## Install
 
 Requirements: Codex with plugin support and Node.js 22 or newer. Create an API
-Key on the Cbrain **API Key** page, then run one command:
+Key on the Cbrain **API Key** page, then copy the deployment-specific command
+shown there. For example:
 
 ```powershell
-npx --yes cbrain-agent install codex --gateway https://cbrain.example
+npx --yes --package "https://cbrain.example/downloads/cbrain-agent.tgz" cbrain-agent install codex --gateway https://cbrain-gateway.example
 ```
 
 The command works on Windows, macOS, Linux, and WSL. It downloads the plugin
-from the GitHub Marketplace, securely prompts for the page API Key, verifies the
-account, and writes `~/.cbrain-agent/config.json`. No source checkout or
-administrator-created Gateway Token is required. Windows and WSL have separate
-home directories, so run the command once in each environment you use.
+bundle from the Cbrain instance, securely prompts for the page API Key, verifies
+the account, and writes `~/.cbrain-agent/config.json`. It does not require npm
+publication, GitHub access, a source checkout, or an administrator-created
+Gateway Token. Windows and WSL have separate home directories, so run the
+command once in each environment you use.
 
 Start a fresh Codex session after installation. Review and approve the plugin's
 hooks when Codex asks. If the account has exactly one active Team-Agent pair,

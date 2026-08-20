@@ -50,6 +50,13 @@ describe("cbrain-agent installer", () => {
     assert.ok(!calls.some(([,args])=>args.join(" ")==="plugin marketplace add /bundle/claude-code --scope user"));
   });
 
+  it("removes a stale Claude marketplace with arguments supported by older Claude Code", async () => {
+    const calls=[];const runner=async(command,args,options={})=>{calls.push([command,args]);if(options.capture&&args.includes("marketplace"))return{stdout:JSON.stringify([{name:"cbrain",path:"/old/claude-code"}])};if(options.capture&&args.includes("list"))return{stdout:"[]"};return{stdout:""}};
+    await install({client:"claude-code",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/bundle/claude-code",home:await mkdtemp(join(tmpdir(),"cbrain-claude-migrate-")),platform:"linux",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
+    assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace remove cbrain"));
+    assert.ok(!calls.some(([,args])=>args.join(" ")==="plugin marketplace remove cbrain --scope user"));
+  });
+
   it("installs Codex only from the bundled offline marketplace", async () => {
     const calls=[];const home=await mkdtemp(join(tmpdir(),"cbrain-offline-"));
     const runner=async(command,args,options={})=>{calls.push([command,args]);if(options.capture&&args.includes("marketplace"))return{stdout:JSON.stringify({marketplaces:[{name:"cbrain-offline"}]})};return{stdout:options.capture?JSON.stringify({installed:[]}):""}};
@@ -69,6 +76,14 @@ describe("cbrain-agent installer", () => {
     assert.ok(!calls.some(([,args])=>args.includes("1723229/Cbrain-Agent")));
   });
 
+  it("resolves native Windows executables without reading them as npm shims", async () => {
+    const claude=await resolveWindowsCommand("claude",{
+      finder:async(name)=>{assert.equal(name,"claude");return "C:\\Users\\admin\\.local\\bin\\claude.exe";},
+      readText:async()=>{throw new Error("native executables must not be read as text");},
+    });
+    assert.deepEqual(claude,{executable:"C:\\Users\\admin\\.local\\bin\\claude.exe",prefix:[]});
+  });
+
   it("resolves standard Windows npm shims without invoking cmd.exe", async () => {
     const codex=await resolveWindowsCommand("codex",{finder:async()=>"C:\\npm\\codex.cmd",readText:async()=>`"%dp0%\\node_modules\\@openai\\codex\\bin\\codex.js" %*`,ensureExists:async()=>{}});
     assert.equal(codex.executable,process.execPath);
@@ -76,6 +91,13 @@ describe("cbrain-agent installer", () => {
     const claude=await resolveWindowsCommand("claude",{finder:async()=>"C:\\npm\\claude.cmd",readText:async()=>`"%dp0%\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe" %*`,ensureExists:async()=>{}});
     assert.equal(claude.executable,"C:\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe");
     await assert.rejects(()=>resolveWindowsCommand("bad command",{}),/name is invalid/);
+  });
+
+  it("reports all supported Windows command forms when a client is missing", async () => {
+    await assert.rejects(
+      ()=>resolveWindowsCommand("claude",{finder:async()=>null}),
+      /cannot find claude\.exe or claude\.cmd on PATH/,
+    );
   });
 
   it("grants the Windows user modify access so atomic config upgrades can replace the file", async () => {

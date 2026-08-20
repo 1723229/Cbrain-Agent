@@ -36,10 +36,10 @@ import { useCurrentRole } from '@/services/useCurrentRole';
 import { useAuthStore } from '@/stores/auth';
 import { tea } from '@/lib/tea-bridge';
 import { isApiKeyExpiryDateDisabled } from './api-key-expiry';
+import { buildCbrainAgentCommand } from './plugin-install-command';
 import './api-key-panel.css';
 
 const { autotip } = Table.addons;
-const CBRAIN_AGENT_INSTALLER_VERSION = '0.1.5';
 
 export default function ApiKeyPanel() {
   const { t } = useTranslation();
@@ -266,17 +266,25 @@ export default function ApiKeyPanel() {
               </ol>
             </div>
             {(['codex', 'claude-code'] as const).map((client) => {
-              const installerUrl = `"${window.location.origin}/downloads/cbrain-agent.tgz?v=${CBRAIN_AGENT_INSTALLER_VERSION}"`;
               const commands = [
                 {
                   action: 'install',
                   label: t('apiKey.plugin.installOrUpdate'),
-                  command: `npx --yes ${installerUrl} install ${client} --gateway ${agentGatewayUrl.replace(/\/+$/, '')}`,
+                  command: buildCbrainAgentCommand({
+                    action: 'install',
+                    client,
+                    origin: window.location.origin,
+                    gatewayUrl: agentGatewayUrl,
+                  }),
                 },
                 {
                   action: 'uninstall',
                   label: t('apiKey.plugin.uninstall'),
-                  command: `npx --yes ${installerUrl} uninstall ${client}`,
+                  command: buildCbrainAgentCommand({
+                    action: 'uninstall',
+                    client,
+                    origin: window.location.origin,
+                  }),
                 },
               ];
               return (

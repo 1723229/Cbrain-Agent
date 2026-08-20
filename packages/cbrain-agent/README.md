@@ -5,8 +5,8 @@ for that deployment. The command uses the installer archive served by the Cbrain
 instance rather than an unpublished npm package. For example:
 
 ```bash
-npx --yes "https://cbrain.example/downloads/cbrain-agent.tgz" install codex --gateway https://cbrain-gateway.example
-npx --yes "https://cbrain.example/downloads/cbrain-agent.tgz" install claude-code --gateway https://cbrain-gateway.example
+npx --yes --package "https://cbrain.example/downloads/cbrain-agent.tgz" cbrain-agent install codex --gateway https://cbrain-gateway.example
+npx --yes --package "https://cbrain.example/downloads/cbrain-agent.tgz" cbrain-agent install claude-code --gateway https://cbrain-gateway.example
 ```
 
 The installer package contains the Codex and Claude Code plugin sources and
@@ -22,6 +22,6 @@ and older cache entries are not deleted.
 Remove only the client plugin while preserving Cbrain configuration and server data:
 
 ```bash
-npx --yes "https://cbrain.example/downloads/cbrain-agent.tgz" uninstall codex
-npx --yes "https://cbrain.example/downloads/cbrain-agent.tgz" uninstall claude-code
+npx --yes --package "https://cbrain.example/downloads/cbrain-agent.tgz" cbrain-agent uninstall codex
+npx --yes --package "https://cbrain.example/downloads/cbrain-agent.tgz" cbrain-agent uninstall claude-code
 ```

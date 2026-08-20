@@ -17,18 +17,20 @@ By default, Cbrain displays the Git root directory name. A project can define a 
 
 ## Install
 
-Requirements: Claude Code 2.1.215 or newer and Node.js 22 or newer. Create an API
-Key on the Cbrain **API Key** page, then run one command:
+Requirements: Claude Code with plugin support and Node.js 22 or newer. Create an
+API Key on the Cbrain **API Key** page, then copy the deployment-specific command
+shown there. For example:
 
 ```powershell
-npx --yes cbrain-agent install claude-code --gateway https://cbrain.example
+npx --yes --package "https://cbrain.example/downloads/cbrain-agent.tgz" cbrain-agent install claude-code --gateway https://cbrain-gateway.example
 ```
 
 The command works on Windows, macOS, Linux, and WSL. It downloads the plugin
-from the GitHub Marketplace, securely prompts for the page API Key, verifies the
-account, and writes `~/.cbrain-agent/config.json`. No source checkout or
-administrator-created Gateway Token is required. Windows and WSL are separate
-environments and must each be installed once.
+bundle from the Cbrain instance, securely prompts for the page API Key, verifies
+the account, and writes `~/.cbrain-agent/config.json`. It does not require npm
+publication, GitHub access, a source checkout, or an administrator-created
+Gateway Token. Windows and WSL are separate environments and must each be
+installed once.
 
 Start a fresh Claude Code session or run `/reload-plugins`. If the account has
 exactly one active Team-Agent pair, an unbound project is bound automatically.

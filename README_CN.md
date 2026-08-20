@@ -54,8 +54,8 @@ $EDITOR .env       # 填入两组 LLM 参数（memory 组 + proxy 组）
 登录 Cbrain 后进入 **API Key** 页面，复制页面按当前部署地址生成的安装命令，例如：
 
 ```bash
-npx --yes "https://cbrain.example/downloads/cbrain-agent.tgz" install codex --gateway https://cbrain-gateway.example
-npx --yes "https://cbrain.example/downloads/cbrain-agent.tgz" install claude-code --gateway https://cbrain-gateway.example
+npx --yes --package "https://cbrain.example/downloads/cbrain-agent.tgz" cbrain-agent install codex --gateway https://cbrain-gateway.example
+npx --yes --package "https://cbrain.example/downloads/cbrain-agent.tgz" cbrain-agent install claude-code --gateway https://cbrain-gateway.example
 ```
 
 安装包由当前 Cbrain 实例直接提供，不依赖 npm 发布或 GitHub/SSH。安装器会隐藏读取页面
