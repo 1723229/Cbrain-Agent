@@ -18,7 +18,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Moment } from 'moment';
-import moment from 'moment';
 import {
   Table,
   Card,
@@ -36,6 +35,7 @@ import { userKeysApi, metaInstancesApi, type UserKey } from '@/lib/teamApi';
 import { useCurrentRole } from '@/services/useCurrentRole';
 import { useAuthStore } from '@/stores/auth';
 import { tea } from '@/lib/tea-bridge';
+import { isApiKeyExpiryDateDisabled } from './api-key-expiry';
 import './api-key-panel.css';
 
 const { autotip } = Table.addons;
@@ -317,7 +317,7 @@ export default function ApiKeyPanel() {
                 <DatePicker
                   value={newExpiresAt ?? undefined}
                   onChange={(v) => setNewExpiresAt(v)}
-                  disabledDate={(d) => !d.isBefore(moment().startOf('day'))}
+                  disabledDate={isApiKeyExpiryDateDisabled}
                   placeholder={t('apiKey.create.expiresAt.placeholder')}
                 />
               </Form.Item>

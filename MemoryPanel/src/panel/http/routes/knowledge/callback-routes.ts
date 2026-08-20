@@ -4,10 +4,8 @@
  * KS ingest/sync 完成后回调。设计 §0.6：
  *   - status=ready + summary → 写内核明细 entity_knowledge（/v3/knowledge/create）；
  *     这是 Proxy 注入的唯一闸门。
- *   - code-graph ready 时通过受保护的 internal 路由登记 meta_asset；
- *     callback 只使用 create 时记录的 owner_user_id，不保存用户 secret。失败 best-effort，
- *     前端 register-meta 兜底（幂等）。
- *   - status=failed → 不写明细、不写 meta（资源不可注入，UI 读 KS status 显示失败）。
+ *   - meta_asset 已在 create 时登记；callback 不再承担权限资产生命周期。
+ *   - status=failed → 不写内核明细；create 时登记的 meta 保留，供 UI 展示失败并允许重试。
  *
  * 用 payload.service_id 从注册表解析实例凭证（endpoint + api_key）→ 组 S2S 凭证
  * → 取 KS 详情 → POST /v3/knowledge/create。
@@ -17,7 +15,6 @@
 import type { Hono } from 'hono';
 import type { PanelDeps } from '../../../panel-deps.js';
 import type { KernelCredentials } from '../../../kernel/types.js';
-import { ASSET_TYPE_CODE_GRAPH } from './common.js';
 
 interface CallbackBody {
   knowledge_id?: string;
@@ -55,58 +52,6 @@ async function safeJson(c: { req: { text: () => Promise<string> } }): Promise<Ca
 
 function isProgressPhase(p: unknown): p is 'extracting' | 'merging' | 'indexing' {
   return p === 'extracting' || p === 'merging' || p === 'indexing';
-}
-
-/**
- * code-graph ready 后用内存任务表里的 owner_user_id 注册 meta asset。
- * best-effort：失败只 log，前端 register-meta 会兜底（幂等）。
- */
-async function registerCodeGraphAsset(
-  deps: PanelDeps,
-  log: PanelDeps['logger'],
-  knowledgeId: string,
-  detail: { code_graph_id: string; team_id: string; repo_name: string; repo_url: string; service_url: string | null },
-  entry: { instance_id: string; gateway_endpoint: string; api_key: string },
-): Promise<void> {
-  const task = deps.knowledgeTaskRegistry.peek(knowledgeId);
-  if (!task) {
-    // 内存里没有（进程重启 / 非 panel 创建路径）——交给前端 register-meta 兜底
-    log.info('[knowledge-callback] no in-memory task stash; skip S2S asset register (frontend fallback)', {
-      knowledge_id: knowledgeId,
-    });
-    return;
-  }
-  log.info('[knowledge-callback] found in-memory task stash; registering meta asset as owner', {
-    knowledge_id: knowledgeId, owner_user_id: task.owner_user_id, team_id: task.team_id,
-  });
-  try {
-    const env = await deps.kernelHttp.postEnvelope('/v3/internal/meta/asset/ensure-owned', {
-      asset_id: detail.code_graph_id,
-      team_id: detail.team_id,
-      asset_type: ASSET_TYPE_CODE_GRAPH,
-      name: detail.repo_name || detail.repo_url,
-      owner_user_id: task.owner_user_id,
-      source_type: 'manual',
-      visibility: 'team',
-      content_ref: detail.service_url,
-    }, {
-      endpoint: entry.gateway_endpoint,
-      apiKey: entry.api_key,
-      instanceId: entry.instance_id,
-      timeoutMs: deps.config.metadataRemoteTimeoutMs,
-      requestId: `cb-${knowledgeId}`,
-    });
-    if (env.code === 0) {
-      deps.knowledgeTaskRegistry.take(knowledgeId);
-      log.info('[knowledge-callback] meta asset registered (or already present); task cleared', {
-        knowledge_id: knowledgeId, asset_id: detail.code_graph_id,
-      });
-    } else {
-      log.error(`[knowledge-callback] asset register rejected for ${knowledgeId}: code=${env.code}`);
-    }
-  } catch (err) {
-    log.error(`[knowledge-callback] asset register error for ${knowledgeId}: ${(err as Error).message}`);
-  }
 }
 
 export function registerKnowledgeCallbackRoutes(api: Hono, deps: PanelDeps): void {
@@ -234,10 +179,6 @@ export function registerKnowledgeCallbackRoutes(api: Hono, deps: PanelDeps): voi
               branch: detail.branch,
             }, cred);
             log.info('[knowledge-callback] code-graph → kernel entity written', { knowledge_id: detail.code_graph_id });
-            // 注册 meta asset（主力路径）：用 create 时 stash 的 owner key 以 owner 身份
-            // 打 /v3/meta/asset/create。callback 本身是 S2S 无 user_key，靠内存任务表补。
-            // 失败 best-effort——前端 register-meta 会兜底（幂等）。
-            await registerCodeGraphAsset(deps, log, body.knowledge_id, detail, entry);
           }
         }
       } catch (err) {

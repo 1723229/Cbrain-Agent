@@ -187,6 +187,54 @@ export async function ensureKnowledgeAsset(
   return { ok: true };
 }
 
+/**
+ * 使用实例级内部凭证补建已经存在于 Knowledge Service、但缺少 meta_asset 的资产。
+ *
+ * 该路径只接受 KS 返回的真实 owner/team，并由 Core 再次校验 owner 仍是活跃团队成员。
+ * 主要用于修复历史 CodeGraph 在 Panel 重启后丢失异步登记上下文的遗留数据。
+ */
+export async function ensureKnowledgeAssetOwned(
+  deps: PanelDeps,
+  ctx: MetaCallContext,
+  params: {
+    assetId: string;
+    teamId: string;
+    assetType: typeof ASSET_TYPE_WIKI | typeof ASSET_TYPE_CODE_GRAPH;
+    name: string;
+    ownerUserId: string;
+    serviceUrl?: string | null;
+  },
+): Promise<{ ok: true } | { ok: false; env: MetaEnvelope<unknown> }> {
+  const env = await deps.kernelHttp.postEnvelope(
+    '/v3/internal/meta/asset/ensure-owned',
+    {
+      asset_id: params.assetId,
+      team_id: params.teamId,
+      asset_type: params.assetType,
+      name: params.name,
+      owner_user_id: params.ownerUserId,
+      source_type: 'manual',
+      visibility: 'team',
+      content_ref: params.serviceUrl ?? undefined,
+    },
+    toKernelCredentials(ctx, { timeoutMs: deps.config.metadataRemoteTimeoutMs }, { omitUserKey: true }),
+  );
+  if (env.code !== 0) {
+    deps.logger.error('[ensure-knowledge-asset-owned] internal ensure rejected', {
+      asset_id: params.assetId,
+      code: env.code,
+      message: env.message,
+    });
+    return { ok: false, env };
+  }
+  deps.logger.info('[ensure-knowledge-asset-owned] present', {
+    asset_id: params.assetId,
+    asset_type: params.assetType,
+    team_id: params.teamId,
+  });
+  return { ok: true };
+}
+
 /** 删除内核明细 entity_knowledge（S2S，/v3/knowledge/delete）。best-effort，不抛。 */
 export async function deleteKnowledgeDetail(
   deps: PanelDeps,
@@ -299,14 +347,14 @@ export async function checkAssetReadPermission(
 
 /**
  * 知识资源读门控：meta asset 存在时走 acl/check；
- * code-graph 构建中无 meta 时，仅允许 KS owner 读 get（窄例外）。
+ * 历史 CodeGraph 缺少 meta 时，先使用 KS 中的真实 team/owner 幂等补建，再走同一 ACL。
  */
 export async function requireKnowledgeRead(
   deps: PanelDeps,
   c: Context,
   ctx: MetaCallContext,
   knowledgeId: string,
-  opts?: { allowInFlightCodeOwner?: boolean; action?: 'read' | 'write' | 'use' },
+  opts?: { repairMissingCodeGraphAsset?: boolean; action?: 'read' | 'write' | 'use' },
 ): Promise<{ userId: string; asset?: KnowledgeAssetMetaRaw } | { error: Response }> {
   const userId = await resolveCallerUserId(deps, ctx);
   if (!userId) return { error: respondControlError(c, 401, 'INVALID_USER_KEY') };
@@ -322,17 +370,37 @@ export async function requireKnowledgeRead(
     return { userId, asset };
   }
 
-  if (opts?.allowInFlightCodeOwner && (action === 'read' || action === 'write')) {
+  if (opts?.repairMissingCodeGraphAsset) {
+    let detail;
     try {
       const kc = deps.knowledgeClientFactory(ctx.instanceId);
-      const detail = await kc.codeGraphGet(knowledgeId);
-      if (detail.owner_user_id === userId) {
-        const member = await isTeamMember(deps, ctx, detail.team_id, userId);
-        if (!member) return { error: respondControlError(c, 403, 'NOT_TEAM_MEMBER') };
-        return { userId };
+      detail = await kc.codeGraphGet(knowledgeId);
+    } catch (err) {
+      if (err instanceof DomainError) {
+        return { error: respondControlError(c, err.httpStatus, err.message || err.code) };
       }
+      return { error: respondControlError(c, 502, 'UPSTREAM_ERROR') };
+    }
+    const member = await isTeamMember(deps, ctx, detail.team_id, userId);
+    if (!member) return { error: respondControlError(c, 403, 'NOT_TEAM_MEMBER') };
+    if (!detail.owner_user_id) {
+      return { error: respondControlError(c, 404, 'KNOWLEDGE_OWNER_MISSING') };
+    }
+    try {
+      const repaired = await ensureKnowledgeAssetOwned(deps, ctx, {
+        assetId: detail.code_graph_id,
+        teamId: detail.team_id,
+        assetType: ASSET_TYPE_CODE_GRAPH,
+        name: detail.repo_name || detail.repo_url,
+        ownerUserId: detail.owner_user_id,
+        serviceUrl: detail.service_url,
+      });
+      if (!repaired.ok) return { error: respondEnvelope(c, repaired.env) };
+      const allowed = await checkAssetPermission(deps, ctx, userId, knowledgeId, action);
+      if (!allowed) return { error: respondControlError(c, 403, 'FORBIDDEN') };
+      return { userId };
     } catch {
-      /* fall through */
+      return { error: respondControlError(c, 502, 'UPSTREAM_ERROR') };
     }
   }
 

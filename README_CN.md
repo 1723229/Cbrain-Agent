@@ -50,14 +50,16 @@ $EDITOR .env       # 填入两组 LLM 参数（memory 组 + proxy 组）
 
 插件不会代理模型请求：Codex 仍直连 OpenAI，Claude Code 仍直连 Anthropic；
 只有记忆、Wiki/RAG、CodeGraph、Skill 和项目绑定请求进入 Cbrain Gateway。
-用户在页面创建普通 API Key 后，无需下载本仓库，也无需管理员配置额外 Gateway Token：
+用户在页面创建普通 API Key 后，无需下载本仓库，也无需管理员配置额外 Gateway Token。
+登录 Cbrain 后进入 **API Key** 页面，复制页面按当前部署地址生成的安装命令，例如：
 
 ```bash
-npx --yes cbrain-agent install codex --gateway https://cbrain.example
-npx --yes cbrain-agent install claude-code --gateway https://cbrain.example
+npx --yes "https://cbrain.example/downloads/cbrain-agent.tgz" install codex --gateway https://cbrain-gateway.example
+npx --yes "https://cbrain.example/downloads/cbrain-agent.tgz" install claude-code --gateway https://cbrain-gateway.example
 ```
 
-安装器会隐藏读取页面 API Key、验证身份、安装远程插件并保存用户级配置。
+安装包由当前 Cbrain 实例直接提供，不依赖 npm 发布或 GitHub/SSH。安装器会隐藏读取页面
+API Key、验证身份、安装离线内置插件并保存用户级配置。示例域名仅用于说明，请以页面命令为准。
 
 ### 从旧版本迁移数据
 

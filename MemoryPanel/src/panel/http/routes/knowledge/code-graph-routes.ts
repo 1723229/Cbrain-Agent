@@ -44,7 +44,7 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     return runKs(c, () => kc.codeGraphList(teamId, opts));
   });
 
-  // C1 create — team 门控；KS create 后自动 build，meta 在 ready callback 登记
+  // C1 create — team 门控；KS create 后立即登记 meta，构建状态由 KS 独立推进
   api.post('/knowledge/code-graph/create', mw, async (c) => {
     const ctx = buildCtx(c);
     const body = await readJson(c);
@@ -59,17 +59,15 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     const kc = deps.knowledgeClientFactory(ctx.instanceId);
     try {
       const detail = await kc.codeGraphCreate(teamId, repoUrl, branch, gate.userId, repoName);
-      deps.knowledgeTaskRegistry.record({
-        knowledge_id: detail.code_graph_id,
-        type: 'code-graph',
-        team_id: teamId,
-        owner_user_id: gate.userId,
-        service_id: ctx.instanceId,
-        created_at: Date.now(),
+      const reg = await ensureKnowledgeAsset(deps, ctx, {
+        assetId: detail.code_graph_id,
+        teamId,
+        assetType: ASSET_TYPE_CODE_GRAPH,
+        name: detail.repo_name || detail.repo_url,
+        ownerUserId: gate.userId,
+        serviceUrl: detail.service_url,
       });
-      deps.logger.info('[code-graph/create] stashed owner identity for S2S meta register', {
-        knowledge_id: detail.code_graph_id, team_id: teamId, owner: gate.userId,
-      });
+      if (!reg.ok) return respondEnvelope(c, reg.env);
       return respondEnvelope(c, okEnvelope(c, detail));
     } catch (err) {
       return runKs(c, () => Promise.reject(err));
@@ -88,7 +86,7 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     log.info('[code-graph/register-meta] invoked (frontend fallback)', { code_graph_id: cgId, team_id: teamId });
     const gate = await requireTeamMember(deps, c, ctx, teamId);
     if ('error' in gate) return gate.error;
-    const readGate = await requireKnowledgeRead(deps, c, ctx, cgId, { allowInFlightCodeOwner: true });
+    const readGate = await requireKnowledgeRead(deps, c, ctx, cgId, { repairMissingCodeGraphAsset: true });
     if ('error' in readGate) return readGate.error;
     const kc = deps.knowledgeClientFactory(ctx.instanceId);
     let detail;
@@ -122,13 +120,13 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     return respondEnvelope(c, okEnvelope(c, { registered: true, code_graph_id: cgId }));
   });
 
-  // C3 get — id-only（构建中无 meta 时 owner 可读）
+  // C3 get — id-only；历史缺失 meta 时自动修复
   api.post('/knowledge/code-graph/get', mw, async (c) => {
     const ctx = buildCtx(c);
     const body = await readJson(c);
     const cgId = str(body, 'code_graph_id');
     if (!cgId) return respondControlError(c, 400, 'MISSING_CODE_GRAPH_ID');
-    const gate = await requireKnowledgeRead(deps, c, ctx, cgId, { allowInFlightCodeOwner: true });
+    const gate = await requireKnowledgeRead(deps, c, ctx, cgId, { repairMissingCodeGraphAsset: true });
     if ('error' in gate) return gate.error;
     const kc = deps.knowledgeClientFactory(ctx.instanceId);
     return runKs(c, () => kc.codeGraphGet(cgId));
@@ -140,7 +138,10 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     const body = await readJson(c);
     const cgId = str(body, 'code_graph_id');
     if (!cgId) return respondControlError(c, 400, 'MISSING_CODE_GRAPH_ID');
-    const gate = await requireKnowledgeRead(deps, c, ctx, cgId, { action: 'write', allowInFlightCodeOwner: true });
+    const gate = await requireKnowledgeRead(deps, c, ctx, cgId, {
+      action: 'write',
+      repairMissingCodeGraphAsset: true,
+    });
     if ('error' in gate) return gate.error;
     const kc = deps.knowledgeClientFactory(ctx.instanceId);
     return runKs(c, () => kc.codeGraphSync(cgId));
@@ -155,7 +156,7 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     for (const cgId of cgIds) {
       const gate = await requireKnowledgeRead(deps, c, ctx, cgId, {
         action: 'write',
-        allowInFlightCodeOwner: true,
+        repairMissingCodeGraphAsset: true,
       });
       if ('error' in gate) return gate.error;
     }
@@ -175,7 +176,7 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     const query = str(body, 'query');
     if (!cgId) return respondControlError(c, 400, 'MISSING_CODE_GRAPH_ID');
     if (!query) return respondControlError(c, 400, 'MISSING_QUERY');
-    const gate = await requireKnowledgeRead(deps, c, ctx, cgId);
+    const gate = await requireKnowledgeRead(deps, c, ctx, cgId, { repairMissingCodeGraphAsset: true });
     if ('error' in gate) return gate.error;
     const params: Record<string, unknown> = { query };
     if (str(body, 'kind')) params.kind = str(body, 'kind');
@@ -192,7 +193,7 @@ export function registerKnowledgeCodeGraphRoutes(api: Hono, deps: PanelDeps): vo
     const query = str(body, 'query');
     if (!cgId) return respondControlError(c, 400, 'MISSING_CODE_GRAPH_ID');
     if (!query) return respondControlError(c, 400, 'MISSING_QUERY');
-    const gate = await requireKnowledgeRead(deps, c, ctx, cgId);
+    const gate = await requireKnowledgeRead(deps, c, ctx, cgId, { repairMissingCodeGraphAsset: true });
     if ('error' in gate) return gate.error;
     const params: Record<string, unknown> = { query };
     if (typeof body.maxFiles === 'number') params.maxFiles = body.maxFiles;
