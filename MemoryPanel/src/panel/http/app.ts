@@ -49,10 +49,31 @@ export function buildPanelApp(deps: PanelDeps): Hono {
   });
 
   const distDir = deps.config.ui.distDir;
+  app.use('/*', async (c, next) => {
+    c.header(
+      'Cache-Control',
+      c.req.path.startsWith('/assets/')
+        ? 'public, max-age=31536000, immutable'
+        : 'no-store',
+    );
+    c.header('X-Content-Type-Options', 'nosniff');
+    await next();
+  });
+  app.get('/', (c, next) => {
+    return serveStatic({ path: path.join(distDir, 'index.html') })(c, next);
+  });
   app.use('/*', serveStatic({ root: distDir }));
+  // Hashed assets are never valid SPA routes. Returning index.html here turns a
+  // missing JavaScript chunk into HTTP 200 text/html and hides the real 404.
+  app.get('/assets/*', (c) => {
+    c.header('Cache-Control', 'no-store');
+    return c.notFound();
+  });
   app.get('*', (c, next) => {
     const p = c.req.path;
     if (p.startsWith('/api/') || p === '/health') return next();
+    c.header('Cache-Control', 'no-store');
+    c.header('X-Content-Type-Options', 'nosniff');
     return serveStatic({ path: path.join(distDir, 'index.html') })(c, next);
   });
 
