@@ -71,6 +71,18 @@ export interface ServiceConfig {
   /** Optional ClickHouse request telemetry. Disabled by default. */
   clickhouse: ClickHouseTelemetryConfig;
   wikiUpload: WikiUploadLimits;
+  publicSkills: PublicSkillCatalogConfig;
+}
+
+export interface PublicSkillCatalogConfig {
+  enabled: boolean;
+  sourceId: string;
+  sourceName: string;
+  repoUrl: string;
+  branch: string;
+  syncIntervalMs: number;
+  defaultServiceId: string;
+  autoInstallOnAgentCreate: boolean;
 }
 
 export interface WikiUploadLimits {
@@ -176,6 +188,16 @@ export function loadConfig(): ServiceConfig {
     publicBaseUrl: env("KNOWLEDGE_PUBLIC_BASE_URL", ""),
     tmcCallbackUrl: env("TMC_CALLBACK_URL", ""),
     wikiUpload: resolveWikiUploadLimits(),
+    publicSkills: {
+      enabled: env("KNOWLEDGE_PUBLIC_SKILL_REPO_URL", "") !== "",
+      sourceId: env("KNOWLEDGE_PUBLIC_SKILL_SOURCE_ID", "shared-skills"),
+      sourceName: env("KNOWLEDGE_PUBLIC_SKILL_SOURCE_NAME", "公共技能"),
+      repoUrl: env("KNOWLEDGE_PUBLIC_SKILL_REPO_URL", ""),
+      branch: env("KNOWLEDGE_PUBLIC_SKILL_REPO_BRANCH", "main"),
+      syncIntervalMs: Math.max(30_000, envInt("KNOWLEDGE_PUBLIC_SKILL_SYNC_INTERVAL_MS", 300_000)),
+      defaultServiceId: env("KNOWLEDGE_PUBLIC_SKILL_INSTANCE_ID", env("REMOTE_INSTANCE_ID", "default")),
+      autoInstallOnAgentCreate: envBool("PUBLIC_SKILL_AUTO_INSTALL_ON_AGENT_CREATE", false),
+    },
     clickhouse,
     llm: {
       mode: env("LLM_MODE", "proxy") === "custom" ? "custom" : "proxy",

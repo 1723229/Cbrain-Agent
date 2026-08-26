@@ -45,6 +45,7 @@ import SkillDetailPane from './SkillDetailPane';
 import ImportSkillDialog from './ImportSkillDialog';
 import ForkSkillDialog from './ForkSkillDialog';
 import { TAB_I18N_KEY, useSkillsPanel, type Tab } from './useSkillsPanel';
+import { PublicSkillsPanel } from './PublicSkillsPanel';
 import './skills-list.css';
 
 /** 统一 Skill 列表的用户归属指示：使用公共 AssetBadge 组件。 */
@@ -65,9 +66,11 @@ function SkillOwnerTag({ userId, isCurrentUser }: { userId: string; isCurrentUse
 export default function SkillsPanel({
   currentUser: _currentUser,
   isAdmin: _isAdmin,
+  isSystemAdmin,
 }: {
   currentUser: string;
   isAdmin: boolean;
+  isSystemAdmin: boolean;
 }) {
   const { t } = useTranslation();
   const store = useSkillsPanel();
@@ -105,6 +108,21 @@ export default function SkillsPanel({
     selectedSkill,
   } = store;
 
+  if (tab === 'public') {
+    return <div className="_memory-skills-body">
+      <AssetPageHeader
+        title={t('skills.title')}
+        subtitle={t('skills.subtitle.public')}
+        scope={<Segment value={tab} onChange={(v) => setTab(v as Tab)} options={(['team', 'fixed', 'public'] as Tab[]).map((value) => ({ value, text: t(TAB_I18N_KEY[value]) }))} />}
+        agent={<Select appearance="button" matchButtonWidth value={selectedAgent} onChange={setSelectedAgent}
+          disabled={teamAgents.length === 0} placeholder={t('skills.noAgent')}
+          options={teamAgents.map((agent) => ({ value: agent.id, text: `${agent.name}（${agent.id}）` }))} />}
+      />
+      <PublicSkillsPanel teamId={activeTeamId ?? ''} agents={teamAgents} selectedAgent={selectedAgent}
+        onAgentChange={setSelectedAgent} isSystemAdmin={isSystemAdmin} />
+    </div>;
+  }
+
   return (
     <div className="_memory-skills-body">
       {/* 固定资产的 Agent 选择器与 Code 页 "Agent 资产" 选项栏保持相同呈现。 */}
@@ -119,7 +137,7 @@ export default function SkillsPanel({
           <Segment
             value={tab}
             onChange={(v) => setTab(v as Tab)}
-            options={(['team', 'fixed'] as Tab[]).map((t2) => ({
+            options={(['team', 'fixed', 'public'] as Tab[]).map((t2) => ({
               value: t2,
               text: t(TAB_I18N_KEY[t2]),
             }))}

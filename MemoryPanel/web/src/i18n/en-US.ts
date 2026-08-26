@@ -377,6 +377,8 @@ export const enUS = {
   'skills.title': 'Skill Asset Management',
   'skills.scope.team': 'Team Assets',
   'skills.scope.fixed': 'Agent Assets',
+  'skills.scope.public': 'Public Skills',
+  'skills.subtitle.public': 'Instance-wide public Skill repository · automatically installed for new Agents',
   'skills.scope.personal': 'My Assets',
   'skills.empty.fixed.noAgent': 'Please select an agent.',
   'skills.empty.fixed.hasAgent':

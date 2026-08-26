@@ -71,6 +71,17 @@ export KNOWLEDGE_DB_PATH="${KNOWLEDGE_DB_PATH:-/data/knowledge/knowledge.db}"
 export KNOWLEDGE_PUBLIC_BASE_URL="${KS_PUBLIC_URL}"
 export TMC_CALLBACK_URL="${TMC_CALLBACK_URL:-http://127.0.0.1:${PANEL_PORT}}"
 
+# Panel → Knowledge 控制面凭证。未显式提供时每次容器启动生成随机值，
+# 仅通过同一父进程的环境传给两个子进程，不写文件、不输出日志。
+if [[ -z "${KNOWLEDGE_AUTH_TOKEN:-}" ]]; then
+  KNOWLEDGE_AUTH_TOKEN="$(python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(32))
+PY
+)"
+fi
+export KNOWLEDGE_AUTH_TOKEN
+
 # 日志落文件（持久化到 /data/knowledge/logs/，容器重启不丢）+ stdout（docker logs 可见）。
 # Panel 和 KS 各自一个文件，避免混在一起难排查。
 LOG_DIR="${LOG_DIR:-/data/knowledge/logs}"

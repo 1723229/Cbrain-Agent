@@ -148,6 +148,12 @@ export function registerAgentLifecycleRoutes(api: Hono, deps: PanelDeps): void {
     // 5. agent/archive —— 内核仍然会顺手清 chat_memory
     const archiveEnv = await deps.metaKernel.invoke('agent/archive', { agent_id: agentId }, ctx);
     if (archiveEnv.code !== 0) return respondEnvelope(c, archiveEnv);
+    await deps.knowledgeClientFactory(ctx.instanceId).publicSkillBootstrapCancel(agentId).catch((error) => {
+      deps.logger.warn('public skill bootstrap cancel failed after agent archive', {
+        agentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 
     return respondEnvelope(
       c,

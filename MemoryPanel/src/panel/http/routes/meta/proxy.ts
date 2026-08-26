@@ -182,6 +182,12 @@ export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
     if (action === 'team-member/add' && envelope.code === 0) {
       void importDefaultSkillsForNewMember(body, ctx, deps);
     }
+    if (action === 'agent/create' && envelope.code === 0) {
+      const agent = envelope.data as { agent_id?: string; team_id?: string; owner_user_id?: string } | null;
+      if (agent?.agent_id && agent.team_id && agent.owner_user_id) {
+        await enqueuePublicSkillsForAgent({ agent_id: agent.agent_id, team_id: agent.team_id, owner_user_id: agent.owner_user_id }, ctx, deps);
+      }
+    }
 
     if (action.startsWith('user-key/')) c.header('Cache-Control', 'no-store');
     if (action === 'user/list' && envelope.code === 0) {
@@ -193,6 +199,25 @@ export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
     // apply_visibility_filter=true 过滤掉 canBindAsset=false 的项。
     return respondEnvelope(c, envelope);
   });
+}
+
+export async function enqueuePublicSkillsForAgent(
+  agent: { agent_id: string; team_id: string; owner_user_id: string },
+  ctx: MetaCallContext,
+  deps: PanelDeps,
+): Promise<void> {
+  try {
+    await deps.knowledgeClientFactory(ctx.instanceId).publicSkillBootstrapCreate({
+      team_id: agent.team_id,
+      agent_id: agent.agent_id,
+      owner_user_id: agent.owner_user_id,
+    });
+  } catch (error) {
+    deps.logger.warn('public skill bootstrap enqueue failed', {
+      agentId: agent.agent_id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 // ── team-member/add 成功后：为 default-agent 导入预置 Skill ──
@@ -229,6 +254,15 @@ async function importDefaultSkillsForNewMember(
       });
       return;
     }
+
+    void deps.knowledgeClientFactory(ctx.instanceId).publicSkillBootstrapCreate({
+      team_id: teamId,
+      agent_id: defaultAgent.agent_id,
+      owner_user_id: userId,
+    }).catch((error) => deps.logger.warn('default agent public skill bootstrap enqueue failed', {
+      agentId: defaultAgent.agent_id,
+      error: error instanceof Error ? error.message : String(error),
+    }));
 
     // 3. 创建预置 Skill（依赖内核 name 唯一约束做幂等，42201 直接跳过）
     for (const skill of DEFAULT_SKILLS) {

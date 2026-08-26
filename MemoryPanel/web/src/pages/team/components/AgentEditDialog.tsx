@@ -14,7 +14,7 @@
  */
 
 import { useState, useMemo, useEffect } from 'react';
-import { Button, Input, Modal } from 'tea-component';
+import { Alert, Button, Input, Modal } from 'tea-component';
 import { useTranslation } from 'react-i18next';
 import { ToolsIcon, CodeIcon, BooksIcon, ChatIcon } from 'tea-icons-react';
 import { type Agent as StoreAgent, invalidateBackendCache, writeAgentUiMeta } from '@/services';
@@ -23,6 +23,7 @@ import { knowledgeApi } from '@/lib/knowledge-api';
 import { tea } from '@/lib/tea-bridge';
 import { useTeamAssets, syncChatMemoryBindings } from './useAgentAssets';
 import { LightField, CollapseGroup, AssetCheckList } from './shared';
+import { publicSkillApi } from '@/lib/public-skill-api';
 
 export default function AgentEditDialog({
   agent,
@@ -37,6 +38,8 @@ export default function AgentEditDialog({
   const [rolePrompt, setRolePrompt] = useState(agent.role_prompt);
   const [rulesPrompt, setRulesPrompt] = useState(agent.rules_prompt);
   const [savingPrompt, setSavingPrompt] = useState(false);
+  const [bootstrap, setBootstrap] = useState<Record<string, unknown> | null>(null);
+  const [bootstrapRefresh, setBootstrapRefresh] = useState(0);
 
   const [codeGraphOpen, setCodeGraphOpen] = useState(false);
   const [wikiOpen, setWikiOpen] = useState(false);
@@ -63,6 +66,23 @@ export default function AgentEditDialog({
 
   const assets = useTeamAssets(agent.team_id);
   const { t } = useTranslation();
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = async () => {
+      try {
+        const value = await publicSkillApi.bootstrapStatus(agent.agent_id);
+        if (!cancelled) {
+          setBootstrap(value);
+          if (['pending', 'running'].includes(String(value.status))) timer = setTimeout(() => void load(), 2500);
+        }
+      }
+      catch { if (!cancelled) setBootstrap(null); }
+    };
+    void load();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [agent.agent_id, bootstrapRefresh]);
 
   // 加载态编排：
   //   assets.loading —— 团队资产池在加载（4 个折叠组都用资产池数据）
@@ -287,6 +307,10 @@ export default function AgentEditDialog({
       <Modal.Body>
         <div className="_memory-form-stack">
           <div className="_memory-modal-description">{agent.agent_id}</div>
+          {bootstrap && <Alert type={bootstrap.status === 'partial' ? 'warning' : 'info'}>
+            公共技能：{String(bootstrap.status)} · {String(bootstrap.succeeded ?? 0)}/{String(bootstrap.total ?? 0)}
+            {bootstrap.status === 'partial' && <Button onClick={() => void publicSkillApi.retryBootstrap(String(bootstrap.job_id)).then((value) => { setBootstrap(value); setBootstrapRefresh((current) => current + 1); }).catch(tea.notify.error)}>一键补齐</Button>}
+          </Alert>}
           <LightField label={t('agentEdit.name')}>
             <Input size="full" value={name} onChange={setName} disabled={saving} />
           </LightField>

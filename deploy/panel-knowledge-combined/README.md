@@ -124,6 +124,11 @@ docker run -d --name memory-hub \
 | `KNOWLEDGE_GIT_AUTH_HOSTS` | 空 | 精确限制 Git token 可发送到的主机；配置 token 时必填 |
 | `KNOWLEDGE_GIT_USERNAME` | `oauth2` | GitLab PAT 用户名；Deploy Token 填其用户名 |
 | `KNOWLEDGE_GIT_TOKEN_FILE` | 空 | 容器内只读 token 文件路径，推荐 `/run/secrets/gitlab-read-token` |
+| `KNOWLEDGE_PUBLIC_SKILL_REPO_URL` | 空 | 公共 Skill Git 仓库；空表示关闭公共目录 |
+| `KNOWLEDGE_PUBLIC_SKILL_REPO_BRANCH` | `main` | 公共 Skill 发布分支 |
+| `KNOWLEDGE_PUBLIC_SKILL_SYNC_INTERVAL_MS` | `300000` | 公共目录自动同步周期 |
+| `PUBLIC_SKILL_AUTO_INSTALL_ON_AGENT_CREATE` | `false` | 新 Agent 是否自动安装当前公共目录全部 Skill |
+| `KNOWLEDGE_AUTH_TOKEN` | 启动时随机生成 | Panel→Knowledge 公共 Skill 控制面凭证；一般无需手工设置 |
 | `KNOWLEDGE_TIMEOUT_MS` | `15000` | Panel 调 KS 的请求超时 |
 | `METADATA_REMOTE_TIMEOUT_MS` | `15000` | Panel 调远端 Gateway 的请求超时 |
 | `REMOTE_INSTANCE_PROXY_URL` | 空 | Panel UI "客户端接入地址"卡片显示的 base URL。开源本地部署 core+proxy 分开跑时填 proxy 的外部地址（如 `http://host.docker.internal:8096`），Panel UI 复制的 CodeBuddy/ClaudeCode 接入地址就会指向 proxy。留空则老行为 —— UI 回落到 `gateway_endpoint`。**Panel 后端 → Kernel 的转发始终走 `REMOTE_INSTANCE_URL`，与此变量无关。**（挂载了 `metadata-instances.json` 时忽略此变量，直接在 JSON 里加 `proxy_endpoint` 字段） |

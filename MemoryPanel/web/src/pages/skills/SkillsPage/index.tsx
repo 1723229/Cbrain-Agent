@@ -10,7 +10,7 @@ export function SkillsPage() {
 
   return (
     <ResourcePage>
-      <SkillsPanel currentUser={auth.user_id} isAdmin={role === 'admin'} />
+      <SkillsPanel currentUser={auth.user_id} isAdmin={role === 'admin'} isSystemAdmin={auth.isAdmin} />
     </ResourcePage>
   );
 }

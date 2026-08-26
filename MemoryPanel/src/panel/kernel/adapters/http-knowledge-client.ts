@@ -30,6 +30,8 @@ import type {
   CodeGraphListResult,
   CodeGraphSyncResult,
   CodeGraphToolResult,
+  PublicSkillCatalogItem,
+  PublicSkillSnapshot,
 } from '../ports/knowledge-client-port.js';
 
 export interface KnowledgeClientConfig {
@@ -187,4 +189,16 @@ export class HttpKnowledgeClient implements KnowledgeClientPort {
   async codeGraphQuery(codeGraphId: string, tool: string, params: Record<string, unknown>): Promise<CodeGraphToolResult> {
     return this.post(`/v3/code-graph/${tool}`, { code_graph_id: codeGraphId, ...params });
   }
+
+  async publicSkillStatus(): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/status', {}); }
+  async publicSkillList(query = '', limit = 100, offset = 0): Promise<{ items: PublicSkillCatalogItem[]; total: number }> { return this.post('/v3/public-skills/list', { query, limit, offset }); }
+  async publicSkillGet(itemId: string): Promise<PublicSkillCatalogItem> { return this.post('/v3/public-skills/get', { item_id: itemId }); }
+  async publicSkillSnapshot(itemId: string, revision?: string): Promise<PublicSkillSnapshot> { return this.post('/v3/public-skills/snapshot', { item_id: itemId, expected_revision: revision }); }
+  async publicSkillSync(): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/sync', {}); }
+  async publicSkillBootstrapCreate(params: { team_id: string; agent_id: string; owner_user_id: string }): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/bootstrap/create', params); }
+  async publicSkillBootstrapStatus(params: { job_id?: string; agent_id?: string }): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/bootstrap/status', params); }
+  async publicSkillBootstrapRetry(jobId: string): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/bootstrap/retry', { job_id: jobId }); }
+  async publicSkillBootstrapClaim(): Promise<Record<string, unknown> | null> { return this.post('/v3/public-skills/bootstrap/claim', {}); }
+  async publicSkillBootstrapComplete(params: { job_id: string; item_id: string; skill_id?: string; error?: string }): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/bootstrap/complete', params); }
+  async publicSkillBootstrapCancel(agentId: string): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/bootstrap/cancel', { agent_id: agentId }); }
 }

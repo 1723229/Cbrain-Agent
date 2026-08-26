@@ -150,6 +150,77 @@ export function migrate(_db: Db, raw: Database.Database): void {
       enabled        INTEGER NOT NULL DEFAULT 1,
       updated_at     TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS public_skill_catalog_source (
+      service_id       TEXT NOT NULL,
+      source_id        TEXT NOT NULL,
+      source_name      TEXT NOT NULL,
+      repo_url         TEXT NOT NULL,
+      branch           TEXT NOT NULL,
+      active_commit    TEXT,
+      status           TEXT NOT NULL DEFAULT 'empty',
+      last_error       TEXT,
+      last_sync_at     TEXT,
+      last_success_at  TEXT,
+      updated_at       TEXT NOT NULL,
+      PRIMARY KEY(service_id, source_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS public_skill_catalog_item (
+      service_id       TEXT NOT NULL,
+      source_id        TEXT NOT NULL,
+      item_id          TEXT NOT NULL,
+      repo_path        TEXT NOT NULL,
+      name             TEXT NOT NULL,
+      description      TEXT NOT NULL,
+      source_revision  TEXT NOT NULL,
+      content_hash     TEXT NOT NULL,
+      manifest_json    TEXT NOT NULL,
+      total_bytes      INTEGER NOT NULL,
+      created_at       TEXT NOT NULL,
+      updated_at       TEXT NOT NULL,
+      PRIMARY KEY(service_id, source_id, item_id),
+      UNIQUE(service_id, source_id, name)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_public_skill_catalog_item_search
+      ON public_skill_catalog_item(service_id, source_id, name);
+
+    CREATE TABLE IF NOT EXISTS public_skill_bootstrap_job (
+      job_id            TEXT PRIMARY KEY,
+      service_id        TEXT NOT NULL,
+      source_id         TEXT NOT NULL,
+      team_id           TEXT NOT NULL,
+      agent_id          TEXT NOT NULL,
+      owner_user_id     TEXT NOT NULL,
+      source_revision   TEXT,
+      status            TEXT NOT NULL,
+      total             INTEGER NOT NULL DEFAULT 0,
+      succeeded         INTEGER NOT NULL DEFAULT 0,
+      failed            INTEGER NOT NULL DEFAULT 0,
+      created_at        TEXT NOT NULL,
+      updated_at        TEXT NOT NULL,
+      UNIQUE(service_id, source_id, agent_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS public_skill_bootstrap_item (
+      job_id             TEXT NOT NULL,
+      item_id            TEXT NOT NULL,
+      repo_path          TEXT NOT NULL,
+      name               TEXT NOT NULL,
+      description        TEXT NOT NULL,
+      content_hash       TEXT NOT NULL,
+      status             TEXT NOT NULL DEFAULT 'pending',
+      attempts           INTEGER NOT NULL DEFAULT 0,
+      installed_skill_id TEXT,
+      last_error         TEXT,
+      next_attempt_at    INTEGER NOT NULL DEFAULT 0,
+      updated_at         TEXT NOT NULL,
+      PRIMARY KEY(job_id, item_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_public_skill_bootstrap_due
+      ON public_skill_bootstrap_item(status, next_attempt_at);
   `);
 
   // Column migrations — SQLite ALTER TABLE ADD COLUMN is not idempotent,

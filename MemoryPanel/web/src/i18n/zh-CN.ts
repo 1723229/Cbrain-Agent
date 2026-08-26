@@ -367,6 +367,8 @@ export const zhCN = {
   'skills.title': 'Skill 资产管理',
   'skills.scope.team': '团队资产',
   'skills.scope.fixed': 'Agent 资产',
+  'skills.scope.public': '公共技能',
+  'skills.subtitle.public': '实例公共 Skill 仓库 · 新 Agent 自动安装全部',
   'skills.scope.personal': '我的资产分配',
   'skills.empty.fixed.noAgent': '请选择一个 agent。',
   'skills.empty.fixed.hasAgent':

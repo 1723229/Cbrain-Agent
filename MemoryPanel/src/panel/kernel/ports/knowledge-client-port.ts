@@ -151,6 +151,17 @@ export interface CodeGraphToolResult {
   isError: boolean;
 }
 
+export interface PublicSkillCatalogItem {
+  item_id: string; source_id: string; repo_path: string; name: string; description: string;
+  source_revision: string; content_hash: string; manifest: Array<{ path: string; size_bytes: number; mime_type: string; is_executable: boolean }>;
+  total_bytes: number; updated_at: string;
+}
+
+export interface PublicSkillSnapshot extends PublicSkillCatalogItem {
+  content: string;
+  resources: Array<{ path: string; content: string; encoding: 'base64'; mime_type: string; is_executable: boolean }>;
+}
+
 // ── Port ──
 
 export interface KnowledgeClientPort {
@@ -186,4 +197,15 @@ export interface KnowledgeClientPort {
   codeGraphDelete(codeGraphIds: string[]): Promise<BatchDeleteResult>;
   codeGraphUpdateMeta(codeGraphId: string, patch: { repo_name?: string; summary?: string | null }): Promise<CodeGraphDetail>;
   codeGraphQuery(codeGraphId: string, tool: string, params: Record<string, unknown>): Promise<CodeGraphToolResult>;
+  publicSkillStatus(): Promise<Record<string, unknown>>;
+  publicSkillList(query?: string, limit?: number, offset?: number): Promise<{ items: PublicSkillCatalogItem[]; total: number }>;
+  publicSkillGet(itemId: string): Promise<PublicSkillCatalogItem>;
+  publicSkillSnapshot(itemId: string, revision?: string): Promise<PublicSkillSnapshot>;
+  publicSkillSync(): Promise<Record<string, unknown>>;
+  publicSkillBootstrapCreate(params: { team_id: string; agent_id: string; owner_user_id: string }): Promise<Record<string, unknown>>;
+  publicSkillBootstrapStatus(params: { job_id?: string; agent_id?: string }): Promise<Record<string, unknown>>;
+  publicSkillBootstrapRetry(jobId: string): Promise<Record<string, unknown>>;
+  publicSkillBootstrapClaim(): Promise<Record<string, unknown> | null>;
+  publicSkillBootstrapComplete(params: { job_id: string; item_id: string; skill_id?: string; error?: string }): Promise<Record<string, unknown>>;
+  publicSkillBootstrapCancel(agentId: string): Promise<Record<string, unknown>>;
 }

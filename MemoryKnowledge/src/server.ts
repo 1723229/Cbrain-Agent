@@ -26,6 +26,8 @@ import { createToolsRoutes } from "./routes/tools.js";
 import { createHealthRoutes } from "./routes/health.js";
 import { createLlmBindingRoutes } from "./routes/llm-binding.js";
 import { createAutoSyncRoutes } from "./routes/auto-sync.js";
+import { createPublicSkillRoutes } from "./routes/public-skills.js";
+import { PublicSkillCatalog } from "./public-skills/catalog.js";
 import { accessLog } from "./middleware/response-envelope.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createLogger } from "./logger.js";
@@ -41,7 +43,7 @@ export function createApp() {
   const knowledgeTelemetry = createKnowledgeTelemetry(config.clickhouse);
 
   // Initialize DB + knowledge module
-  const { db } = createDb({ path: config.dbPath });
+  const { db, raw } = createDb({ path: config.dbPath });
   const knowledgeModule = createKnowledgeModule({
     dataDir: config.dataDir,
     db,
@@ -49,6 +51,8 @@ export function createApp() {
     tmcCallbackUrl: config.tmcCallbackUrl,
     wikiUpload: config.wikiUpload,
   });
+  const publicSkillCatalog = new PublicSkillCatalog(raw, config.dataDir, config.publicSkills);
+  publicSkillCatalog.start();
 
   // Hono app
   const app = new Hono();
@@ -94,6 +98,7 @@ export function createApp() {
     scheduler: knowledgeModule.autoSyncScheduler,
     config: knowledgeModule.autoSyncConfig,
   }));
+  api.route("/public-skills", createPublicSkillRoutes(publicSkillCatalog));
 
   app.route(config.apiPrefix, api);
 
@@ -112,11 +117,11 @@ export function createApp() {
     log.warn("OpenAPI spec not found at openapi.yaml, skipping Swagger UI");
   }
 
-  return { app, config, knowledgeModule, knowledgeTelemetry };
+  return { app, config, knowledgeModule, knowledgeTelemetry, publicSkillCatalog };
 }
 
 async function startServer(): Promise<void> {
-  const { app, config, knowledgeTelemetry } = createApp();
+  const { app, config, knowledgeTelemetry, publicSkillCatalog } = createApp();
   await knowledgeTelemetry.initialize();
 
   log.info(`Starting knowledge service on port ${config.port}`);
@@ -134,6 +139,7 @@ async function startServer(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     log.info(`Received ${signal}, shutting down`);
+    publicSkillCatalog.stop();
     await knowledgeTelemetry.shutdown();
     server.close(() => process.exit(0));
   };

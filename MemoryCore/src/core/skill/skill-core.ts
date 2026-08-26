@@ -146,6 +146,15 @@ export interface UpdateInput extends IdFields {
   content: string;
 }
 
+export interface SnapshotApplyInput extends IdFields {
+  skill_id?: string;
+  expected_version?: number;
+  name: string;
+  content: string;
+  resources: SkillResourcePayload[];
+  metadata: Record<string, unknown>;
+}
+
 export interface PatchInput extends IdFields {
   skill_id: string;
   expected_version: number;
@@ -330,6 +339,58 @@ export class SkillCore {
     } catch (e) {
       toCoreError(e);
     }
+  }
+
+  /** Apply a complete catalog snapshot as v1 or exactly one new immutable version. */
+  async applySnapshot(input: SnapshotApplyInput): Promise<Skill> {
+    if (!input.team_id || !input.agent_id || !input.user_id) {
+      throw new SkillCoreError("INVALID_FRONTMATTER", "snapshot identity is incomplete");
+    }
+    let head: Skill | null = null;
+    if (input.skill_id) {
+      head = await this.requireHead(input.skill_id, input.team_id);
+      assertOwnerWrap(head, input.agent_id, input.team_id);
+      assertVersionFreshWrap(head, input.expected_version!);
+    } else {
+      const existing = await this.store.listSkills({ team_id: input.team_id, owner_agent_id: input.agent_id, name_prefix: input.name, status: ["active"], limit: 100, offset: 0 });
+      head = existing.items.find((skill) => skill.name === input.name) ?? null;
+      if (head) {
+        const previous = safeMetadata(head.metadata_json)?.catalog_origin as Record<string, unknown> | undefined;
+        const incoming = input.metadata.catalog_origin as Record<string, unknown> | undefined;
+        if (!previous || !incoming || previous.item_id !== incoming.item_id || previous.source_id !== incoming.source_id) {
+          throw new SkillCoreError("SKILL_NAME_DUPLICATE", `SKILL_NAME_CONFLICT: ${input.name}`);
+        }
+      }
+    }
+    if (!head) {
+      return this.create({ user_id: input.user_id, team_id: input.team_id, agent_id: input.agent_id,
+        name: input.name, content: input.content, resources: input.resources, metadata: input.metadata });
+    }
+    const previousOrigin = safeMetadata(head.metadata_json)?.catalog_origin as Record<string, unknown> | undefined;
+    const incomingOrigin = input.metadata.catalog_origin as Record<string, unknown> | undefined;
+    if (previousOrigin && incomingOrigin
+      && previousOrigin.source_id === incomingOrigin.source_id
+      && previousOrigin.item_id === incomingOrigin.item_id
+      && previousOrigin.source_revision === incomingOrigin.source_revision
+      && previousOrigin.content_hash === incomingOrigin.content_hash) {
+      return head;
+    }
+    const file = this.parseAndValidate(input.content);
+    if (file.frontmatter.name !== head.name) throw new SkillCoreError("INVALID_FRONTMATTER", "name change is not allowed across snapshots");
+    const incomingPaths = new Set(input.resources.map((resource) => resource.path));
+    const resourcesToRemove = head.manifest.map((entry) => entry.path).filter((path) => !incomingPaths.has(path));
+    try {
+      const result = await this.versioning.appendNextVersion(head, this.ctxOf(input), {
+        content: input.content,
+        name: head.name,
+        description: file.frontmatter.description,
+        resourcesToWrite: input.resources,
+        resourcesToRemove,
+        metadata_json: JSON.stringify(input.metadata),
+      });
+      void this.versioning.cleanupExpiredVersionsForSkill(head.skill_id, this.versionTtlSeconds).catch(() => undefined);
+      return result;
+    } catch (error) { toCoreError(error); }
   }
 
   async patch(input: PatchInput): Promise<Skill> {
@@ -742,6 +803,13 @@ function countOccurrences(haystack: string, needle: string): number {
 
 function splitJoin(s: string, find: string, replace: string): string {
   return s.split(find).join(replace);
+}
+
+function safeMetadata(raw: string): Record<string, unknown> | undefined {
+  try {
+    const value = JSON.parse(raw || "{}");
+    return value && typeof value === "object" ? value as Record<string, unknown> : undefined;
+  } catch { return undefined; }
 }
 
 // ═════════════════════════════════════════════════════════════════════

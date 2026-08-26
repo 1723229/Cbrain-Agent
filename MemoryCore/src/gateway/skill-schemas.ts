@@ -95,6 +95,22 @@ export const createRequestSchema = z.object({
   metadata: z.record(z.string(), z.any()).optional(),
 }).superRefine(refineAgentNeedsTeam);
 
+export const snapshotApplyRequestSchema = z.object({
+  user_id: z.string().min(1),
+  team_id: z.string().min(1),
+  agent_id: z.string().min(1),
+  skill_id: z.string().min(1).optional(),
+  expected_version: z.number().int().min(1).optional(),
+  name: z.string().min(1).max(64),
+  content: z.string().min(1),
+  resources: z.array(skillResourcePayloadSchema).max(100).default([]),
+  metadata: z.record(z.string(), z.any()),
+}).superRefine((data, ctx) => {
+  if (!!data.skill_id !== !!data.expected_version) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["expected_version"], message: "skill_id and expected_version must be provided together" });
+  }
+});
+
 export const updateRequestSchema = z.object({
   ...idFieldsShape,
   skill_id: z.string().min(1),

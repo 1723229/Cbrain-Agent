@@ -27,6 +27,7 @@ import { ZodError } from "zod";
 import { errorEnvelope, successEnvelope } from "./v2-router.js";
 import {
   createRequestSchema,
+  snapshotApplyRequestSchema,
   updateRequestSchema,
   patchRequestSchema,
   deleteRequestSchema,
@@ -330,6 +331,24 @@ export async function handleCreate(body: unknown, auth: V2AuthContext, requestId
     obsLogger.info("skill.handleCreate.done", { req_id: requestId, code: 0, dur_ms: Date.now() - t0, skill_id: r.skill_id, name: r.name, version: r.version });
     return successEnvelope(toSummary(r), requestId);
   } catch (e) { obsLogger.error("skill.handleCreate.done", { req_id: requestId, dur_ms: Date.now() - t0 }, e instanceof Error ? e : undefined); return mapCoreError(e, requestId); }
+}
+
+export async function handleSnapshotApply(body: unknown, auth: V2AuthContext, requestId: string, deps: SkillRouterDeps): Promise<ApiResponseEnvelope> {
+  const pre = await precheckWrite(snapshotApplyRequestSchema, body, auth, deps, requestId);
+  if (!pre.ok) return pre.envelope;
+  if (deps.quotaManager) {
+    const quota = await deps.quotaManager.checkMemoryQuota(auth.serviceId, 1);
+    if (!quota.allowed) return errorEnvelope(4291, `Memory limit exceeded (current=${quota.current}, limit=${quota.limit})`, requestId);
+  }
+  try {
+    const result = await pre.core.applySnapshot(pre.data);
+    if (deps.getMetadataService) {
+      const metaSvc = await deps.getMetadataService(auth.serviceId);
+      await metaSvc.ensureSkillAsset({ skill_id: result.skill_id, team_id: result.team_id,
+        agent_id: result.owner_agent_id, name: result.name });
+    }
+    return successEnvelope(toSummary(result), requestId);
+  } catch (error) { return mapCoreError(error, requestId, deps); }
 }
 
 export async function handleUpdate(body: unknown, auth: V2AuthContext, requestId: string, deps: SkillRouterDeps): Promise<ApiResponseEnvelope> {
@@ -1138,6 +1157,7 @@ export type SkillHandler = (
 export function makeSkillRouteTable(): Record<string, SkillHandler> {
   return {
     "/v3/skill/create": handleCreate,
+    "/v3/skill/snapshot/apply": handleSnapshotApply,
     "/v3/skill/update": handleUpdate,
     "/v3/skill/patch": handlePatch,
     "/v3/skill/delete": handleDelete,

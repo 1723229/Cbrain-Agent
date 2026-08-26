@@ -17,11 +17,12 @@ import { useTeams } from '@/services';
 import { useSkillDetailCache } from '@/services/use-skill-detail-cache';
 import { tea } from '@/lib/tea-bridge';
 
-export type Tab = 'team' | 'fixed';
+export type Tab = 'team' | 'fixed' | 'public';
 
 export const TAB_I18N_KEY: Record<Tab, string> = {
   team: 'skills.scope.team',
   fixed: 'skills.scope.fixed',
+  public: 'skills.scope.public',
 };
 
 export function useSkillsPanel() {
@@ -136,7 +137,11 @@ export function useSkillsPanel() {
     setSkills([]);
     setVisibilityMap({});
     try {
-      if (tab === 'team') {
+      if (tab === 'public') {
+        if (seq !== refreshSeqRef.current) return;
+        setSkills([]);
+        setVisibilityMap({});
+      } else if (tab === 'team') {
         // 团队资产 tab 语义：**只显示共享的（visibility=team） skill**，
         // 私密 skill（包括自己 owner 的）都不出现在这里。自己的私密去
         // "我的资产分配" tab 查看和管理。

@@ -223,8 +223,9 @@ export class SkillVersioning {
     const noResourceChange =
       (!mut.resourcesToWrite || mut.resourcesToWrite.length === 0) &&
       (!mut.resourcesToRemove || mut.resourcesToRemove.length === 0);
+    const noMetadataChange = mut.metadata_json === undefined || mut.metadata_json === head.metadata_json;
 
-    if (noContentChange && noResourceChange) {
+    if (noContentChange && noResourceChange && noMetadataChange) {
       return head; // 幂等
     }
 
