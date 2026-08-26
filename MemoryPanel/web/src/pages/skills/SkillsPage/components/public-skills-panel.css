@@ -1,0 +1,129 @@
+._memory-public-skill-detail {
+  height: 100%;
+  min-width: 0;
+  border: 1px solid var(--tea-color-border-primary-default);
+  background: var(--tea-color-bg-primary-default);
+  display: flex;
+  flex-direction: column;
+}
+
+._memory-public-skill-detail-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--tea-color-border-primary-default);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+._memory-public-skill-detail-head h3,
+._memory-public-skill-detail-head p {
+  margin: 0;
+}
+
+._memory-public-skill-detail-head p {
+  margin-top: 6px;
+  color: var(--tea-color-text-secondary);
+}
+
+._memory-public-skill-source {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--tea-color-text-secondary);
+  font-size: 12px;
+}
+
+._memory-public-skill-browser {
+  min-height: 520px;
+  max-height: 680px;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  overflow: hidden;
+}
+
+._memory-public-skill-tree {
+  padding: 12px;
+  overflow: auto;
+  border-right: 1px solid var(--tea-color-border-primary-default);
+  background: var(--tea-color-bg-secondary-default);
+}
+
+._memory-public-skill-pane-title,
+._memory-public-skill-section-title {
+  margin-bottom: 8px;
+  color: var(--tea-color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+._memory-public-skill-section-title:not(:first-child) {
+  margin-top: 16px;
+}
+
+._memory-public-skill-preview {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+._memory-public-skill-preview-head {
+  min-height: 42px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--tea-color-border-primary-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--tea-color-text-secondary);
+  font-size: 12px;
+}
+
+._memory-public-skill-preview-body {
+  padding: 16px;
+  overflow: auto;
+}
+
+._memory-public-skill-state {
+  padding: 40px 20px;
+  color: var(--tea-color-text-secondary);
+}
+
+._memory-public-skill-state--error {
+  color: var(--tea-color-text-error-default);
+}
+
+._memory-public-skill-image {
+  display: block;
+  max-width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+}
+
+._memory-public-skill-binary {
+  padding: 20px;
+  border: 1px dashed var(--tea-color-border-primary-default);
+  background: var(--tea-color-bg-secondary-default);
+}
+
+._memory-public-skill-download {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--tea-color-text-link-default);
+}
+
+@media (max-width: 1100px) {
+  ._memory-public-skill-browser {
+    grid-template-columns: 1fr;
+    max-height: none;
+  }
+
+  ._memory-public-skill-tree {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--tea-color-border-primary-default);
+  }
+}

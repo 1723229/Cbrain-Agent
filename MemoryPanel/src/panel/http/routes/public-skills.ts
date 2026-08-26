@@ -15,7 +15,8 @@ export function registerPublicSkillRoutes(api: Hono, deps: PanelDeps): void {
   api.post('/public-skills/get', async (c) => {
     const body = await readJson(c); const itemId = str(body, 'item_id');
     if (!itemId) return respondControlError(c, 400, 'MISSING_ITEM_ID');
-    return run(c, () => deps.knowledgeClientFactory(buildCtx(c).instanceId).publicSkillGet(itemId));
+    return run(c, () => deps.knowledgeClientFactory(buildCtx(c).instanceId)
+      .publicSkillSnapshot(itemId, str(body, 'source_revision') || undefined));
   });
   api.post('/public-skills/sync', async (c) => {
     const meta = c.get('panelMeta');

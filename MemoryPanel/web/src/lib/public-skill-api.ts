@@ -7,6 +7,15 @@ export interface PublicSkillItem {
   total_bytes: number; updated_at: string;
 }
 
+export interface PublicSkillResource {
+  path: string; content: string; encoding: 'base64'; mime_type: string; is_executable: boolean;
+}
+
+export interface PublicSkillSnapshot extends PublicSkillItem {
+  content: string;
+  resources: PublicSkillResource[];
+}
+
 async function call<T>(action: string, body: Record<string, unknown> = {}): Promise<T> {
   const session = getPanelSession();
   const response = await fetch(`/api/v1/public-skills/${action}`, { method: 'POST', headers: {
@@ -20,7 +29,9 @@ async function call<T>(action: string, body: Record<string, unknown> = {}): Prom
 export const publicSkillApi = {
   status: () => call<Record<string, unknown>>('status'),
   list: (query = '') => call<{ items: PublicSkillItem[]; total: number }>('list', { query, limit: 500 }),
-  get: (itemId: string) => call<PublicSkillItem>('get', { item_id: itemId }),
+  get: (itemId: string, sourceRevision?: string) => call<PublicSkillSnapshot>('get', {
+    item_id: itemId, source_revision: sourceRevision,
+  }),
   sync: () => call<Record<string, unknown>>('sync'),
   install: (item: PublicSkillItem, teamId: string, agentId: string) => call<Record<string, unknown>>('install', {
     item_id: item.item_id, source_revision: item.source_revision, team_id: teamId, agent_id: agentId,

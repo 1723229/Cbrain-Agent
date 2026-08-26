@@ -3,6 +3,8 @@ import { Button, Input, Select, Tag } from 'tea-component';
 import { publicSkillApi, type PublicSkillItem } from '@/lib/public-skill-api';
 import { tea } from '@/lib/tea-bridge';
 import { listSkills } from '@/lib/skill-api';
+import { PublicSkillDetail } from './PublicSkillDetail';
+import './public-skills-panel.css';
 
 export function PublicSkillsPanel(props: {
   teamId: string;
@@ -65,17 +67,16 @@ export function PublicSkillsPanel(props: {
             <strong>{item.name}</strong><div style={{ color: '#666', marginTop: 4 }}>{item.description}</div>
           </button>)}
       </div>
-      <div style={{ border: '1px solid #ddd', padding: 20 }}>
-        {!current ? '请选择一个公共 Skill' : <>
-          <h3>{current.name}</h3><p>{current.description}</p>
-          <p>来源：<code>{current.repo_path}@{current.source_revision}</code></p>
-          <p>资源：{current.manifest.length} 个，{current.total_bytes} bytes</p>
-          <ul>{current.manifest.map((file) => <li key={file.path}><code>{file.path}</code></li>)}</ul>
-          <Button type="primary" disabled={!props.selectedAgent || installedCurrent?.contentHash === current.content_hash} loading={busy} onClick={() => void install()}>
-            {!installedCurrent ? '安装到 Agent' : installedCurrent.contentHash === current.content_hash ? '已是最新' : '升级'}
-          </Button>
-        </>}
-      </div>
+      {!current ? <div style={{ border: '1px solid #ddd', padding: 20 }}>请选择一个公共 Skill</div> : (
+        <PublicSkillDetail
+          item={current}
+          selectedAgent={props.selectedAgent}
+          installed={!!installedCurrent}
+          installedContentHash={installedCurrent?.contentHash}
+          busy={busy}
+          onInstall={() => void install()}
+        />
+      )}
     </div>}
   </div>;
 }
