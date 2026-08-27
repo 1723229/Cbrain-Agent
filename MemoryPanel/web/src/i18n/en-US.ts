@@ -63,7 +63,7 @@ export const enUS = {
   'teamSwitcher.newTeam': 'New Team',
   'teamSwitcher.edit.tooltip': 'Edit the current team name / description (owner / admin only)',
   'teamSwitcher.delete.tooltip':
-    'Delete the current Team (owner / admin only; cascades to members, Agents, and assets)',
+    'Delete the current Team (creator or system admin only; cascades to members, Agents, and assets)',
   'teamSwitcher.delete.confirm': 'Delete team "{{name}}"?',
   'teamSwitcher.delete.desc':
     'This cascades to {{members}} members, {{agents}} Agents, and all assets under the Team. This cannot be undone.',
@@ -981,6 +981,18 @@ export const enUS = {
   'member.remove.ok': 'Remove',
   'member.remove.tooltip': 'Remove this member',
   'member.role.creator': ' · Creator',
+  'member.role.promote': 'Make Team Admin',
+  'member.role.promote.short': 'Make Admin',
+  'member.role.promote.tooltip': 'Promote this member to team admin',
+  'member.role.promote.confirm': 'Make {{userId}} a team admin?',
+  'member.role.promote.desc':
+    'This member can manage team members, Team settings, Agents, and team asset bindings.',
+  'member.role.demote': 'Remove Team Admin',
+  'member.role.demote.short': 'Remove Admin',
+  'member.role.demote.tooltip': "Remove this member's team admin role",
+  'member.role.demote.confirm': 'Remove the team admin role from {{userId}}?',
+  'member.role.demote.desc':
+    'This person remains a team member but loses team management permissions.',
   'member.me': ' (you)',
 
   // ===== AddMemberDialog =====
@@ -1001,7 +1013,8 @@ export const enUS = {
   'addMember.username.hint': 'Letters, numbers, underscores. Cannot be changed after creation.',
   'addMember.role': 'Role',
   'addMember.role.default': 'member (default)',
-  'addMember.role.hint': 'New members default to the member role.',
+  'addMember.role.admin': 'admin (team admin)',
+  'addMember.role.hint': 'Add the user as a regular member or team admin.',
   'addMember.existing.submit': 'Add',
   'addMember.new.submit': 'Create & Add',
   'addMember.cancel': 'Cancel',

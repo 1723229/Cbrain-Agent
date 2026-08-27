@@ -1,5 +1,5 @@
 /**
- * v3 元数据路由（/v3/meta/*，55 接口）。
+ * v3 元数据路由（/v3/meta/*）。
  *
  * 对应设计文档 §7 + 实施计划 M3.3。镜像 v2-router 的 dispatch 模式：
  *   - 仅 POST，前缀 /v3/meta
@@ -80,7 +80,7 @@ function orNotFound<T>(entity: T | null, code: string, id: string): T {
 
 const OK = { ok: true } as const;
 
-// ── Route table（55 接口）──
+// ── Route table ──
 const routeTable: Record<string, Handler> = {
   // User
   [`${V3_PREFIX}/user/create`]: bind(S.userCreateSchema, async (d, c, s) => {
@@ -139,10 +139,10 @@ const routeTable: Record<string, Handler> = {
     return s.updateTeamForCaller(team_id, patch, c);
   }),
   [`${V3_PREFIX}/team/delete`]: bind(S.teamDeleteSchema, (d, c, s) => s.deleteTeamsForCaller(d.team_ids, c)),
-  [`${V3_PREFIX}/team/list`]: bind(S.teamListSchema, async (d, _c, s) => {
+  [`${V3_PREFIX}/team/list`]: bind(S.teamListSchema, async (d, c, s) => {
     const userId = await resolveUserId(s, d);
     const filter = d.name ? { name: d.name } : undefined;
-    return s.listTeamsByUser(userId, resolvePagination(d), filter);
+    return s.listTeamsForCaller(c, userId, resolvePagination(d), filter);
   }),
 
   // TeamMember
@@ -154,6 +154,10 @@ const routeTable: Record<string, Handler> = {
     await requireEntity(s, EntityType.User, d.user_id);
     await s.removeTeamMemberForCaller(d.team_id, d.user_id, c);
     return OK;
+  }),
+  [`${V3_PREFIX}/team-member/role/update`]: bind(S.teamMemberRoleUpdateSchema, async (d, c, s) => {
+    await requireEntity(s, EntityType.User, d.user_id);
+    return s.updateTeamMemberRoleForCaller(d.team_id, d.user_id, d.role, c);
   }),
   [`${V3_PREFIX}/team-member/list`]: bind(S.teamMemberListSchema, (d, c, s) =>
     s.listTeamMembersForCaller(d.team_id, c, resolvePagination(d)),

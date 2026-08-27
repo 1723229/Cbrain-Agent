@@ -548,6 +548,36 @@ paths:
           $ref: "#/components/responses/KernelUnavailable"
         '504':
           $ref: "#/components/responses/KernelTimeout"
+  /api/v1/meta/team-member/role/update:
+    post:
+      tags: ["Meta · Team Member"]
+      operationId: meta_team-member_role_update
+      summary: team-member/role/update
+      description: "显式变更有效成员角色；system_admin、team owner 或 team admin 可调用。禁止修改自己或 team owner 的角色，不触发新成员初始化。"
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TdaiServiceId'
+        - $ref: '#/components/parameters/TdaiUserKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: 内核风格信封（业务成败优先看 body.code）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          $ref: "#/components/responses/ControlBadRequest"
+        '502':
+          $ref: "#/components/responses/KernelUnavailable"
+        '504':
+          $ref: "#/components/responses/KernelTimeout"
   /api/v1/meta/team-member/list:
     post:
       tags: ["Meta · Team Member"]

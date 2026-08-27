@@ -67,6 +67,9 @@ function panelDescription(action: string): string {
   if (action === 'team-member/remove') {
     return '透明代理；团队 admin。禁移除 team owner（403 cannot remove team owner）。物理删除成员行。须 Header 双凭证。';
   }
+  if (action === 'team-member/role/update') {
+    return '显式变更有效成员角色；system_admin、team owner 或 team admin 可调用。禁止修改自己或 team owner 的角色，不触发新成员初始化。';
+  }
   if (action === 'team/update') {
     return '透明代理；team owner 或 admin。不可改 owner_user_id（传入静默忽略）。字段见 08-metadata-v3-api-reference.md。须 Header 双凭证。';
   }

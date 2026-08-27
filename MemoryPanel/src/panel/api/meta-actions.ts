@@ -1,5 +1,5 @@
 /**
- * 内核 /v3/meta/* 公开 action 列表（v3.2：55 条，不含 internal）。
+ * 内核 /v3/meta/* 公开 action 列表（不含 internal）。
  * 注：agent-fixed-asset/* 仍在 META_ACTIONS 登记但公开 proxy 501 NOT_IN_SCOPE；
  * Control 业务路由可通过 metaKernel.invoke 直调。
  */
@@ -38,6 +38,7 @@ export const META_ACTIONS = [
   "team/list",
   "team-member/add",
   "team-member/remove",
+  "team-member/role/update",
   "team-member/list",
   "team-member/get",
   "team-member/candidate/list",

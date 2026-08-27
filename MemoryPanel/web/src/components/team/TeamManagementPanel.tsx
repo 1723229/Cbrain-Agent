@@ -15,7 +15,7 @@
  *
  * 已知限制（如实反映后端当前能力，不做假 UI）：
  *   - Agent owner 由后端在创建时固定为当前登录用户，暂不支持转交；
- *   - Team 删除为级联操作（连带删除成员/agent/task/资产），仅 owner / admin 可删
+ *   - Team 删除为级联操作（连带删除成员/agent/task/资产），仅 owner / system admin 可删
  *     （入口在 TeamSwitcher 下拉框）。
  *
  * 文件拆分（本文件仅保留组合/编排逻辑，具体实现见同目录下）：
@@ -288,8 +288,8 @@ export default function TeamManagementPanel({
             />
           )}
 
-          {/* === 默认 Agent 模板（仅全局 admin 可见）=== */}
-          {showAgents && _isAdmin && (
+          {/* === 默认 Agent 模板（system_admin / team admin / owner）=== */}
+          {showAgents && (_isAdmin || isTeamAdmin(activeTeam, currentUser)) && (
             <DefaultAgentTemplateSection
               teamId={activeTeam.team_id}
               teamName={activeTeam.name}

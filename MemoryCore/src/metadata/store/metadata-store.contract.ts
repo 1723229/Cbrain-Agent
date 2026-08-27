@@ -137,6 +137,18 @@ export function runMetadataStoreContract(
         expect(teams.map((t) => t.team_id).sort()).toEqual([t1.team_id, t2.team_id].sort());
       });
 
+      it("listTeams 返回跨用户的 team 并支持名称过滤", async () => {
+        const owner1 = await store.createUser(uniqueUserInput());
+        const owner2 = await store.createUser(uniqueUserInput());
+        const t1 = await store.createTeam(teamInput(owner1.user_id, { name: "All-T1" }));
+        const t2 = await store.createTeam(teamInput(owner2.user_id, { name: "All-T2" }));
+
+        const all = await store.listTeams(P);
+        expect(all.items.map((t) => t.team_id)).toEqual(expect.arrayContaining([t1.team_id, t2.team_id]));
+        const filtered = await store.listTeams(P, { name: "All-T2" });
+        expect(filtered.items.map((t) => t.team_id)).toEqual([t2.team_id]);
+      });
+
       it("updateTeam / deleteTeams", async () => {
         const owner = await store.createUser(uniqueUserInput());
         const team = await store.createTeam(teamInput(owner.user_id));

@@ -4,8 +4,8 @@
  * 从侧边栏迁移到顶栏后的行内 pill 样式版本：使用 Tea `Dropdown` 承载弹出面板
  * （自带定位、遮罩点击关闭、滚动关闭等能力），面板内部用 `List`/`Input`/`Button` 组装。
  *
- * 团队编辑入口：当前 active team 行右侧（owner / admin 可见）提供「编辑」「删除」
- * 图标按钮，复用 EditTeamDialog + tea.confirm 二级确认。这把 TeamManagementPanel
+ * 团队编辑入口：当前 active team 行右侧为 owner / team admin 提供「编辑」，
+ * 仅 owner / system admin 提供「删除」。复用 EditTeamDialog + tea.confirm 二级确认。这把 TeamManagementPanel
  * Header 上的「编辑 Team / 删除当前 Team」入口迁到了此处统一收纳。
  */
 import { useState } from 'react';
@@ -43,9 +43,11 @@ export function TeamSwitcher({ userRole }: { userRole: TeamRole | null }) {
   const active = myTeams.find((tm) => tm.team_id === activeTeamId) ?? null;
   // 当前用户 user_id（panelSession 同步可读）
   const currentUserId = getPanelSession()?.user?.user_id ?? '';
-  // 是否可编辑 / 删除当前 active team：全局 admin 或当前 team 的 owner / admin
+  // 团队管理员可编辑团队资料；删除团队仅 system_admin 或 owner 可执行。
   const canManageActiveTeam =
     !!active && (userRole === 'admin' || isTeamAdmin(active, currentUserId));
+  const canDeleteActiveTeam =
+    !!active && (userRole === 'admin' || active.owner_user_id === currentUserId);
 
   function resetCreateForm() {
     setShowCreateTeam(false);
@@ -181,7 +183,7 @@ export function TeamSwitcher({ userRole }: { userRole: TeamRole | null }) {
                 <ul className="_memory-team-switcher-list">
                   {myTeams.map((tm) => {
                     const isActive = tm.team_id === activeTeamId;
-                    // 仅当前 active team 行显示编辑/删除按钮，且仅 owner/admin 可操作
+                    // 仅当前 active team 行显示操作；编辑与删除分别按上方权限拆分。
                     const showOps = isActive && canManageActiveTeam;
                     return (
                       <li key={tm.team_id} className="_memory-team-switcher-row">
@@ -214,17 +216,19 @@ export function TeamSwitcher({ userRole }: { userRole: TeamRole | null }) {
                             >
                               <EditIcon size={14} />
                             </button>
-                            <button
-                              type="button"
-                              className="_memory-team-switcher-item-op _memory-team-switcher-item-op-danger"
-                              title={t('teamSwitcher.delete.tooltip')}
-                              aria-label={t('teamSwitcher.delete.tooltip')}
-                              onClick={() => {
-                                void handleDeleteTeam(tm.team_id, tm.name, tm.members.length);
-                              }}
-                            >
-                              <DeleteIcon size={14} />
-                            </button>
+                            {canDeleteActiveTeam && (
+                              <button
+                                type="button"
+                                className="_memory-team-switcher-item-op _memory-team-switcher-item-op-danger"
+                                title={t('teamSwitcher.delete.tooltip')}
+                                aria-label={t('teamSwitcher.delete.tooltip')}
+                                onClick={() => {
+                                  void handleDeleteTeam(tm.team_id, tm.name, tm.members.length);
+                                }}
+                              >
+                                <DeleteIcon size={14} />
+                              </button>
+                            )}
                           </span>
                         )}
                       </li>

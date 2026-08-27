@@ -129,6 +129,66 @@ describe("default Agent templates", () => {
     });
   });
 
+  it("authorizes template writes for an active team admin", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "cbrain-team-admin-template-"));
+    const invoke = vi.fn(async (action: string) => {
+      if (action === "team/get") {
+        return { code: 0, message: "ok", data: { owner_user_id: "usr-owner" } };
+      }
+      if (action === "team-member/get") {
+        return { code: 0, message: "ok", data: { role: "admin", status: "active" } };
+      }
+      throw new Error(`unexpected meta action: ${action}`);
+    });
+    const deps = {
+      config: {
+        agentTemplateDir: root,
+        ui: { distDir: "" },
+        pluginDownloads: { dir: "" },
+        session: { cookieName: "cbrain_session" },
+      },
+      instanceRegistry: new InstanceRegistry([{
+        instance_id: "default",
+        name: "Default",
+        gateway_endpoint: "http://core",
+        api_key: "service",
+      }]),
+      authService: {
+        resolveSession: async () => ({
+          user_id: "usr-team-admin",
+          username: "team-admin",
+          user_type: "normal",
+          status: "active",
+        }),
+      },
+      metaKernel: { invoke },
+      knowledgeClientFactory: () => ({ publicSkillList: async () => ({ items: [], total: 0 }) }),
+      skillKernel: { invoke: vi.fn() },
+      logger: {
+        debug() {}, info() {}, warn() {}, error() {}, child() { return this; },
+      },
+    } as unknown as PanelDeps;
+
+    const response = await buildPanelApp(deps).request(
+      "/api/v1/meta/agent/set-default-template",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-tdai-service-id": "default",
+          cookie: "cbrain_session=session-token",
+        },
+        body: JSON.stringify({ team_id: "team-one", template: { name: "研发助手" } }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(invoke).toHaveBeenCalledWith("team-member/get", {
+      team_id: "team-one",
+      user_id: "usr-team-admin",
+    }, expect.any(Object));
+  });
+
   it("gives public Skills precedence over same-name template Skills", () => {
     expect(
       filterTemplateSkillsByPublicNames(

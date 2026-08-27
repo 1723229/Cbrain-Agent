@@ -10,7 +10,7 @@ import { AddIcon, CloseIcon } from 'tea-icons-react';
 import { isTeamAdmin, invalidateBackendCache, type Team } from '@/services';
 import { membersApi, usersApi, type MemberCandidate } from '@/lib/teamApi';
 import { tea } from '@/lib/tea-bridge';
-import { canRemoveMember } from './types';
+import { canChangeMemberRole, canRemoveMember } from './types';
 
 // =================== Members section ===================
 
@@ -26,6 +26,7 @@ export function MemberSection({
   isAdmin: boolean;
 }) {
   const [removing, setRemoving] = useState<string | null>(null);
+  const [changingRole, setChangingRole] = useState<string | null>(null);
   const { t } = useTranslation();
   // 只有全局 admin 或 team admin/owner 才能添加成员；普通成员无此入口。
   const canAddMember = _globalAdmin || isTeamAdmin(team, currentUser);
@@ -45,6 +46,25 @@ export function MemberSection({
       tea.notify.error(err);
     } finally {
       setRemoving(null);
+    }
+  }
+
+  async function handleRoleChange(userId: string, currentRole: 'admin' | 'member' | 'reviewer') {
+    const nextRole = currentRole === 'admin' ? 'member' : 'admin';
+    const ok = await tea.confirm({
+      message: t(nextRole === 'admin' ? 'member.role.promote.confirm' : 'member.role.demote.confirm', { userId }),
+      description: t(nextRole === 'admin' ? 'member.role.promote.desc' : 'member.role.demote.desc'),
+      okText: t(nextRole === 'admin' ? 'member.role.promote' : 'member.role.demote'),
+    });
+    if (!ok) return;
+    setChangingRole(userId);
+    try {
+      await membersApi.updateRole(team.team_id, userId, nextRole);
+      invalidateBackendCache();
+    } catch (err) {
+      tea.notify.error(err);
+    } finally {
+      setChangingRole(null);
     }
   }
 
@@ -70,6 +90,7 @@ export function MemberSection({
         {team.members.map((m) => {
           const isOwner = team.owner_user_id === m.user_id;
           const canRemove = canRemoveMember(team, m.user_id, currentUser, _globalAdmin);
+          const canChangeRole = canChangeMemberRole(team, m.user_id, currentUser, _globalAdmin);
           return (
             <MemberCard
               key={m.user_id}
@@ -79,7 +100,10 @@ export function MemberSection({
               isOwner={isOwner}
               isMe={m.user_id === currentUser}
               canRemove={canRemove}
+              canChangeRole={canChangeRole}
+              changingRole={changingRole === m.user_id}
               removing={removing === m.user_id}
+              onChangeRole={() => void handleRoleChange(m.user_id, m.role)}
               onRemove={() => void handleRemove(m.user_id)}
             />
           );
@@ -96,7 +120,10 @@ function MemberCard({
   isOwner,
   isMe,
   canRemove,
+  canChangeRole,
+  changingRole,
   removing,
+  onChangeRole,
   onRemove,
 }: {
   user_id: string;
@@ -105,7 +132,10 @@ function MemberCard({
   isOwner: boolean;
   isMe: boolean;
   canRemove: boolean;
+  canChangeRole: boolean;
+  changingRole: boolean;
   removing: boolean;
+  onChangeRole: () => void;
   onRemove: () => void;
 }) {
   const displayName = username?.trim() || user_id;
@@ -133,11 +163,22 @@ function MemberCard({
         </div>
       </div>
       <div className="_memory-member-actions">
+        {canChangeRole && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onChangeRole(); }}
+            disabled={changingRole || removing}
+            className="_memory-member-edit-btn"
+            title={t(role === 'admin' ? 'member.role.demote.tooltip' : 'member.role.promote.tooltip')}
+          >
+            {changingRole ? '…' : t(role === 'admin' ? 'member.role.demote.short' : 'member.role.promote.short')}
+          </button>
+        )}
         {canRemove && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            disabled={removing}
+            disabled={removing || changingRole}
             className="_memory-member-remove-btn"
             title={t('member.remove.tooltip')}
             aria-label={t('member.remove.tooltip')}
@@ -448,11 +489,13 @@ export function AddMemberDialog({
       <Form.Item label={t('addMember.role')}>
         <Select
           size="full"
-          value="member"
-          disabled
+          value={role}
+          disabled={!canGrantAdmin}
           options={[
             { value: 'member', text: t('addMember.role.default') },
+            { value: 'admin', text: t('addMember.role.admin') },
           ]}
+          onChange={(value) => setRole(value as 'admin' | 'member')}
         />
         <div className="_memory-field-hint">{t('addMember.role.hint')}</div>
       </Form.Item>

@@ -449,6 +449,10 @@
   color: var(--tea-color-text-brand-default);
   background: var(--tea-color-bg-brand-lighten-default);
 }
+._memory-member-edit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 ._memory-member-remove-btn:hover:not(:disabled) {
   color: var(--tea-color-text-error-default);
 }

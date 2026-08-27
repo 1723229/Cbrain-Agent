@@ -76,3 +76,15 @@ export function canRemoveMember(
   if (isGlobalAdmin(currentUser, globalAdmin)) return true;
   return isTeamAdmin(team, currentUser);
 }
+
+/** 管理员任免：不能操作 owner，也不能调整自己的角色。 */
+export function canChangeMemberRole(
+  team: Team,
+  targetUserId: string,
+  currentUser: string,
+  globalAdmin: boolean,
+): boolean {
+  if (targetUserId === team.owner_user_id || targetUserId === currentUser) return false;
+  if (isGlobalAdmin(currentUser, globalAdmin)) return true;
+  return isTeamAdmin(team, currentUser);
+}

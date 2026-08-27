@@ -840,6 +840,18 @@ export class MongoMetadataStore implements IMetadataStore {
     );
   }
 
+  async listTeams(pagination?: PaginationParams | null, filter?: { name?: string }): Promise<ListPage<TeamEntity>> {
+    const query: Document = {};
+    if (filter?.name) query.name = filter.name;
+    return this.paginatedFind<TeamEntity>(
+      "meta_teams",
+      query,
+      pagination,
+      { created_at: -1 },
+      (doc) => doc as TeamEntity,
+    );
+  }
+
   // ============================================================
   // TeamMember
   // ============================================================

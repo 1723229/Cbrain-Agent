@@ -1014,6 +1014,23 @@ export class MetadataService {
     return formatListResult({ items, total: page.total }, pagination);
   }
 
+  async listTeamsForCaller(
+    ctx: V3AuthContext,
+    userId?: string,
+    pagination: PaginationParams = DEFAULT_PAGINATION,
+    filter?: { name?: string },
+  ): Promise<PaginatedResult<TeamEntity>> {
+    if (ctx.isSystemAdmin) {
+      const page = await this.store.listTeams(pagination, filter);
+      return formatListResult(page, pagination);
+    }
+    const targetUserId = userId ?? this.requireCallerId(ctx);
+    if (targetUserId !== this.requireCallerId(ctx)) {
+      throw new MetadataError("permission_denied", "cannot list another user's teams");
+    }
+    return this.listTeamsByUser(targetUserId, pagination, filter);
+  }
+
   // ============================================================
   // TeamMember
   // ============================================================
@@ -1027,7 +1044,7 @@ export class MetadataService {
       throw new MetadataError("permission_denied", "cannot demote team owner");
     }
     const existing = await this.store.getTeamMember(input.team_id, input.user_id);
-    if (existing?.status === "active" && existing.role === reqRole) {
+    if (existing?.status === "active") {
       throw new MetadataError(
         "member_already_exists",
         `member already exists: ${input.team_id}/${input.user_id}`,
@@ -1866,6 +1883,7 @@ export class MetadataService {
   }
 
   private async assertCallerIsTeamAdmin(ctx: V3AuthContext, teamId: string): Promise<void> {
+    if (ctx.isSystemAdmin) return;
     const member = await this.requireActiveTeamMember(ctx, teamId);
     if (member.role !== "admin") {
       throw new MetadataError("permission_denied", "caller is not team admin");
@@ -1876,6 +1894,7 @@ export class MetadataService {
     const callerId = this.requireCallerId(ctx);
     const team = await this.getTeamById(teamId);
     if (!team) throw new MetadataError("team_not_found", `team not found: ${teamId}`);
+    if (ctx.isSystemAdmin) return team;
     if (team.owner_user_id === callerId) return team;
     await this.assertCallerIsTeamAdmin(ctx, teamId);
     return team;
@@ -1944,7 +1963,12 @@ export class MetadataService {
 
   async deleteTeamsForCaller(teamIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
     for (const teamId of teamIds) {
-      await this.assertCallerIsTeamOwnerOrAdmin(ctx, teamId);
+      const callerId = this.requireCallerId(ctx);
+      const team = await this.getTeamById(teamId);
+      if (!team) continue;
+      if (!ctx.isSystemAdmin && team.owner_user_id !== callerId) {
+        throw new MetadataError("permission_denied", "only team owner or system admin can delete team");
+      }
     }
     return this.deleteTeams(teamIds);
   }
@@ -1969,12 +1993,47 @@ export class MetadataService {
     return this.removeTeamMember(teamId, userId);
   }
 
+  /**
+   * 显式调整有效成员角色。角色任免与“添加成员”分离，避免角色更新误触发
+   * Panel 的新成员初始化流程。系统管理员无需先加入团队；团队管理员只能
+   * 调整其他成员，且任何人都不能降级团队 owner。
+   */
+  async updateTeamMemberRoleForCaller(
+    teamId: string,
+    userId: string,
+    role: TeamRole,
+    ctx: V3AuthContext,
+  ): Promise<TeamMemberEntity> {
+    await this.assertCallerIsTeamAdmin(ctx, teamId);
+    const callerId = this.requireCallerId(ctx);
+    if (callerId === userId) {
+      throw new MetadataError("permission_denied", "cannot change your own team role");
+    }
+    const team = await this.getTeamById(teamId);
+    if (!team) throw new MetadataError("team_not_found", `team not found: ${teamId}`);
+    if (userId === team.owner_user_id) {
+      throw new MetadataError("permission_denied", "cannot change team owner role");
+    }
+    const member = await this.store.getTeamMember(teamId, userId);
+    if (!member || member.status !== "active") {
+      throw new MetadataError("member_not_found", `member not found: ${teamId}/${userId}`);
+    }
+    if (member.role === role) return member;
+    return this.store.addTeamMember({
+      id: member.id,
+      team_id: teamId,
+      user_id: userId,
+      role,
+      status: "active",
+    });
+  }
+
   async listTeamMembersForCaller(
     teamId: string,
     ctx: V3AuthContext,
     pagination: PaginationParams = DEFAULT_PAGINATION,
   ): Promise<PaginatedResult<TeamMemberView>> {
-    await this.requireActiveTeamMember(ctx, teamId);
+    if (!ctx.isSystemAdmin) await this.requireActiveTeamMember(ctx, teamId);
     const page = await this.store.listTeamMembersWithProfile(teamId, pagination);
     return formatListResult(page, pagination);
   }
@@ -1984,7 +2043,7 @@ export class MetadataService {
     userId: string,
     ctx: V3AuthContext,
   ): Promise<TeamMemberView> {
-    await this.requireActiveTeamMember(ctx, teamId);
+    if (!ctx.isSystemAdmin) await this.requireActiveTeamMember(ctx, teamId);
     const member = await this.store.getTeamMemberWithProfile(teamId, userId);
     if (!member) {
       throw new MetadataError("member_not_found", `member not found: ${teamId}/${userId}`);
@@ -2026,19 +2085,19 @@ export class MetadataService {
     patch: Partial<AgentEntity>,
     ctx: V3AuthContext,
   ): Promise<AgentEntity> {
-    await this.assertCallerIsAgentOwner(ctx, agentId);
+    await this.assertCallerIsAgentOwnerOrTeamAdmin(ctx, agentId);
     return this.updateAgent(agentId, patch);
   }
 
   async deleteAgentsForCaller(agentIds: string[], ctx: V3AuthContext): Promise<BatchDeleteResult> {
     for (const agentId of agentIds) {
-      await this.assertCallerIsAgentOwner(ctx, agentId);
+      await this.assertCallerIsAgentOwnerOrTeamAdmin(ctx, agentId);
     }
     return this.deleteAgents(agentIds);
   }
 
   async archiveAgentForCaller(agentId: string, ctx: V3AuthContext): Promise<AgentEntity> {
-    await this.assertCallerIsAgentOwner(ctx, agentId);
+    await this.assertCallerIsAgentOwnerOrTeamAdmin(ctx, agentId);
     return this.archiveAgent(agentId);
   }
 

@@ -967,6 +967,23 @@ export class SqliteMetadataStore implements IMetadataStore {
     );
   }
 
+  listTeams(pagination?: PaginationParams | null, filter?: { name?: string }): ListPage<TeamEntity> {
+    let where = "FROM meta_teams t WHERE 1=1";
+    const params: SQLInputValue[] = [];
+    if (filter?.name) {
+      where += " AND t.name = ?";
+      params.push(filter.name);
+    }
+    return this.selectList(
+      `SELECT COUNT(*) AS c ${where}`,
+      params,
+      `SELECT t.* ${where} ORDER BY t.created_at DESC`,
+      params,
+      pagination,
+      (r) => this.mapTeam(r),
+    );
+  }
+
   // ============================================================
   // TeamMember
   // ============================================================

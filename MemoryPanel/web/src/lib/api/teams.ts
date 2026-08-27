@@ -14,7 +14,7 @@ export const teamsApi = {
   /**
    * 列出当前用户作为 active 成员的 team。
    * meta/team/list 要求 body 带 user_id 或 user_key；身份只在 header 不够。
-   * admin 也传自己的 user_id（后端暂无 user/list 式「实例级列举全部 team」）。
+   * system_admin 仍传自己的 user_id，由后端识别身份后返回实例内全部 team。
    */
   list: async () => {
     const me = await getCurrentUser();
@@ -70,4 +70,8 @@ export const membersApi = {
   remove: async (teamId: string, userId: string) => {
     await metaPost<{ ok: boolean }>('team-member/remove', { team_id: teamId, user_id: userId });
   },
+
+  /** 显式调整有效成员角色；不会触发新成员初始化。 */
+  updateRole: (teamId: string, userId: string, role: 'admin' | 'member' | 'reviewer') =>
+    metaPost<TeamMember>('team-member/role/update', { team_id: teamId, user_id: userId, role }),
 };

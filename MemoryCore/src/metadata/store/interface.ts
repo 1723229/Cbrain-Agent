@@ -130,6 +130,7 @@ export interface IMetadataStore {
   getTeamById(teamId: string): MaybePromise<TeamEntity | null>;
   updateTeam(teamId: string, patch: Partial<TeamEntity>): MaybePromise<TeamEntity | null>;
   deleteTeams(teamIds: string[]): MaybePromise<BatchDeleteResult>;
+  listTeams(pagination?: PaginationParams | null, filter?: TeamFilter): MaybePromise<ListPage<TeamEntity>>;
   listTeamsByUser(userId: string, pagination?: PaginationParams | null, filter?: TeamFilter): MaybePromise<ListPage<TeamEntity>>;
 
   // ── TeamMember ──

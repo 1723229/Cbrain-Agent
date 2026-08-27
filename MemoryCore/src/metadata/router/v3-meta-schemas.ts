@@ -1,5 +1,5 @@
 /**
- * v3 元数据 API 请求体 Zod schema（55 公开接口）。
+ * v3 元数据 API 请求体 Zod schema。
  *
  * 对应设计文档 §7.1。每个 schema 校验对应路由的请求体；
  * 路由 handler 用 `schema.safeParse(body)` 校验后再调用 MetadataService。
@@ -153,6 +153,11 @@ export const teamMemberAddSchema = z.object({
   status: memberStatus.optional(),
 });
 export const teamMemberRemoveSchema = z.object({ team_id: nonEmpty, user_id: nonEmpty });
+export const teamMemberRoleUpdateSchema = z.object({
+  team_id: nonEmpty,
+  user_id: nonEmpty,
+  role: teamRole,
+});
 export const teamMemberListSchema = z.object({ team_id: nonEmpty }).merge(paginationInputSchema);
 export const teamMemberGetSchema = z.object({ team_id: nonEmpty, user_id: nonEmpty });
 export const teamMemberCandidateListSchema = z.object({
@@ -421,7 +426,7 @@ export const internalListUsersByInstanceSchema = z.object({
   user_ids: optionalUserIdsFilter,
 }).merge(paginationInputSchema);
 
-/** 路由 → schema 映射（55 公开接口）。 */
+/** 路由 → schema 映射。 */
 // ── ConfigParam（v3.2）──
 export const instanceQuotaGetSchema = z.object({});
 
@@ -455,6 +460,7 @@ export const V3_SCHEMAS = {
   "/v3/meta/team/list": teamListSchema,
   "/v3/meta/team-member/add": teamMemberAddSchema,
   "/v3/meta/team-member/remove": teamMemberRemoveSchema,
+  "/v3/meta/team-member/role/update": teamMemberRoleUpdateSchema,
   "/v3/meta/team-member/list": teamMemberListSchema,
   "/v3/meta/team-member/get": teamMemberGetSchema,
   "/v3/meta/team-member/candidate/list": teamMemberCandidateListSchema,
