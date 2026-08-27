@@ -91,6 +91,7 @@ docker run -d --name memory-hub \
 | `LLM_MODE` | `proxy` | `proxy`：走 Memory Gateway LLM 转发；`custom`：直连 BYO 端点 |
 | `LLM_MAX_TOKENS` | `32768` | 单次 LLM 调用最大输出 token |
 | `LLM_TIMEOUT_MS` | `1200000` | LLM 调用超时 ms（20 分钟，reasoning 模型需要较长时间） |
+| `LLM_STREAM` | `false` | 仅兼容必须使用流式请求的上游；服务仍等待并返回完整文本 |
 | `LLM_API_KEY` | 空 | 仅 `LLM_MODE=custom` 时必填 |
 | `LLM_BASE_URL` | 空 | 仅 `LLM_MODE=custom` 时必填，如 `https://api.openai.com/v1` |
 
@@ -119,6 +120,7 @@ docker run -d --name memory-hub \
 | `KNOWLEDGE_PORT` | `8424` | KS 服务端口 |
 | `KNOWLEDGE_DATA_DIR` | `/data/knowledge` | KS 数据目录（SQLite、git clone、wiki 文件、日志） |
 | `KNOWLEDGE_DB_PATH` | `/data/knowledge/knowledge.db` | KS SQLite 数据库路径 |
+| `TDAI_AGENT_TEMPLATE_DIR` | `/data/knowledge/agent-templates` | 默认 Agent 模板持久化目录 |
 | `TMC_CALLBACK_URL` | `http://127.0.0.1:8125` | KS ingest 完成回调 Panel 的根地址（容器内自动回环，一般不用改） |
 | `KNOWLEDGE_GIT_ALLOWED_HOSTS` | 空 | 精确放行内网/环回 Git 主机，例如 `10.0.0.5` |
 | `KNOWLEDGE_GIT_AUTH_HOSTS` | 空 | 精确限制 Git token 可发送到的主机；配置 token 时必填 |

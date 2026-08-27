@@ -529,6 +529,29 @@ export function runMetadataStoreContract(
         expect((await store.listAgentFixedAssets(agent.agent_id, P)).items).toHaveLength(0);
       });
 
+      it("listAgentFixedAssets 在分页前按 asset type 过滤", async () => {
+        const owner = await store.createUser(uniqueUserInput());
+        const team = await store.createTeam(teamInput(owner.user_id));
+        const agent = await store.createAgent({ team_id: team.team_id, owner_user_id: owner.user_id, name: "A" });
+        const skill = await store.createAsset({ asset_id: newAssetId("skill"), team_id: team.team_id, asset_type: "skill", name: "S", owner_user_id: owner.user_id, source_type: "manual" });
+        const wiki = await store.createAsset({ asset_id: newAssetId("llm_wiki"), team_id: team.team_id, asset_type: "llm_wiki", name: "W", owner_user_id: owner.user_id, source_type: "manual" });
+        const graph = await store.createAsset({ asset_id: newAssetId("code_graph"), team_id: team.team_id, asset_type: "code_graph", name: "C", owner_user_id: owner.user_id, source_type: "manual" });
+        await store.setAgentFixedAssets(agent.agent_id, [
+          { asset_id: skill.asset_id, asset_type: "skill", created_by: owner.user_id },
+          { asset_id: wiki.asset_id, asset_type: "llm_wiki", created_by: owner.user_id },
+          { asset_id: graph.asset_id, asset_type: "code_graph", created_by: owner.user_id },
+        ]);
+
+        const filtered = await store.listAgentFixedAssets(
+          agent.agent_id,
+          { limit: 1, offset: 0 },
+          { assetTypes: ["llm_wiki", "code_graph"] },
+        );
+        expect(filtered.total).toBe(2);
+        expect(filtered.items).toHaveLength(1);
+        expect([wiki.asset_id, graph.asset_id]).toContain(filtered.items[0]?.asset_id);
+      });
+
       it("summarizeAgentFixedAssetsByAgents 按 type 聚合 + asset_id 过滤", async () => {
         const owner = await store.createUser(uniqueUserInput());
         const team = await store.createTeam(teamInput(owner.user_id));

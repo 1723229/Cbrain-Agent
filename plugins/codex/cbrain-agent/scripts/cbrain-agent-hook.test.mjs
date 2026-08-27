@@ -52,6 +52,15 @@ test("write hooks return before the Gateway response and forward the active cont
   }finally{for(const res of pendingResponses){res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:1}))}await relay.close();server.close();await rm(directory,{recursive:true,force:true})}
 });
 
+test("a short-lived Stop hook delivers the terminal event without a relay daemon",async()=>{
+  const directory=await mkdtemp(join(tmpdir(),"cbrain-hook-terminal-")),config=join(directory,"config.json"),state=join(directory,"state.json"),requests=[];
+  const server=createServer((req,res)=>{let body="";req.on("data",chunk=>body+=chunk);req.on("end",()=>{requests.push({url:req.url,body:JSON.parse(body||"{}")});res.writeHead(202,{"Content-Type":"application/json"});res.end(JSON.stringify({accepted:1}))})});
+  await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));const port=server.address().port;await writeFile(config,JSON.stringify({gatewayUrl:`http://127.0.0.1:${port}`,apiKey:"test"}),"utf8");
+  const key=`codex:short-lived:${directory}`;await writeFile(state,JSON.stringify({[key]:{contextId:"ctx-terminal",prompt:"remember this",turnId:"turn-terminal",updatedAt:Date.now()}}),"utf8");
+  try{const result=await runHook(config,"stop",{session_id:"short-lived",cwd:directory,last_assistant_message:"terminal answer"},{CBRAIN_AGENT_STATE:state,CBRAIN_AGENT_BRIDGE_DIR:join(directory,"missing-relay")});assert.equal(result.code,0);const request=expectRequest(requests,"/v1/hooks/stop");assert.equal(request.body.context_id,"ctx-terminal");assert.equal(request.body.prompt,"remember this");assert.equal(request.body.last_assistant_message,"terminal answer")}
+  finally{server.close();await rm(directory,{recursive:true,force:true})}
+});
+
 test("UserPromptSubmit fails open on timeout and immediately degrades during the circuit window", async () => {
   const directory=await mkdtemp(join(tmpdir(),"hiper-hook-recall-timeout-"));
   const config=join(directory,"config.json"),state=join(directory,"state.json");

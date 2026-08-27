@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { createSocket } from "node:dgram";
 import { chmod, mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { unlinkSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -31,7 +31,7 @@ export async function emitWriteEvent(config,event,options={}){
 
 export async function ensureEventRelay(config,options={}){
   if((await inspectEventRelays(config,options)).matching.length)return true;
-  try{const child=spawn(process.execPath,[relayDaemonScript],{detached:true,windowsHide:true,stdio:"ignore",env:{...process.env,...options.env,CBRAIN_AGENT_BRIDGE_DIR:options.directory||relayDirectory(options.env,options.home)}});child.unref()}catch{return false}
+  try{const child=spawn(process.execPath,[relayDaemonScript],{detached:true,windowsHide:true,stdio:"ignore",cwd:options.cwd||tmpdir(),env:{...process.env,...options.env,CBRAIN_AGENT_BRIDGE_DIR:options.directory||relayDirectory(options.env,options.home)}});child.unref()}catch{return false}
   const deadline=Date.now()+(options.startTimeoutMs??500);while(Date.now()<deadline){await new Promise(resolveWait=>setTimeout(resolveWait,20));if((await inspectEventRelays(config,options)).matching.length)return true}return false;
 }
 

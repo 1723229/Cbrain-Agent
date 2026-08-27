@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import { buildPanelApp } from '../src/panel/http/app.js';
 import type { Logger } from '../src/panel/infra/logger.js';
@@ -37,5 +39,16 @@ describe('task management removal', () => {
 
     expect(response.status).toBe(404);
     expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('keeps task UI and public task meta actions out after the upstream UI sync', async () => {
+    const routes = readFileSync(path.resolve('web/src/routes/index.tsx'), 'utf8');
+    const guide = readFileSync(path.resolve('web/src/pages/GuidePage/index.tsx'), 'utf8');
+    const actions = await import('../src/panel/api/meta-actions.js');
+
+    expect(routes).not.toContain('WorkbenchPage');
+    expect(routes).toContain("path: 'tasks', element: <Navigate to=\"/team/agents\"");
+    expect(guide).not.toMatch(/MemoryProxy|setup-proxy|Team→Agent→Task|OpenCode|OpenClaw|Hermes/);
+    expect([...actions.ALLOWED_PANEL_ACTIONS].some((action) => action.startsWith('task'))).toBe(false);
   });
 });

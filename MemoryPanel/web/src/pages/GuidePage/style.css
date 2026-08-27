@@ -1,0 +1,244 @@
+/* Cbrain Guide：仅服务 Codex / Claude Code 直连插件流程。 */
+.guide-page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 24px 24px 48px;
+  color: var(--tea-color-text-primary);
+}
+.guide-titlebar,
+.guide-code-card header,
+.guide-replay,
+.guide-prepare-row,
+.guide-practice-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.guide-titlebar {
+  align-items: flex-start;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--tea-color-border-primary-default);
+}
+
+.guide-titlebar h1,
+.guide-surface h2,
+.guide-code-card h3,
+.guide-replay h3 {
+  margin: 0;
+}
+
+.guide-titlebar h1 {
+  font-size: 22px;
+  line-height: 30px;
+}
+
+.guide-titlebar p,
+.guide-replay p {
+  margin: 4px 0 0;
+  color: var(--tea-color-text-secondary);
+  line-height: 20px;
+}
+
+.guide-back,
+.guide-key-link,
+.guide-practice-links button {
+  border: 0;
+  background: transparent;
+  color: var(--tea-color-text-link-default);
+  cursor: pointer;
+}
+
+.guide-back {
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.guide-brand {
+  font-weight: 700;
+  color: var(--tea-color-text-brand-default);
+}
+
+.guide-surface,
+.guide-replay {
+  border: 1px solid var(--tea-color-border-primary-default);
+  border-radius: 10px;
+  background: var(--tea-color-bg-primary-default);
+}
+
+.guide-surface {
+  padding: 20px;
+}
+
+.guide-prepare {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border-radius: 8px;
+  background: var(--tea-color-bg-secondary-default);
+}
+
+.guide-prepare-row {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.guide-prepare-row > b {
+  min-width: 80px;
+}
+
+.guide-prepare-value {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--tea-color-bg-primary-default);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.guide-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
+  margin: 0 0 22px;
+  list-style: none;
+}
+
+.guide-command {
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--tea-color-border-primary-default);
+  border-radius: 8px;
+  background: var(--tea-color-bg-primary-default);
+}
+
+.guide-stepper-badge {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--tea-color-bg-brand-default);
+  color: var(--tea-color-text-on-bg-brand-default);
+  font-weight: 600;
+}
+
+.guide-stepper-meta {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.guide-stepper-meta small,
+.guide-run-hint,
+.guide-code-card header p {
+  color: var(--tea-color-text-secondary);
+  line-height: 18px;
+}
+
+.guide-run-hint {
+  margin: 6px 0 12px;
+}
+
+.guide-code-card {
+  overflow: hidden;
+  border: 1px solid var(--tea-color-border-primary-default);
+  border-radius: 8px;
+}
+
+.guide-code-card header {
+  padding: 10px 14px;
+  background: var(--tea-color-bg-secondary-default);
+}
+
+.guide-code-card header p {
+  margin: 2px 0 0;
+}
+
+.guide-code-card pre {
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  font: 12px/1.6 var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.guide-copy,
+.guide-replay-btn {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.guide-copy {
+  border: 1px solid var(--tea-color-border-primary-default);
+  background: var(--tea-color-bg-primary-default);
+  color: var(--tea-color-text-secondary);
+}
+
+.guide-practice-rules {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.guide-practice-rules p {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--tea-color-border-primary-default);
+  border-radius: 8px;
+  color: var(--tea-color-text-secondary);
+  line-height: 19px;
+}
+
+.guide-practice-rules b {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--tea-color-text-primary);
+}
+
+.guide-practice-links {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--tea-color-border-primary-default);
+}
+
+.guide-practice-links button:hover,
+.guide-key-link:hover,
+.guide-back:hover {
+  text-decoration: underline;
+}
+
+.guide-replay {
+  margin-top: 20px;
+  padding: 16px 20px;
+}
+
+.guide-replay-btn {
+  border: 0;
+  background: var(--tea-color-bg-brand-default);
+  color: var(--tea-color-text-on-bg-brand-default);
+}
+
+@media (max-width: 800px) {
+  .guide-stepper,
+  .guide-practice-rules {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-titlebar,
+  .guide-replay {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

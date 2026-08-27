@@ -49,6 +49,24 @@ describe("AgentGatewayService automatic recall", () => {
     const result=await service.renderRecallContext("repository package manager decision");expect(result).not.toContain("irrelevant");expect(result).toContain("compatible item without score");
   });
 
+  it("normalizes Core RRF scores without weakening ordinary similarity thresholds",async()=>{
+    const core=new CoreClient(coreConfig,context);
+    vi.spyOn(core,"searchMemory").mockResolvedValue({items:[
+      {content:"two-path RRF consensus",score:2/61},
+      {content:"one-path RRF candidate",score:1/61},
+      {content:"high similarity",score:0.8},
+      {content:"low similarity",score:0.6},
+    ]});
+    vi.spyOn(core,"readProfile").mockResolvedValue(null);
+    vi.spyOn(core,"listScenes").mockResolvedValue({entries:[]});
+    const service=new AgentGatewayService({core:coreConfig,knowledge:{} as never,recallMinScore:0.75},context,core);
+    const result=await service.renderRecallContext("Lunar Orchid deployment guardrails");
+    expect(result).toContain("two-path RRF consensus");
+    expect(result).toContain("high similarity");
+    expect(result).not.toContain("one-path RRF candidate");
+    expect(result).not.toContain("low similarity");
+  });
+
   it("always renders valid JSON when session context exceeds its budget",async()=>{
     const core=new CoreClient(coreConfig,context);vi.spyOn(core,"agentAndAssets").mockResolvedValue({agent:{prompt:"x".repeat(1000)},items:[]});vi.spyOn(core,"skillListing").mockResolvedValue({content:"y".repeat(1000)});vi.spyOn(core,"listBoundKnowledge").mockResolvedValue(Array.from({length:20},(_,i)=>({knowledge_id:`k${i}`,type:"wiki",name:"z".repeat(100),summary:"s".repeat(200)})) as never);const service=new AgentGatewayService({core:coreConfig,knowledge:{} as never,profileMaxChars:400},context,core);const rendered=await service.renderSessionContext("ctx");const json=rendered.slice(rendered.indexOf("\n")+1,rendered.lastIndexOf("\n"));expect(()=>JSON.parse(json)).not.toThrow();expect(rendered.length).toBeLessThan(550);
   });

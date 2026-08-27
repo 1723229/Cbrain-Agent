@@ -5,22 +5,25 @@
  * team-member/get 门控、统一 envelope。KS 上游错误（CoreUpstreamError/DomainError）
  * 映射为 Control envelope。
  */
-import type { Context } from 'hono';
-import type { PanelDeps } from '../../../panel-deps.js';
-import { toKernelCredentials, type MetaCallContext } from '../../../kernel/types.js';
-import type { MetaEnvelope } from '../../../kernel/envelope.js';
-import { DomainError } from '../../../domain/errors.js';
-import { respondControlError, respondEnvelope } from '../../envelope.js';
+import type { Context } from "hono";
+import type { PanelDeps } from "../../../panel-deps.js";
+import {
+  toKernelCredentials,
+  type MetaCallContext,
+} from "../../../kernel/types.js";
+import type { MetaEnvelope } from "../../../kernel/envelope.js";
+import { DomainError } from "../../../domain/errors.js";
+import { respondControlError, respondEnvelope } from "../../envelope.js";
 
 export function buildCtx(c: Context): MetaCallContext {
-  const panelMeta = c.get('panelMeta');
+  const panelMeta = c.get("panelMeta");
   return {
     instanceId: panelMeta.instanceId,
     gatewayEndpoint: panelMeta.gatewayEndpoint,
     gatewayApiKey: panelMeta.gatewayApiKey,
     userKey: panelMeta.userKey,
     userId: panelMeta.user.user_id,
-    reqId: c.get('reqId'),
+    reqId: c.get("reqId"),
   };
 }
 
@@ -34,17 +37,19 @@ export async function readJson(c: Context): Promise<Record<string, unknown>> {
 
 export function str(body: Record<string, unknown>, key: string): string | null {
   const v = body?.[key];
-  return typeof v === 'string' && v.trim() ? v.trim() : null;
+  return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
 export function strArray(body: Record<string, unknown>, key: string): string[] {
   const v = body?.[key];
   if (!Array.isArray(v)) return [];
-  return v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+  return v.filter(
+    (x): x is string => typeof x === "string" && x.trim().length > 0,
+  );
 }
 
 export function okEnvelope<T>(c: Context, data: T): MetaEnvelope<T> {
-  return { code: 0, message: 'ok', request_id: c.get('reqId') ?? '', data };
+  return { code: 0, message: "ok", request_id: c.get("reqId") ?? "", data };
 }
 
 export function extractListItems<T>(env: MetaEnvelope<unknown>): T[] {
@@ -60,12 +65,19 @@ export async function resolveCallerUserId(
 ): Promise<string | null> {
   if (ctx.userId) return ctx.userId;
   if (!ctx.userKey) return null;
-  const env = await deps.metaKernel.invoke('auth/verify', { user_key: ctx.userKey }, ctx);
+  const env = await deps.metaKernel.invoke(
+    "auth/verify",
+    { user_key: ctx.userKey },
+    ctx,
+  );
   if (env.code !== 0) return null;
-  const data = env.data as { valid?: boolean; user?: { user_id?: string } } | null;
+  const data = env.data as {
+    valid?: boolean;
+    user?: { user_id?: string };
+  } | null;
   if (!data?.valid) return null;
   const uid = data.user?.user_id;
-  return typeof uid === 'string' && uid.length > 0 ? uid : null;
+  return typeof uid === "string" && uid.length > 0 ? uid : null;
 }
 
 /** 校验 user 是否是 team 成员（team-member/get 存在→成员）。异常保守返 false。 */
@@ -77,7 +89,11 @@ export async function isTeamMember(
 ): Promise<boolean> {
   if (!teamId || !userId) return false;
   try {
-    const env = await deps.metaKernel.invoke('team-member/get', { team_id: teamId, user_id: userId }, ctx);
+    const env = await deps.metaKernel.invoke(
+      "team-member/get",
+      { team_id: teamId, user_id: userId },
+      ctx,
+    );
     return env.code === 0 && !!env.data;
   } catch {
     return false;
@@ -95,9 +111,10 @@ export async function requireTeamMember(
   teamId: string,
 ): Promise<{ userId: string } | { error: Response }> {
   const userId = await resolveCallerUserId(deps, ctx);
-  if (!userId) return { error: respondControlError(c, 401, 'INVALID_USER_KEY') };
+  if (!userId)
+    return { error: respondControlError(c, 401, "INVALID_USER_KEY") };
   const member = await isTeamMember(deps, ctx, teamId, userId);
-  if (!member) return { error: respondControlError(c, 403, 'NOT_TEAM_MEMBER') };
+  if (!member) return { error: respondControlError(c, 403, "NOT_TEAM_MEMBER") };
   return { userId };
 }
 
@@ -108,7 +125,8 @@ export async function requireCaller(
   ctx: MetaCallContext,
 ): Promise<{ userId: string } | { error: Response }> {
   const userId = await resolveCallerUserId(deps, ctx);
-  if (!userId) return { error: respondControlError(c, 401, 'INVALID_USER_KEY') };
+  if (!userId)
+    return { error: respondControlError(c, 401, "INVALID_USER_KEY") };
   return { userId };
 }
 
@@ -126,14 +144,14 @@ export async function runKs<T>(
     if (err instanceof DomainError) {
       return respondControlError(c, err.httpStatus, err.message || err.code);
     }
-    return respondControlError(c, 502, 'UPSTREAM_ERROR');
+    return respondControlError(c, 502, "UPSTREAM_ERROR");
   }
 }
 
 // ── meta_asset 生命周期（见设计 §0.6）────────────────────────────
 // asset_id == knowledge_id（wiki_id / cg_id），asset_type 映射如下。
-export const ASSET_TYPE_WIKI = 'llm_wiki';
-export const ASSET_TYPE_CODE_GRAPH = 'code_graph';
+export const ASSET_TYPE_WIKI = "llm_wiki";
+export const ASSET_TYPE_CODE_GRAPH = "code_graph";
 
 /**
  * create 时（ForCaller）幂等登记 meta_asset：asset_id = KS 返回的 knowledge_id。
@@ -153,37 +171,51 @@ export async function ensureKnowledgeAsset(
   },
 ): Promise<{ ok: true } | { ok: false; env: MetaEnvelope<unknown> }> {
   const log = deps.logger;
-  const getEnv = await deps.metaKernel.invoke('asset/get', { asset_id: params.assetId }, ctx);
+  const getEnv = await deps.metaKernel.invoke(
+    "asset/get",
+    { asset_id: params.assetId },
+    ctx,
+  );
   if (getEnv.code === 0 && getEnv.data) {
-    log.info('[ensure-knowledge-asset] already present; idempotent skip', {
-      asset_id: params.assetId, asset_type: params.assetType, team_id: params.teamId,
+    log.info("[ensure-knowledge-asset] already present; idempotent skip", {
+      asset_id: params.assetId,
+      asset_type: params.assetType,
+      team_id: params.teamId,
     });
     return { ok: true }; // 幂等：已存在
   }
-  log.info('[ensure-knowledge-asset] not present; creating', {
-    asset_id: params.assetId, asset_type: params.assetType, team_id: params.teamId, owner: params.ownerUserId,
+  log.info("[ensure-knowledge-asset] not present; creating", {
+    asset_id: params.assetId,
+    asset_type: params.assetType,
+    team_id: params.teamId,
+    owner: params.ownerUserId,
   });
   const createEnv = await deps.metaKernel.invoke(
-    'asset/create',
+    "asset/create",
     {
       asset_id: params.assetId,
       team_id: params.teamId,
       asset_type: params.assetType,
       name: params.name,
       owner_user_id: params.ownerUserId,
-      source_type: 'manual',
-      visibility: 'team',
+      source_type: "manual",
+      visibility: "team",
       content_ref: params.serviceUrl ?? undefined,
     },
     ctx,
   );
   if (createEnv.code !== 0) {
-    log.error('[ensure-knowledge-asset] asset/create rejected', {
-      asset_id: params.assetId, code: createEnv.code, message: createEnv.message,
+    log.error("[ensure-knowledge-asset] asset/create rejected", {
+      asset_id: params.assetId,
+      code: createEnv.code,
+      message: createEnv.message,
     });
     return { ok: false, env: createEnv };
   }
-  log.info('[ensure-knowledge-asset] created', { asset_id: params.assetId, visibility: 'team' });
+  log.info("[ensure-knowledge-asset] created", {
+    asset_id: params.assetId,
+    visibility: "team",
+  });
   return { ok: true };
 }
 
@@ -206,28 +238,35 @@ export async function ensureKnowledgeAssetOwned(
   },
 ): Promise<{ ok: true } | { ok: false; env: MetaEnvelope<unknown> }> {
   const env = await deps.kernelHttp.postEnvelope(
-    '/v3/internal/meta/asset/ensure-owned',
+    "/v3/internal/meta/asset/ensure-owned",
     {
       asset_id: params.assetId,
       team_id: params.teamId,
       asset_type: params.assetType,
       name: params.name,
       owner_user_id: params.ownerUserId,
-      source_type: 'manual',
-      visibility: 'team',
+      source_type: "manual",
+      visibility: "team",
       content_ref: params.serviceUrl ?? undefined,
     },
-    toKernelCredentials(ctx, { timeoutMs: deps.config.metadataRemoteTimeoutMs }, { omitUserKey: true }),
+    toKernelCredentials(
+      ctx,
+      { timeoutMs: deps.config.metadataRemoteTimeoutMs },
+      { omitUserKey: true },
+    ),
   );
   if (env.code !== 0) {
-    deps.logger.error('[ensure-knowledge-asset-owned] internal ensure rejected', {
-      asset_id: params.assetId,
-      code: env.code,
-      message: env.message,
-    });
+    deps.logger.error(
+      "[ensure-knowledge-asset-owned] internal ensure rejected",
+      {
+        asset_id: params.assetId,
+        code: env.code,
+        message: env.message,
+      },
+    );
     return { ok: false, env };
   }
-  deps.logger.info('[ensure-knowledge-asset-owned] present', {
+  deps.logger.info("[ensure-knowledge-asset-owned] present", {
     asset_id: params.assetId,
     asset_type: params.assetType,
     team_id: params.teamId,
@@ -242,8 +281,16 @@ export async function deleteKnowledgeDetail(
   ids: string[],
 ): Promise<void> {
   try {
-    const cred = toKernelCredentials(ctx, { timeoutMs: deps.config.metadataRemoteTimeoutMs }, { omitUserKey: true });
-    await deps.kernelHttp.postEnvelope('/v3/knowledge/delete', { knowledge_ids: ids }, cred);
+    const cred = toKernelCredentials(
+      ctx,
+      { timeoutMs: deps.config.metadataRemoteTimeoutMs },
+      { omitUserKey: true },
+    );
+    await deps.kernelHttp.postEnvelope(
+      "/v3/knowledge/delete",
+      { knowledge_ids: ids },
+      cred,
+    );
   } catch {
     /* best-effort */
   }
@@ -257,7 +304,7 @@ export async function deleteKnowledgeAssets(
   ids: string[],
 ): Promise<void> {
   try {
-    await deps.metaKernel.invoke('asset/delete', { asset_ids: ids }, ctx);
+    await deps.metaKernel.invoke("asset/delete", { asset_ids: ids }, ctx);
   } catch {
     /* best-effort */
   }
@@ -277,7 +324,7 @@ export async function deleteKnowledgeCascade(
 // ── meta list 分页 + 鉴权 + KS join ─────────────────────────────
 
 const META_LIST_PAGE = 100;
-const FILTERED_ASSET_STATUSES = new Set(['archived', 'deprecated', 'failed']);
+const FILTERED_ASSET_STATUSES = new Set(["archived", "deprecated", "failed"]);
 
 export interface KnowledgeAssetMetaRaw {
   asset_id: string;
@@ -292,22 +339,50 @@ export interface KnowledgeAssetMetaRaw {
   updated_at?: string;
 }
 
-/** 分页拉取 meta list / list-accessible 全部 items。 */
+/**
+ * 分页拉取 meta list 全部 items（不限具体 action —— 任何返回 `{items:[], total}` 的
+ * list 接口都可复用，避免单页 DEFAULT_PAGINATION=20 在资产多时被静默截断）。
+ *
+ * 注意：内核 `DEFAULT_PAGINATION = {limit: 20}`，调用方不传 limit 时只会拿到前 20 条；
+ * 任何做「list 全量 → 改 → set 全量替换」语义的接口（如 knowledge/allocate 里的
+ * agent-fixed-asset/list）必须用本工具拿到全量，否则后段老 binding 会被静默覆盖。
+ *
+ * 错误处理：分页中途失败时调用 `onError(env)` 并返回已收集的数据，由调用方决定
+ * 是透传错误还是继续 —— 禁止静默忽略（写路径上会把错误当"空列表"做全量替换，
+ * 造成数据清空）。
+ */
 export async function fetchAllMetaListItems<T>(
   deps: PanelDeps,
   ctx: MetaCallContext,
-  action: 'asset/list' | 'asset/list-accessible',
+  action: string,
   body: Record<string, unknown>,
+  onError?: (env: MetaEnvelope<unknown>) => void,
 ): Promise<T[]> {
   const all: T[] = [];
   let offset = 0;
   for (;;) {
-    const env = await deps.metaKernel.invoke(action, { ...body, limit: META_LIST_PAGE, offset }, ctx);
-    if (env.code !== 0) return all;
+    const env = await deps.metaKernel.invoke(
+      action,
+      { ...body, limit: META_LIST_PAGE, offset },
+      ctx,
+    );
+    if (env.code !== 0) {
+      onError?.(env);
+      return all;
+    }
     const batch = extractListItems<T>(env);
     all.push(...batch);
-    const total = (env.data as { total?: number } | null)?.total ?? all.length;
-    if (all.length >= total || batch.length === 0) break;
+    const total = (env.data as { total?: number } | null)?.total;
+    if (batch.length === 0) {
+      // 空页：已到末尾（无 total 接口的唯一终止信号）。但带过滤语义的接口中间页
+      // 可能整页为空（total 仍是绑定总数），此时继续推进避免漏拉。
+      if (typeof total === "number" && offset + META_LIST_PAGE < total) {
+        offset += META_LIST_PAGE;
+        continue;
+      }
+      break;
+    }
+    if (typeof total === "number" && offset + batch.length >= total) break;
     offset += META_LIST_PAGE;
   }
   return all;
@@ -323,10 +398,10 @@ export async function checkAssetPermission(
   ctx: MetaCallContext,
   userId: string,
   assetId: string,
-  action: 'read' | 'write' | 'use' = 'read',
+  action: "read" | "write" | "use" = "read",
 ): Promise<boolean> {
   const env = await deps.metaKernel.invoke(
-    'acl/check',
+    "acl/check",
     { user_id: userId, asset_id: assetId, action },
     ctx,
   );
@@ -342,7 +417,7 @@ export async function checkAssetReadPermission(
   userId: string,
   assetId: string,
 ): Promise<boolean> {
-  return checkAssetPermission(deps, ctx, userId, assetId, 'read');
+  return checkAssetPermission(deps, ctx, userId, assetId, "read");
 }
 
 /**
@@ -354,19 +429,36 @@ export async function requireKnowledgeRead(
   c: Context,
   ctx: MetaCallContext,
   knowledgeId: string,
-  opts?: { repairMissingCodeGraphAsset?: boolean; action?: 'read' | 'write' | 'use' },
-): Promise<{ userId: string; asset?: KnowledgeAssetMetaRaw } | { error: Response }> {
+  opts?: {
+    repairMissingCodeGraphAsset?: boolean;
+    action?: "read" | "write" | "use";
+  },
+): Promise<
+  { userId: string; asset?: KnowledgeAssetMetaRaw } | { error: Response }
+> {
   const userId = await resolveCallerUserId(deps, ctx);
-  if (!userId) return { error: respondControlError(c, 401, 'INVALID_USER_KEY') };
-  const action = opts?.action ?? 'read';
+  if (!userId)
+    return { error: respondControlError(c, 401, "INVALID_USER_KEY") };
+  const action = opts?.action ?? "read";
 
-  const assetEnv = await deps.metaKernel.invoke('asset/get', { asset_id: knowledgeId }, ctx);
+  const assetEnv = await deps.metaKernel.invoke(
+    "asset/get",
+    { asset_id: knowledgeId },
+    ctx,
+  );
   if (assetEnv.code === 0 && assetEnv.data) {
     const asset = assetEnv.data as KnowledgeAssetMetaRaw;
-    const allowed = await checkAssetPermission(deps, ctx, userId, knowledgeId, action);
-    if (!allowed) return { error: respondControlError(c, 403, 'FORBIDDEN') };
+    const allowed = await checkAssetPermission(
+      deps,
+      ctx,
+      userId,
+      knowledgeId,
+      action,
+    );
+    if (!allowed) return { error: respondControlError(c, 403, "FORBIDDEN") };
     const member = await isTeamMember(deps, ctx, asset.team_id, userId);
-    if (!member) return { error: respondControlError(c, 403, 'NOT_TEAM_MEMBER') };
+    if (!member)
+      return { error: respondControlError(c, 403, "NOT_TEAM_MEMBER") };
     return { userId, asset };
   }
 
@@ -377,14 +469,21 @@ export async function requireKnowledgeRead(
       detail = await kc.codeGraphGet(knowledgeId);
     } catch (err) {
       if (err instanceof DomainError) {
-        return { error: respondControlError(c, err.httpStatus, err.message || err.code) };
+        return {
+          error: respondControlError(
+            c,
+            err.httpStatus,
+            err.message || err.code,
+          ),
+        };
       }
-      return { error: respondControlError(c, 502, 'UPSTREAM_ERROR') };
+      return { error: respondControlError(c, 502, "UPSTREAM_ERROR") };
     }
     const member = await isTeamMember(deps, ctx, detail.team_id, userId);
-    if (!member) return { error: respondControlError(c, 403, 'NOT_TEAM_MEMBER') };
+    if (!member)
+      return { error: respondControlError(c, 403, "NOT_TEAM_MEMBER") };
     if (!detail.owner_user_id) {
-      return { error: respondControlError(c, 404, 'KNOWLEDGE_OWNER_MISSING') };
+      return { error: respondControlError(c, 404, "KNOWLEDGE_OWNER_MISSING") };
     }
     try {
       const repaired = await ensureKnowledgeAssetOwned(deps, ctx, {
@@ -396,15 +495,21 @@ export async function requireKnowledgeRead(
         serviceUrl: detail.service_url,
       });
       if (!repaired.ok) return { error: respondEnvelope(c, repaired.env) };
-      const allowed = await checkAssetPermission(deps, ctx, userId, knowledgeId, action);
-      if (!allowed) return { error: respondControlError(c, 403, 'FORBIDDEN') };
+      const allowed = await checkAssetPermission(
+        deps,
+        ctx,
+        userId,
+        knowledgeId,
+        action,
+      );
+      if (!allowed) return { error: respondControlError(c, 403, "FORBIDDEN") };
       return { userId };
     } catch {
-      return { error: respondControlError(c, 502, 'UPSTREAM_ERROR') };
+      return { error: respondControlError(c, 502, "UPSTREAM_ERROR") };
     }
   }
 
-  return { error: respondControlError(c, 404, 'KNOWLEDGE_NOT_FOUND') };
+  return { error: respondControlError(c, 404, "KNOWLEDGE_NOT_FOUND") };
 }
 
 export interface KnowledgeAssetListItem {
@@ -433,7 +538,7 @@ export interface KnowledgeAssetListItem {
 }
 
 async function joinWikiKs(
-  kc: ReturnType<PanelDeps['knowledgeClientFactory']>,
+  kc: ReturnType<PanelDeps["knowledgeClientFactory"]>,
   meta: KnowledgeAssetMetaRaw,
 ): Promise<KnowledgeAssetListItem> {
   const base: KnowledgeAssetListItem = {
@@ -444,7 +549,7 @@ async function joinWikiKs(
     visibility: meta.visibility,
     owner_user_id: meta.owner_user_id,
     meta_status: meta.status,
-    status: 'missing',
+    status: "missing",
     ks_missing: true,
     created_at: meta.created_at,
     updated_at: meta.updated_at,
@@ -470,7 +575,7 @@ async function joinWikiKs(
 }
 
 async function joinCodeKs(
-  kc: ReturnType<PanelDeps['knowledgeClientFactory']>,
+  kc: ReturnType<PanelDeps["knowledgeClientFactory"]>,
   meta: KnowledgeAssetMetaRaw,
 ): Promise<KnowledgeAssetListItem> {
   const base: KnowledgeAssetListItem = {
@@ -481,7 +586,7 @@ async function joinCodeKs(
     visibility: meta.visibility,
     owner_user_id: meta.owner_user_id,
     meta_status: meta.status,
-    status: 'missing',
+    status: "missing",
     ks_missing: true,
     created_at: meta.created_at,
     updated_at: meta.updated_at,
@@ -521,16 +626,16 @@ export async function joinKnowledgeAssetsWithKs(
   const settled = await Promise.allSettled(assets.map((a) => joiner(kc, a)));
   return settled.map((r, i) => {
     const meta = assets[i];
-    if (r.status === 'fulfilled') return r.value;
+    if (r.status === "fulfilled") return r.value;
     if (!meta) {
       return {
-        knowledge_id: '',
+        knowledge_id: "",
         asset_type: assetType,
-        name: '',
-        visibility: 'team',
-        owner_user_id: '',
-        meta_status: 'unknown',
-        status: 'missing',
+        name: "",
+        visibility: "team",
+        owner_user_id: "",
+        meta_status: "unknown",
+        status: "missing",
         ks_missing: true,
       };
     }
@@ -541,7 +646,7 @@ export async function joinKnowledgeAssetsWithKs(
       visibility: meta.visibility,
       owner_user_id: meta.owner_user_id,
       meta_status: meta.status,
-      status: 'missing',
+      status: "missing",
       ks_missing: true,
     };
   });
@@ -551,7 +656,7 @@ export async function joinKnowledgeAssetsWithKs(
 
 /** 从 KS 侧查列表，构造 meta 未注册的 KnowledgeAssetListItem。 */
 async function fetchKsOnlyItems(
-  kc: ReturnType<PanelDeps['knowledgeClientFactory']>,
+  kc: ReturnType<PanelDeps["knowledgeClientFactory"]>,
   teamId: string,
   assetType: typeof ASSET_TYPE_WIKI | typeof ASSET_TYPE_CODE_GRAPH,
 ): Promise<KnowledgeAssetListItem[]> {
@@ -563,9 +668,9 @@ async function fetchKsOnlyItems(
         asset_type: ASSET_TYPE_WIKI,
         name: ks.name,
         description: null,
-        visibility: 'team',
-        owner_user_id: ks.owner_user_id ?? '',
-        meta_status: 'unregistered',
+        visibility: "team",
+        owner_user_id: ks.owner_user_id ?? "",
+        meta_status: "unregistered",
         status: ks.status,
         team_id: ks.team_id,
         internal_status: ks.internal_status ?? null,
@@ -584,9 +689,9 @@ async function fetchKsOnlyItems(
       asset_type: ASSET_TYPE_CODE_GRAPH,
       name: ks.repo_name || ks.repo_url || ks.code_graph_id,
       description: null,
-      visibility: 'team',
-      owner_user_id: ks.owner_user_id ?? '',
-      meta_status: 'unregistered',
+      visibility: "team",
+      owner_user_id: ks.owner_user_id ?? "",
+      meta_status: "unregistered",
       status: ks.status,
       team_id: ks.team_id,
       sync_error: ks.sync_error,

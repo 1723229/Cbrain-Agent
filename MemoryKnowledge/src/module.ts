@@ -194,6 +194,7 @@ export function createKnowledgeModule(config: KnowledgeModuleConfig): KnowledgeM
         customEndpoint: effectiveLlm.baseUrl,
         maxContextSize: effectiveLlm.maxTokens,
         timeoutMs: effectiveLlm.timeoutMs,
+        stream: effectiveLlm.stream ?? false,
       },
       { onProgress, globalLlmLimit },
     );

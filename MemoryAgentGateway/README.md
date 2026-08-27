@@ -85,6 +85,11 @@ CBRAIN_CAPTURE_CONCURRENCY=4
 CBRAIN_CAPTURE_MAX_ATTEMPTS=8
 ```
 
+`CBRAIN_RECALL_MIN_SCORE` is a normalized 0..1 confidence threshold. Core
+SQLite hybrid-search RRF scores are normalized to the same scale before this
+filter is applied; embedding/native similarity scores keep their original
+scale.
+
 Each prompt fetches L1, L2, and L3 in parallel. A slow layer degrades independently
 at the recall timeout. L2/L3 are injected only when L1 establishes that memory is
 relevant to the current query, preventing stable context from polluting small talk.

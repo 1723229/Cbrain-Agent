@@ -43,9 +43,9 @@ describe("team member candidates", () => {
       owner_user_id: alice.user_id,
       status: "active",
     });
-    expect(aliceAgents.items).toMatchObject([
-      { name: "default-agent-alice", owner_user_id: alice.user_id, team_id: team.team_id },
-    ]);
+    // Core 只维护成员关系；默认 Agent、模板资产和公共 Skill 由 Panel 的
+    // default-agent-orchestrator 在 team/create / team-member/add 成功后编排。
+    expect(aliceAgents.items).toEqual([]);
 
     const all = await service.listTeamMemberCandidatesForCaller(team.team_id, undefined, ownerContext);
     expect(all.items.map((item) => item.username)).toEqual(["Carol_Dev"]);

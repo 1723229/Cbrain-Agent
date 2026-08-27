@@ -40,6 +40,8 @@ llm:
   model: "deepseek-v3.2"
   maxTokens: 32000
   timeoutMs: 300000
+  # 个别 OpenAI 兼容上游只接受流式协议时开启；也可用 TDAI_LLM_STREAM=true 覆盖。
+  stream: false
 
 # ── Memory 引擎配置 ──
 memory:

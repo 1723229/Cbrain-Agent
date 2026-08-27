@@ -30,7 +30,11 @@ export { authSessionApi, environmentBindingsApi, type EnvironmentBinding } from 
 export { teamsApi, membersApi, type MemberCandidate } from './api/teams';
 
 // ── Agents ──
-export { agentsApi } from './api/agents';
+export {
+  agentsApi,
+  type AgentTemplateConfig,
+  type AgentTemplateAssetIds,
+} from './api/agents';
 
 // ── Users + UserKeys + UserConfig ──
 export {

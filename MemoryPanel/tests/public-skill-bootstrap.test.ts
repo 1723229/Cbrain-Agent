@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { enqueuePublicSkillsForAgent } from '../src/panel/http/routes/meta/proxy.js';
+import { enqueuePublicSkillsForAgent } from '../src/panel/services/default-agent-orchestrator.js';
 import type { PanelDeps } from '../src/panel/panel-deps.js';
 import { buildPanelApp } from '../src/panel/http/app.js';
 import { InstanceRegistry } from '../src/panel/config/instance-registry.js';

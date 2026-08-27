@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isApiKeyExpiryDateDisabled } from '../web/src/pages/team/ApiKeysPage/components/api-key-expiry.js';
+import { isApiKeyExpiryDateDisabled } from '../web/src/pages/ApiKeysPage/components/api-key-expiry.js';
 
 describe('API Key expiry date', () => {
   const now = new Date(2026, 7, 20, 14, 0, 0);

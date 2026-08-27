@@ -5,7 +5,7 @@ import {
   partitionWikiUploadFiles,
   utf8ByteLength,
   WIKI_UPLOAD_MAX_FILE_BYTES,
-} from '../web/src/pages/wiki/WikiPage/components/wiki-constants.js';
+} from '../web/src/pages/WikiPage/constants/wiki-constants.js';
 
 describe('Wiki upload limits', () => {
   it('defaults to a 10 MiB file and a bounded 50 MiB request', () => {

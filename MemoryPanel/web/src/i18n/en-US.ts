@@ -5,6 +5,7 @@ export const enUS = {
   'app.checkingSession': 'Checking session…',
 
   // ===== Menu / Navigation =====
+  'menu.workbench_board': 'Task Board',
   'menu.wiki': 'Wiki Knowledge Base',
   'menu.code': 'Code_Graph',
   'menu.skills': 'Skills',
@@ -12,8 +13,10 @@ export const enUS = {
   'menu.team_members': 'Members',
   'menu.team_agents': 'Agents',
   'menu.api_keys': 'API Key',
+  'menu.group.workbench': 'Workbench',
   'menu.group.organization': 'Organization',
   'menu.group.assets': 'Asset Management',
+  'menu.desc.workbench_board': 'Task list / create / detail',
   'menu.desc.wiki': 'Sources / graph / pages / search',
   'menu.desc.code': 'Repos / index / search / explore',
   'menu.desc.skills': 'All / team pool / agent assets',
@@ -23,6 +26,7 @@ export const enUS = {
   'menu.desc.api_keys': 'Manage your API keys for external clients',
 
   // ===== GlobalHeader =====
+  'header.guide': 'Guide',
   'header.sync': 'Live Sync',
   'header.sync.title': 'Real-time sync is connected',
   'header.settings': 'Settings',
@@ -57,29 +61,31 @@ export const enUS = {
   'teamSwitcher.cancel': 'Cancel',
   'teamSwitcher.create': 'Create',
   'teamSwitcher.newTeam': 'New Team',
+  'teamSwitcher.edit.tooltip': 'Edit the current team name / description (owner / admin only)',
+  'teamSwitcher.delete.tooltip':
+    'Delete the current Team (owner / admin only; cascades to members, Agents, and assets)',
+  'teamSwitcher.delete.confirm': 'Delete team "{{name}}"?',
+  'teamSwitcher.delete.desc':
+    'This cascades to {{members}} members, {{agents}} Agents, and all assets under the Team. This cannot be undone.',
 
   // ===== LoginGate =====
   'login.welcome': 'Welcome Back',
   'login.subtitle': 'Select an instance and sign in with your LDAP account.',
   'login.tagline': 'Centrally manage Agent memory, skills, and knowledge assets',
+  'login.field.instance': 'Memory Instance',
+  'login.field.userKey': 'User Key',
+  'login.footer': 'Cbrain · Agent Memory and Knowledge Hub',
   'login.placeholder.instance': 'Loading memory instances…',
   'login.placeholder.instanceError': 'Load failed, please refresh and retry',
   'login.placeholder.userKey': 'user_key, e.g. sk-mem-xxxxxxxxxxxxxxxx',
   'login.hint.userKey':
     "Use the user_key assigned by your admin. If you don't have one, contact your team admin.",
-  'login.placeholder.username': 'LDAP username',
-  'login.placeholder.password': 'LDAP password',
-  'login.placeholder.adminApiKey': 'System administrator API key (sk-mem-…)',
-  'login.useAdminApiKey': 'Administrator API key recovery login',
-  'login.useLdap': 'Back to LDAP login',
   'login.submit': 'Log In',
   'login.submitting': 'Logging in…',
   'login.error.loadInstances':
     'Failed to load memory instance list. Please refresh and retry.{{detail}}',
   'login.error.selectInstance': 'Please select a memory instance.',
   'login.error.emptyKey': 'Please enter your user_key (sk-mem-…).',
-  'login.error.emptyCredentials': 'Enter your LDAP username and password.',
-  'login.error.emptyAdminApiKey': 'Enter a system administrator API key.',
   'login.error.invalidKey': 'The user_key is invalid or revoked. Please verify and re-enter.',
   'login.error.noUser':
     'Login response is missing user info (data.user is null). Please contact backend to verify the auth/verify contract.',
@@ -88,7 +94,7 @@ export const enUS = {
   'settings.caption': 'Settings · Permissions',
   'settings.title': 'Resource Module Toggles',
   'settings.desc':
-    'Toggles are saved for the current user. When disabled, the proxy will not inject the corresponding capability for that user. Changes take effect immediately for new sessions.',
+    'Toggles are saved for the current user. When disabled, Cbrain Gateway stops exposing that capability for the user. Changes take effect for new sessions.',
   'settings.loadingConfig': 'Loading current user resource configuration…',
   'settings.tag.saving': 'Saving',
   'settings.tag.enabled': 'Enabled',
@@ -131,6 +137,70 @@ export const enUS = {
   'common.copied': 'Copied',
   'common.agent': 'Agent',
   'common.team': 'Team',
+  'common.task': 'Task',
+
+  // ===== Workbench / TaskWorkbench =====
+  'task.list.title': 'Task List',
+  'task.list.count': '{{count}} tasks',
+  'task.list.subtitle': 'Click a card to view details and manage settings in the drawer',
+  'task.create': 'New Task',
+  'task.empty': 'No tasks yet. Click "New Task" above to create one.',
+  'task.emptyTeam.title': 'No Team Available',
+  'task.emptyTeam.desc':
+    'Please create a team in Team Management first, then come back to create tasks.',
+  'task.detail.empty': 'Select a task on the left, or click "New Task" to start.',
+  'task.status.running': 'In Progress',
+  'task.status.completed': 'Completed',
+  'task.delete.title': 'Delete Task',
+  'task.delete.confirm': 'Delete task "{{title}}"?',
+  'task.delete.description': 'Task ID: {{id}}',
+  'task.delete.okText': 'Delete',
+  'task.delete.cancelText': 'Cancel',
+  'task.delete.noPermission':
+    'You are not the creator of task "{{title}}" nor a team admin. Cannot delete. Creator: {{creator}}',
+  'task.edit': 'Edit',
+  'task.edit.tooltip': 'Edit task details (title, description)',
+  'task.save': 'Save',
+  'task.titlePlaceholder': 'Task title',
+  'task.taskId': 'task_id: ',
+  'task.team': 'team: ',
+  'task.deleted': 'deleted',
+  'task.statusSwitch.tooltip.canEdit': 'Toggle task status (you will be added as a participant)',
+  'task.statusSwitch.tooltip.cannotEdit': 'Only team members can toggle task status',
+  'task.creator': 'Creator',
+  'task.creator.tooltip':
+    'Creator (default = team admin). Only creator or team admin can delete this task',
+  'task.participantUsers': 'Participant Users',
+  'task.participantUsers.tooltip':
+    'Participants: users who have started a session via proxy (including the creator)',
+  'task.sessionAgents': 'Session Agents',
+  'task.sessionAgents.tooltip':
+    'Agents observed starting sessions on the proxy side · agent_id={{id}}',
+  'task.description': 'Description',
+  'task.descriptionPlaceholder': 'Include background, goals, acceptance criteria…',
+  'task.footer': 'Created: {{created}} · Updated: {{updated}}',
+  'task.noPermissionEdit': 'You are not a member of this team. Cannot modify this task.',
+  'task.titleRequired': 'Task title cannot be empty.',
+  'task.participants.empty': 'No active participants',
+  'task.participants.tooltip': 'Active participants:\n{{users}}',
+  'task.agents.empty': 'No active agents',
+  'task.agents.tooltip': 'Active agents:\n{{agents}}',
+  'task.peopleCount': '{{count}} people',
+  'task.agentCount': '{{count}} Agents',
+
+  // ===== TaskCreateDialog =====
+  'taskCreate.caption': 'New Task',
+  'taskCreate.team': 'Team',
+  'taskCreate.teamLabel': 'Will create in team',
+  'taskCreate.title': 'Title',
+  'taskCreate.titlePlaceholder': 'e.g. Fix #142 macOS 14 startup failure',
+  'taskCreate.description': 'Description',
+  'taskCreate.descriptionExtra': 'Linked Agents can be added after creation',
+  'taskCreate.descriptionPlaceholder':
+    'Include background, goals, acceptance criteria. The more specific, the better for agent context.',
+  'taskCreate.submit': 'Create Task',
+  'taskCreate.cancel': 'Cancel',
+
   // ===== AdminResourceLock =====
   'adminLock.title': 'Resource Management is Not Available for Admins',
   'adminLock.desc':
@@ -200,7 +270,7 @@ export const enUS = {
   'wiki.detail.addDoc.hint': 'Choose a method to import documents',
   'wiki.detail.addDoc.file': 'Upload Files',
   'wiki.detail.addDoc.markdown': 'Markdown',
-  'wiki.detail.dropzone': 'Drag or click to select Markdown files (multi-select, 10 MiB per file)',
+  'wiki.detail.dropzone': 'Drag or click to select Markdown files (multi-select supported)',
   'wiki.detail.upload.footer': '{{count}} files pending upload',
   'wiki.detail.upload.submitting': 'Uploading…',
   'wiki.detail.upload.confirm': 'Confirm Upload',
@@ -222,7 +292,6 @@ export const enUS = {
   'wiki.detail.upload.partialFail': '{{ok}} succeeded, {{fail}} failed:\n{{detail}}',
   'wiki.detail.upload.more': '\n…and {{count}} more',
   'wiki.detail.upload.fail': '{{ok}} succeeded, {{fail}} failed',
-  'wiki.detail.upload.tooLarge': 'Ignored {{count}} files larger than {{size}} MiB',
   'wiki.detail.tab.overview': 'Overview',
   'wiki.detail.tab.graph': 'Graph',
   'wiki.detail.tab.pages': 'Pages',
@@ -343,15 +412,15 @@ export const enUS = {
   'code.register.caption': 'Register Repository',
   'code.register.gitUrl': 'Git URL',
   'code.register.gitUrlExtra':
-    'GitLab, GitHub, and other HTTP(S) Git URLs are supported. After registration, the service automatically clones the repository and builds a code index. Internal repositories require an allowed host configured on the service.',
+    'After registration, it will automatically clone and build a code index.',
   'code.register.gitUrlPlaceholder': 'https://gitlab.example.com/namespace/repo.git',
   'code.register.branch': 'Branch',
   'code.register.sshWarning':
-    'SSH format repository URLs are not supported in this version. Please use HTTP or HTTPS format (e.g. http://10.0.0.5/group/repo.git).',
+    'SSH format repository URLs are not supported in this version. Please use HTTPS format (e.g. https://gitlab.example.com/namespace/repo.git).',
   'code.register.urlError':
     'Please enter a valid HTTP(S) Git repository URL ending with .git (e.g. https://gitlab.example.com/namespace/repo.git). No spaces allowed.',
   'code.register.invalidUrl':
-    'Please enter a valid HTTP(S) Git repository URL ending with .git (e.g. http://10.0.0.5/group/repo.git). No spaces allowed.',
+    'Please enter a valid HTTPS Git repository URL ending with .git (e.g. https://gitlab.example.com/namespace/repo.git). No spaces allowed.',
   'code.register.submitting': 'Registering…',
   'code.register.submit': 'Register',
   'code.confirm.delete': 'Are you sure you want to delete repo "{{name}} ({{branch}}"?',
@@ -377,8 +446,6 @@ export const enUS = {
   'skills.title': 'Skill Asset Management',
   'skills.scope.team': 'Team Assets',
   'skills.scope.fixed': 'Agent Assets',
-  'skills.scope.public': 'Public Skills',
-  'skills.subtitle.public': 'Instance-wide public Skill repository · automatically installed for new Agents',
   'skills.scope.personal': 'My Assets',
   'skills.empty.fixed.noAgent': 'Please select an agent.',
   'skills.empty.fixed.hasAgent':
@@ -732,14 +799,18 @@ export const enUS = {
   'team.loading': 'Loading…',
   'team.empty.hint': 'Please select a team in the top right, or create a new team to get started.',
   'team.createTeam': 'New Team',
+  'team.editTeam': 'Edit Team',
+  'team.editTeam.tooltip': 'Edit the current team name / description (owner or admin only)',
   'team.deleteTeam': 'Delete Current Team',
-  'team.deleteTeam.tooltip': 'Team deletion is not yet stably supported on the backend',
-  'team.deleteTeam.notify':
-    'Team deletion is not yet stably supported on the backend. Please contact your admin.',
+  'team.deleteTeam.tooltip':
+    'Delete the current Team and all its members, Agents, and assets (owner or admin only)',
+  'team.deleteTeam.confirm': 'Delete team "{{name}}"?',
+  'team.deleteTeam.desc':
+    'This cascades to {{members}} members, {{agents}} agents, and all tasks and assets under the team. This cannot be undone.',
   'team.memberCount': '{{count}} members',
   'team.emptyTeam.title': "You Don't Belong to Any Team Yet",
   'team.emptyTeam.desc':
-    'Teams are the primary boundary for assets, agents, and tasks. Create a team to get started, or ask an existing team admin to add you.',
+    'Teams isolate Agents, memory, and knowledge assets. Create a Team or ask an existing Team administrator to add you.',
   'team.emptyTeam.cta': 'Create Your First Team',
   'team.emptyTeam.contactAdmin':
     "You haven't been added to any team yet. Please contact an instance admin to add you to a team, or have an admin create a team for you.",
@@ -755,11 +826,20 @@ export const enUS = {
   'createTeam.caption': 'Create Team',
   'createTeam.name': 'Name',
   'createTeam.name.extra': 'Teams are the primary boundary for assets, agents, and tasks.',
-  'createTeam.name.placeholder': 'e.g. Cbrain · backend team',
+  'createTeam.name.placeholder': 'e.g. tdai-memory · backend team',
   'createTeam.desc': 'Description',
   'createTeam.desc.placeholder': 'Briefly describe the team scope and goals',
   'createTeam.submit': 'Create',
   'createTeam.cancel': 'Cancel',
+
+  // ===== EditTeamDialog =====
+  'editTeam.caption': 'Edit Team · {{name}}',
+  'editTeam.name': 'Name',
+  'editTeam.name.placeholder': 'e.g. tdai-memory · backend team',
+  'editTeam.desc': 'Description',
+  'editTeam.desc.placeholder': 'Briefly describe the team scope and goals',
+  'editTeam.submit': 'Save',
+  'editTeam.cancel': 'Cancel',
 
   // ===== CreateAgentDialog =====
   'createAgent.caption': 'Create Agent',
@@ -866,12 +946,35 @@ export const enUS = {
   'agentGrid.table.delete': 'Delete',
   'agentGrid.owner.you': ' (you)',
 
+  // ===== DefaultAgentTemplate (admin only) =====
+  'defaultAgent.title': 'Default Agent Template',
+  'defaultAgent.desc':
+    'When a new member joins the team, their dedicated default Agent is auto-created from this template. Only team-public assets (visibility=team) can be selected; changes apply to members joining later.',
+  'defaultAgent.empty': 'Not configured yet · Configure to auto-create a default Agent for new members',
+  'defaultAgent.create': 'New Default Agent',
+  'defaultAgent.create.tooltip': 'Configure the default Agent template for the current team',
+  'defaultAgent.create.caption': 'New Default Agent Template',
+  'defaultAgent.create.desc':
+    'Configure the default Agent template for the current team: new members get a dedicated Agent auto-created from this template when they join.',
+  'defaultAgent.create.submit': 'Create',
+  'defaultAgent.edit': 'Edit Config',
+  'defaultAgent.edit.tooltip': 'Edit the default Agent template for the current team',
+  'defaultAgent.edit.caption': 'Edit Default Agent Template',
+  'defaultAgent.edit.desc':
+    'Overwrite the current team\u2019s default Agent template. Only affects members joining later; existing Agents are unaffected.',
+  'defaultAgent.save': 'Save Config',
+  'defaultAgent.name': 'Default Agent name *',
+  'defaultAgent.name.hint': 'New members get their dedicated default Agent created with this name.',
+  'defaultAgent.assets.label': 'Team-public assets: ',
+  'defaultAgent.assets.hint': 'Only team-public assets (visibility=team) are selectable',
+  'defaultAgent.notify.saved': 'Default Agent template saved.',
+
   // ===== MemberSection =====
   'member.title': 'Members ({{count}})',
   'member.subtitle':
-    'Members of "{{name}}". Admins manage team assets, and members use authorized assets · Click cards for details',
+    'Human members of "{{name}}". Administrators manage membership and Team settings; members create Agents and use assets.',
   'member.add': 'Add Member',
-  'member.add.tooltip': 'Select an existing user to join the team',
+  'member.add.tooltip': 'Invite a member by user_id',
   'member.remove.confirm': 'Remove member {{userId}}?',
   'member.remove.desc':
     'This only removes the user from the current team. The user account will not be deleted.',
@@ -887,13 +990,10 @@ export const enUS = {
   'addMember.mode.existing': 'Add Existing User',
   'addMember.mode.new': 'Create New User & Add to Team',
   'addMember.mode.hint':
-    'Select an existing platform user to join the team. Creating new users requires global admin permission.',
-  'addMember.user': 'Select user',
-  'addMember.user.placeholder': 'Select a user',
-  'addMember.user.searchPlaceholder': 'Search name, username, or user ID',
-  'addMember.user.hint': 'Only active users who have not joined this team are shown.',
-  'addMember.user.loading': 'Loading users…',
-  'addMember.user.empty': 'No matching users available',
+    'Add existing user (invite by user_id). Creating new user accounts requires global admin permission.',
+  'addMember.userId': 'user_id *',
+  'addMember.userId.placeholder': 'e.g. usr-xxxxxxxxxxxx',
+  'addMember.userId.hint': 'Ask the person to copy it from "My Profile"',
   'addMember.username': 'Username',
   'addMember.username.placeholder': 'e.g. alice',
   'addMember.username.invalid':
@@ -905,7 +1005,7 @@ export const enUS = {
   'addMember.existing.submit': 'Add',
   'addMember.new.submit': 'Create & Add',
   'addMember.cancel': 'Cancel',
-  'addMember.error.emptyId': 'Please select a user.',
+  'addMember.error.emptyId': 'Please enter the user_id.',
   'addMember.error.self': 'Cannot add yourself. To change your role, ask another team admin.',
   'addMember.error.emptyName': 'Please enter a username.',
   'addMember.error.invalidName':
@@ -958,14 +1058,12 @@ export const enUS = {
 
   // ===== ApiKeyPanel =====
   'apiKey.title': 'User_Key Management',
-  'apiKey.desc':
-    'Manage your User Keys for Codex / Claude Code Plugin access to Cbrain.',
+  'apiKey.desc': 'Manage Cbrain API Keys used by Codex / Claude Code Plugin.',
   'apiKey.create': 'New Key',
   'apiKey.fresh.desc':
     'Here is the full Key for {{keyId}} (shown only once. Please copy and save it securely immediately. You will not be able to view it again after closing):',
   'apiKey.table.keyId': 'Key ID',
   'apiKey.table.keyPrefix': 'Key Prefix',
-  'apiKey.table.keyValue': 'API Key',
   'apiKey.table.createdAt': 'Created At',
   'apiKey.table.expiresAt': 'Expires At',
   'apiKey.table.actions': 'Actions',
@@ -978,18 +1076,10 @@ export const enUS = {
   'apiKey.confirm.revoke.ok': 'Revoke',
   'apiKey.empty.title': "You don't have any User Keys yet",
   'apiKey.empty.desc': 'Click "New Key" in the top right to create your first key',
+  'apiKey.endpoint.title': 'Client Access Endpoint',
+  'apiKey.endpoint.current': 'Current instance: ',
+  'apiKey.endpoint.loading': 'Loading access endpoint…',
   'apiKey.endpoint.copy': 'Copy',
-  'apiKey.plugin.title': 'Codex / Claude Code Access',
-  'apiKey.plugin.desc': 'The installer package includes the Codex / Claude Code plugins and does not access GitHub or SSH. Install and update preserve older versions, configuration, bindings, and server data; restart the client afterward. Uninstall happens only when its command is explicitly run and still preserves Cbrain configuration and server data.',
-  'apiKey.plugin.flow.title': 'Workflow',
-  'apiKey.plugin.flow.install.title': 'First install',
-  'apiKey.plugin.flow.install.desc': 'Create a valid API Key on this page, copy the install/update command, and paste the API Key. The self-contained package does not access GitHub; it verifies the account, installs the plugin, and saves the connection. Restart the client afterward.',
-  'apiKey.plugin.flow.update.title': 'Update plugin',
-  'apiKey.plugin.flow.update.desc': 'Run the same install/update command again. The installer backs up the previous cache and Codex configuration, switches to the new version, and restores older versions without manual cleanup; restart the client afterward.',
-  'apiKey.plugin.flow.uninstall.title': 'Uninstall plugin',
-  'apiKey.plugin.flow.uninstall.desc': 'Only the explicit uninstall command removes the client plugin. Cbrain API Key configuration, update backups, workspace bindings, and server-side data are preserved.',
-  'apiKey.plugin.installOrUpdate': 'Install/Update',
-  'apiKey.plugin.uninstall': 'Uninstall',
   'apiKey.create.caption': 'New User_Key',
   'apiKey.create.expiresAt': 'Expires At',
   'apiKey.create.expiresAt.extra': 'Leave empty for never expires',
@@ -1120,6 +1210,7 @@ export const enUS = {
   // ===== backend store =====
   'backend.loadTeamsFailed': 'Failed to load team list',
   'backend.loadAgentsFailed': 'Failed to load Agent list',
+  'backend.loadTasksFailed': 'Failed to load task list',
 
   // ===== API error messages (error-message.ts) =====
   'error.UNAUTHORIZED': 'Your session has expired. Please log in again.',
@@ -1226,7 +1317,7 @@ export const enUS = {
   // Member: key management
   'onboarding.guide.apikey.title': 'Manage your User_Keys',
   'onboarding.guide.apikey.desc':
-    'Create keys in "User_Key management" for Codex / Claude Code Plugin access to Cbrain. The plaintext key is shown only once — copy and store it safely.',
+    'Create a credential for Codex / Claude Code Plugin on the API Key page and copy its one-command installer.',
   // Create and allocate assets (same for Admin and Member; each asset page is visited.
   // Each description follows "what it is → how to import → how to use" for first-time users)
   'onboarding.guide.asset.wiki.title': 'Wiki: team document assets',
@@ -1234,11 +1325,73 @@ export const enUS = {
     'What: a knowledge base for shared team documents. Import: click "Create Wiki" → open it and upload Markdown files (.md/.txt, multi-select & drag-drop supported) → trigger "Extract" to build searchable knowledge pages. Use: click "Allocate to Agent" on a Wiki card, or tick it in the Agent edit dialog — bound Agents can then retrieve and cite these documents in chat.',
   'onboarding.guide.asset.code.title': 'CodeGraph: team code assets',
   'onboarding.guide.asset.code.desc':
-    'What: an index and call graph built over team code repositories. Import: click "Register repo" and paste a GitLab, GitHub, or other HTTP(S) URL — indexing runs automatically. Use: once allocated to an Agent, the Agent can search code and explore call chains in chat to answer repo-related questions.',
+    'What: an index and call graph built over team code repositories. Import: click "Register repo" and paste a Git HTTPS URL — indexing runs automatically. Use: once allocated to an Agent, the Agent can search code and explore call chains in chat to answer repo-related questions.',
   'onboarding.guide.asset.skill.title': 'Skill: tell apart "Team assets" vs "Agent assets"',
   'onboarding.guide.asset.skill.desc':
     'Ownership: this page has two tabs — "Team assets" (a shared pool every member can use and configure) and "Agent assets" (skills bound to a specific Agent, usable by that Agent). Import: click "Import Skill" (create an Agent first) — the skill is bound to the chosen Agent. Use: once bound, the Agent follows the SKILL.md playbook when a matching scenario arises; in "Agent assets" you can toggle "Shared / Private" for skills you own.',
   'onboarding.guide.asset.memory.title': 'Chat Memory: tell apart "Team assets" vs "Agent assets"',
   'onboarding.guide.asset.memory.desc':
     'Ownership: this page has two tabs — "Team assets" (a shared memory pool) and "Agent assets" (memory bound to a specific Agent, including each Agent\'s built-in private memory). Import: click "Import memory" to bring history in as L0; the system distills L1~L3 layers and attaches them to the chosen Agent. Use: bound Agents remember your preferences and conclusions across sessions; in "Agent assets" you can toggle "Shared / Private" for memory you imported.',
+
+  // ===== Cbrain LDAP / public Skills / plugin access =====
+  'login.placeholder.username': 'LDAP username',
+  'login.placeholder.password': 'LDAP password',
+  'login.placeholder.adminApiKey': 'System administrator API key (sk-mem-…)',
+  'login.useAdminApiKey': 'Administrator API key recovery login',
+  'login.useLdap': 'Back to LDAP login',
+  'login.error.emptyCredentials': 'Enter your LDAP username and password.',
+  'login.error.emptyAdminApiKey': 'Enter a system administrator API key.',
+  'wiki.detail.upload.tooLarge': 'Ignored {{count}} files larger than {{size}} MiB',
+  'skills.scope.public': 'Public Skills',
+  'skills.subtitle.public': 'Instance-wide public Skill repository · automatically installed for new Agents',
+  'team.deleteTeam.notify': 'Team deletion failed. Refresh and retry or contact an administrator.',
+  'addMember.user': 'Select user',
+  'addMember.user.placeholder': 'Select a user',
+  'addMember.user.searchPlaceholder': 'Search name, username, or user ID',
+  'addMember.user.hint': 'Only active users who have not joined this team are shown.',
+  'addMember.user.loading': 'Loading users…',
+  'addMember.user.empty': 'No matching users available',
+  'apiKey.table.keyValue': 'API Key',
+  'apiKey.plugin.title': 'Codex / Claude Code Access',
+  'apiKey.plugin.desc': 'The package bundles Codex and Claude Code plugins without GitHub or SSH access. Install and update preserve configuration, bindings, and server data.',
+  'apiKey.plugin.flow.title': 'Workflow',
+  'apiKey.plugin.flow.install.title': 'First install',
+  'apiKey.plugin.flow.install.desc': 'Create an API Key, run the install command, and paste the key. The installer verifies identity, installs the plugin, and saves its connection.',
+  'apiKey.plugin.flow.update.title': 'Update plugin',
+  'apiKey.plugin.flow.update.desc': 'Run the same install command again. The installer backs up the existing cache and configuration before switching versions.',
+  'apiKey.plugin.flow.uninstall.title': 'Uninstall plugin',
+  'apiKey.plugin.flow.uninstall.desc': 'Only an explicit uninstall removes the plugin; Cbrain configuration, bindings, and server data remain.',
+  'apiKey.plugin.installOrUpdate': 'Install/Update',
+  'apiKey.plugin.uninstall': 'Uninstall',
+  'defaultAgent.publicSkillConflict': '{{count}} team Skills conflicted with public Skills and were skipped; public Skills will be installed centrally.',
+  'guide.copy': 'Copy',
+  'guide.copied': 'Copied',
+  'guide.copyFailed': 'Copy failed; select and copy manually',
+  'guide.replay.title': 'Replay the page guide',
+  'guide.replay.desc': 'Replay the first-run guide to review the main pages and actions.',
+  'guide.replay.button': 'Replay',
+  'guide.cbrain.back': 'Back to Agents',
+  'guide.cbrain.title': 'Cbrain Setup and Usage Guide',
+  'guide.cbrain.subtitle': 'Codex and Claude Code keep their direct model connection while the Cbrain plugin supplies memory, knowledge, and Skills.',
+  'guide.cbrain.architecture': 'Architecture',
+  'guide.cbrain.directModel': 'Model traffic stays on its original path. The plugin connects only to Cbrain Gateway and never proxies model calls.',
+  'guide.cbrain.auth': 'Credential',
+  'guide.cbrain.openApiKeys': 'Create or view an API Key',
+  'guide.cbrain.gatewayLoading': 'Reading the Cbrain Gateway endpoint…',
+  'guide.cbrain.step1.title': 'Sign in and create an API Key',
+  'guide.cbrain.step1.desc': 'Sign in with LDAP and create a client credential',
+  'guide.cbrain.step2.title': 'Install the client plugin',
+  'guide.cbrain.step2.desc': 'Run the one-command installer for Codex or Claude Code',
+  'guide.cbrain.step3.title': 'Bind the workspace',
+  'guide.cbrain.step3.desc': 'Choose Team and Agent once, then reuse the binding',
+  'guide.cbrain.step4.title': 'Attach knowledge assets',
+  'guide.cbrain.step4.desc': 'Bind Wiki, CodeGraph, Skills, and memory to the Agent',
+  'guide.cbrain.installTitle': 'One-command install / update',
+  'guide.cbrain.installHint': 'The installer asks for an API Key and preserves existing configuration, bindings, and server data.',
+  'guide.cbrain.installOrUpdate': 'Install or update, then restart the client',
+  'guide.cbrain.assetsTitle': 'Assets available to Agents',
+  'guide.cbrain.wiki': 'Retrieve existing designs, policies, and project documents.',
+  'guide.cbrain.code': 'Query symbols, call relationships, and complete code context.',
+  'guide.cbrain.skills': 'New Agents receive public Skills automatically and can also use team-specific Skills.',
+  'guide.cbrain.open': 'Open asset page:',
 };

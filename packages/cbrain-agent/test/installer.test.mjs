@@ -26,6 +26,16 @@ describe("cbrain-agent installer", () => {
     assert.equal(calls.length,0);
   });
 
+  it("uses the POSIX install and private-file path on macOS",async()=>{
+    const calls=[],home=await mkdtemp(join(tmpdir(),"cbrain-darwin-"));
+    const runner=async(command,args,options={})=>{calls.push([command,args]);if(options.capture&&args.includes("marketplace"))return{stdout:JSON.stringify({marketplaces:[]})};return{stdout:options.capture?JSON.stringify({installed:[]}):""}};
+    const result=await install({client:"codex",gatewayUrl:"https://cbrain.example",apiKey:"key",sourceRoot:"/Volumes/Cbrain/codex",home,platform:"darwin",runner,fetcher:async()=>new Response(JSON.stringify({user_id:"u"}),{status:200}),output:()=>{}});
+    assert.ok(calls.every(([command])=>command==="codex"));
+    assert.ok(calls.some(([,args])=>args.join(" ")==="plugin marketplace add /Volumes/Cbrain/codex"));
+    assert.deepEqual(JSON.parse(await readFile(result.path,"utf8")),{gatewayUrl:"https://cbrain.example",apiKey:"key"});
+    if(process.platform!=="win32")assert.equal((await stat(result.path)).mode&0o777,0o600);
+  });
+
   it("parses the public one-command interface", () => {
     assert.deepEqual(parseArguments(["install","codex","--gateway","https://cbrain.example"]),{action:"install",client:"codex",gatewayUrl:"https://cbrain.example"});
     assert.deepEqual(parseArguments(["uninstall","claude-code"]),{action:"uninstall",client:"claude-code"});

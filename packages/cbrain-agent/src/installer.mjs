@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { access, chmod, cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { delimiter, dirname, extname, join, resolve } from "node:path";
+import { delimiter, dirname, extname, join, resolve, win32 } from "node:path";
 import { stdin, stdout } from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -212,7 +212,7 @@ export async function resolveWindowsCommand(command, options = {}) {
   const finder = options.finder ?? findWindowsCommand;
   const executable = await finder(command, pathValue);
   if (!executable) throw new Error(`cannot find ${command}.exe or ${command}.cmd on PATH`);
-  const extension = extname(executable).toLowerCase();
+  const extension = win32.extname(executable).toLowerCase();
   if (extension === ".exe") return { executable, prefix: [] };
   if (extension !== ".cmd") throw new Error(`unsupported Windows command launcher: ${executable}`);
 
@@ -221,7 +221,9 @@ export async function resolveWindowsCommand(command, options = {}) {
   const matches = [...content.matchAll(/"%dp0%\\([^"\r\n]+\.(?:js|exe))"/gi)];
   const target = matches.at(-1)?.[1];
   if (!target || target.includes("..")) throw new Error(`cannot resolve the executable behind ${command}.cmd`);
-  const targetPath = resolve(dirname(shim), target);
+  // The launcher is a Windows .cmd file even when this helper is tested from WSL.
+  // Use win32 explicitly instead of the host platform's path semantics.
+  const targetPath = win32.resolve(win32.dirname(shim), target);
   await (options.ensureExists ?? access)(targetPath);
   return target.toLowerCase().endsWith(".js")
     ? { executable: process.execPath, prefix: [targetPath] }

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCbrainAgentCommand,
   CBRAIN_AGENT_INSTALLER_VERSION,
-} from '../web/src/pages/team/ApiKeysPage/components/plugin-install-command.js';
+} from '../web/src/pages/ApiKeysPage/components/plugin-install-command.js';
 
 describe('Cbrain plugin install command', () => {
   it('uses the npm 10/11 compatible package form for install and uninstall', () => {
@@ -15,14 +15,14 @@ describe('Cbrain plugin install command', () => {
       origin: 'http://10.0.0.50:8125/',
       gatewayUrl: 'http://10.0.0.50:8430/',
     })).toBe(
-      'npx --yes --package "http://10.0.0.50:8125/downloads/cbrain-agent.tgz?v=0.1.6" cbrain-agent install claude-code --gateway http://10.0.0.50:8430',
+      'npx --yes --package "http://10.0.0.50:8125/downloads/cbrain-agent.tgz?v=0.1.7" cbrain-agent install claude-code --gateway http://10.0.0.50:8430',
     );
     expect(buildCbrainAgentCommand({
       action: 'uninstall',
       client: 'codex',
       origin: 'http://10.0.0.50:8125',
     })).toBe(
-      'npx --yes --package "http://10.0.0.50:8125/downloads/cbrain-agent.tgz?v=0.1.6" cbrain-agent uninstall codex',
+      'npx --yes --package "http://10.0.0.50:8125/downloads/cbrain-agent.tgz?v=0.1.7" cbrain-agent uninstall codex',
     );
   });
 

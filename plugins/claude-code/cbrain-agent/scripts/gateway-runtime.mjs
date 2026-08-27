@@ -26,7 +26,12 @@ export async function markCircuitFailure(runtime,name,durationMs=30_000){runtime
 export async function clearCircuit(runtime,name){const key=`${name}CircuitUntil`;if(!runtime.entry||!(key in runtime.entry))return;const entry={...runtime.entry};delete entry[key];runtime.entry={...entry,updatedAt:Date.now()};await persistEntry(runtime)}
 export async function postAsync(config,path,body){
   const type=path==="/v1/hooks/tool-use"?"tool_use":path==="/v1/hooks/stop"?"stop":path==="/v1/hooks/session-end"?"session_end":"";
-  return type?emitWriteEvent(config,{type,body:compactBody(body)}):false;
+  if(!type)return false;const compact=compactBody(body);
+  if(type==="tool_use")return emitWriteEvent(config,{type,body:compact});
+  try{
+    const response=await fetch(`${config.gatewayUrl}${path}`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${config.apiKey}`},body:JSON.stringify(compact),signal:AbortSignal.timeout(500)});
+    if(!response.ok)throw new Error(`gateway HTTP ${response.status}`);await response.arrayBuffer();return true;
+  }catch{return emitWriteEvent(config,{type,body:compact})}
 }
 export async function post(config,path,body,timeoutMs=9000){const response=await fetch(`${config.gatewayUrl}${path}`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${config.apiKey}`},body:JSON.stringify(body),signal:AbortSignal.timeout(timeoutMs)});if(!response.ok)throw new Error(`gateway HTTP ${response.status}`);return response.json()}
 export function text(value){return typeof value==="string"&&value.trim()?value.trim():""}

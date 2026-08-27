@@ -6,6 +6,10 @@ import { WikiAccessService } from "./wiki-service.js";
 export interface AgentGatewayServiceOptions { core: CoreClientConfig; knowledge: KnowledgeClient; knowledgeIds?: readonly string[]; profileMaxChars?: number; recallTimeoutMs?: number; recallMinScore?:number; sessionContextTimeoutMs?:number; knowledgeCacheTtlMs?:number; extractionStatus?: () => unknown }
 
 const knowledgeCache=new Map<string,{expiresAt:number,value:Promise<KnowledgeResource[]>}>();
+const CORE_RRF_K = 60;
+const CORE_RRF_CANDIDATE_RANKS = 15;
+const CORE_RRF_MAX_SCORE = 2 / (CORE_RRF_K + 1);
+const CORE_RRF_EPSILON = 1e-9;
 
 export class AgentGatewayService {
   private readonly core: CoreClient;
@@ -86,7 +90,7 @@ export class AgentGatewayService {
       this.core.listScenes("", timeoutMs),
     ]);
     const minScore=this.options.recallMinScore??0.75;const items = (memory.status === "fulfilled" ? memory.value.items ?? [] : []).flatMap((item) => {
-      if(typeof item.score==="number"&&item.score<minScore)return [];
+      if(typeof item.score==="number"&&normalizedRecallScore(item.score)<minScore)return [];
       const content = typeof item.content === "string" ? item.content.trim() : "";
       if (!content) return [];
       const type = typeof item.type === "string" && item.type.trim() ? `[${item.type.trim()}] ` : "";
@@ -101,6 +105,31 @@ export class AgentGatewayService {
     if (entries.length) parts.push(`<scene-navigation>\n${entries.flatMap((entry) => typeof entry.path === "string" && entry.path.trim() ? [`- ${entry.path.trim()}`] : []).join("\n")}\n</scene-navigation>`);
     return parts.join("\n\n");
   }
+}
+
+/**
+ * Core's SQLite hybrid search returns Reciprocal Rank Fusion scores, whose
+ * strongest possible two-list hit is 2 / 61 (~0.0328), while embedding/native
+ * stores return similarity scores on the ordinary 0..1 scale.  Keep the
+ * public threshold on one stable 0..1 confidence scale by recognizing the
+ * exact RRF values Core can emit for this fixed top-5 recall request and
+ * normalizing only those values.  A one-list rank-1 hit becomes 0.5; a
+ * two-list rank-1 consensus becomes 1.0.
+ */
+function normalizedRecallScore(score:number):number{
+  if(!Number.isFinite(score))return 0;
+  if(isCoreRrfScore(score))return Math.min(1,Math.max(0,score/CORE_RRF_MAX_SCORE));
+  return score;
+}
+
+function isCoreRrfScore(score:number):boolean{
+  if(score<=0||score>CORE_RRF_MAX_SCORE+CORE_RRF_EPSILON)return false;
+  const contributions=Array.from({length:CORE_RRF_CANDIDATE_RANKS},(_,rank)=>1/(CORE_RRF_K+rank+1));
+  for(const left of contributions){
+    if(Math.abs(score-left)<=CORE_RRF_EPSILON)return true;
+    for(const right of contributions)if(Math.abs(score-left-right)<=CORE_RRF_EPSILON)return true;
+  }
+  return false;
 }
 
 function safeResourceSummary(resource: KnowledgeResource) { return { knowledge_id: resource.knowledge_id, type: resource.type, name: resource.name, summary: resource.summary, status: resource.status, repo_url: resource.repo_url, branch: resource.branch }; }

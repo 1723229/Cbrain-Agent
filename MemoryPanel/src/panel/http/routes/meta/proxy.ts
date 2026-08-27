@@ -1,36 +1,46 @@
-import type { Hono } from 'hono';
-import type { MetaAction } from '../../../api/meta-actions.js';
+import type { Hono } from "hono";
+import type { MetaAction } from "../../../api/meta-actions.js";
 import {
   ALLOWED_PANEL_ACTIONS,
   isNotInScopeAction,
-} from '../../../api/meta-actions.js';
-import type { PanelDeps } from '../../../panel-deps.js';
-import { validatePanelMetaHeaders } from '../../middleware/validate-panel-headers.js';
-import { respondControlError, respondEnvelope } from '../../envelope.js';
-import type { MetaCallContext } from '../../../kernel/types.js';
-import { KNOWLEDGE_SERVICE_USERNAME } from '../../../startup/ensure-knowledge-llm-binding.js';
-import { DEFAULT_SKILLS } from './default-skills.js';
+} from "../../../api/meta-actions.js";
+import type { PanelDeps } from "../../../panel-deps.js";
+import { validatePanelMetaHeaders } from "../../middleware/validate-panel-headers.js";
+import { respondControlError, respondEnvelope } from "../../envelope.js";
+import type { MetaCallContext } from "../../../kernel/types.js";
+import { KNOWLEDGE_SERVICE_USERNAME } from "../../../startup/ensure-knowledge-llm-binding.js";
+import {
+  deleteAgentTemplate,
+  getAgentTemplate as readTemplateFile,
+  parseAgentTemplate,
+  saveAgentTemplate as writeTemplateFile,
+} from "../../../state/agent-template-store.js";
+import {
+  enqueuePublicSkillsForAgent,
+  ensureDefaultAgentForUser,
+  sanitizeTemplateForPublicSkills,
+} from "../../../services/default-agent-orchestrator.js";
 
 /**
  * Hide the internal per-instance `knowledge-service` billing user from panel user
  * listings (design 009 §4.2). Mutates the envelope's paginated `items`/`total` in place.
  */
 function hideKnowledgeServiceUser(data: unknown): void {
-  if (!data || typeof data !== 'object') return;
+  if (!data || typeof data !== "object") return;
   const d = data as { items?: Array<{ username?: string }>; total?: number };
   if (!Array.isArray(d.items)) return;
   const before = d.items.length;
   d.items = d.items.filter((u) => u.username !== KNOWLEDGE_SERVICE_USERNAME);
   const removed = before - d.items.length;
-  if (removed > 0 && typeof d.total === 'number') {
+  if (removed > 0 && typeof d.total === "number") {
     d.total = Math.max(0, d.total - removed);
   }
 }
 
 function readAction(path: string): string {
-  const marker = '/meta/';
+  const marker = "/meta/";
   const idx = path.indexOf(marker);
-  if (idx < 0) return '';
+  if (idx < 0) return "";
   return path.slice(idx + marker.length);
 }
 
@@ -50,45 +60,43 @@ interface DupCheckConfig {
 }
 
 const DUP_CHECK_MAP: Record<string, DupCheckConfig> = {
-  'user/create': {
-    listAction: 'user/list',
+  "user/create": {
+    listAction: "user/list",
     listBody: () => ({}),
-    filterParam: 'username',
-    matchValue: (b) => (typeof b.username === 'string' ? b.username : undefined),
-    entityLabel: '用户',
+    filterParam: "username",
+    matchValue: (b) =>
+      typeof b.username === "string" ? b.username : undefined,
+    entityLabel: "用户",
   },
   // user/create 的姊妹接口：查重口径与 user/create 完全一致（先按 username 精确 list）。
   // user_key 的重复由内核 duplicate_user_key(409) 兜底，Panel 直接透传。
-  'user/create-with-key': {
-    listAction: 'user/list',
+  "user/create-with-key": {
+    listAction: "user/list",
     listBody: () => ({}),
-    filterParam: 'username',
-    matchValue: (b) => (typeof b.username === 'string' ? b.username : undefined),
-    entityLabel: '用户',
+    filterParam: "username",
+    matchValue: (b) =>
+      typeof b.username === "string" ? b.username : undefined,
+    entityLabel: "用户",
   },
-  'team/create': {
-    listAction: 'team/list',
+  "team/create": {
+    listAction: "team/list",
     listBody: (b) => ({ user_id: b.owner_user_id }),
-    filterParam: 'name',
-    matchValue: (b) => (typeof b.name === 'string' ? b.name : undefined),
-    entityLabel: '团队',
+    filterParam: "name",
+    matchValue: (b) => (typeof b.name === "string" ? b.name : undefined),
+    entityLabel: "团队",
   },
-  'agent/create': {
-    listAction: 'agent/list',
+  "agent/create": {
+    listAction: "agent/list",
     // 面板「删除」走 agent/archive（status→inactive），列表只展示 active；
     // 查重须同样过滤，否则归档后同名重建会被误拦 409。
-    listBody: (b) => ({ team_id: b.team_id, owner_user_id: b.owner_user_id, status: 'active' }),
-    filterParam: 'name',
-    matchValue: (b) => (typeof b.name === 'string' ? b.name : undefined),
-    entityLabel: 'Agent',
-  },
-  'task/create': {
-    listAction: 'task/list',
-    // 面板删 Task 走物理 task/delete；completed 仍在工作台可见，故查重含全部状态。
-    listBody: (b) => ({ team_id: b.team_id, creator_user_id: b.creator_user_id }),
-    filterParam: 'title',
-    matchValue: (b) => (typeof b.title === 'string' ? b.title : undefined),
-    entityLabel: 'Task',
+    listBody: (b) => ({
+      team_id: b.team_id,
+      owner_user_id: b.owner_user_id,
+      status: "active",
+    }),
+    filterParam: "name",
+    matchValue: (b) => (typeof b.name === "string" ? b.name : undefined),
+    entityLabel: "Agent",
   },
 };
 
@@ -115,16 +123,20 @@ async function checkDuplicate(
   };
 
   try {
-    const envelope = await deps.metaKernel.invoke(config.listAction, listBody, ctx);
+    const envelope = await deps.metaKernel.invoke(
+      config.listAction,
+      listBody,
+      ctx,
+    );
     if (envelope.code === 0) {
       // 以返回 items 中的精确同名为准；部分内核版本可能暂不支持 name 过滤，
       // 不能因为 items 非空就误判重复。
       const data = envelope.data as { items?: unknown[] } | undefined;
       if (Array.isArray(data?.items)) {
         const duplicated = data.items.some((item) => {
-          if (!item || typeof item !== 'object') return false;
+          if (!item || typeof item !== "object") return false;
           const value = (item as Record<string, unknown>)[config.filterParam];
-          return typeof value === 'string' && value === targetValue;
+          return typeof value === "string" && value === targetValue;
         });
         if (duplicated) {
           return `已存在同名${config.entityLabel}「${targetValue}」，请更换名称后重试。`;
@@ -140,18 +152,18 @@ async function checkDuplicate(
 // ── 路由注册 ──
 
 export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
-  api.post('/meta/*', validatePanelMetaHeaders(deps), async (c) => {
+  api.post("/meta/*", validatePanelMetaHeaders(deps), async (c) => {
     const action = readAction(c.req.path);
     if (!action) {
-      return respondControlError(c, 404, 'UNKNOWN_META_ACTION');
+      return respondControlError(c, 404, "UNKNOWN_META_ACTION");
     }
 
     if (isNotInScopeAction(action)) {
-      return respondControlError(c, 501, 'NOT_IN_SCOPE');
+      return respondControlError(c, 501, "NOT_IN_SCOPE");
     }
 
     if (!ALLOWED_PANEL_ACTIONS.has(action as MetaAction)) {
-      return respondControlError(c, 404, 'UNKNOWN_META_ACTION');
+      return respondControlError(c, 404, "UNKNOWN_META_ACTION");
     }
 
     let body: Record<string, unknown>;
@@ -161,14 +173,14 @@ export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
       body = {};
     }
 
-    const panelMeta = c.get('panelMeta');
+    const panelMeta = c.get("panelMeta");
     const ctx: MetaCallContext = {
       instanceId: panelMeta.instanceId,
       gatewayEndpoint: panelMeta.gatewayEndpoint,
       gatewayApiKey: panelMeta.gatewayApiKey,
       userKey: panelMeta.userKey,
       userId: panelMeta.user.user_id,
-      reqId: c.get('reqId'),
+      reqId: c.get("reqId"),
     };
 
     // create 类 action：先查重
@@ -177,20 +189,123 @@ export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
       return respondControlError(c, 409, duplicateMsg);
     }
 
-    const envelope = await deps.metaKernel.invoke(action, body, ctx);
-    // team-member/add 成功后，为默认 Agent 导入预置 Skill（best-effort，异步不阻塞响应）
-    if (action === 'team-member/add' && envelope.code === 0) {
-      void importDefaultSkillsForNewMember(body, ctx, deps);
+    // ── 默认 Agent 模板读写：Panel 直接读写本地文件（不转发内核）──
+    if (action === "agent/set-default-template") {
+      if (panelMeta.user.user_type !== "system_admin") {
+        return respondControlError(c, 403, "permission_denied");
+      }
+      const teamId = typeof body.team_id === "string" ? body.team_id : "";
+      const template = parseAgentTemplate(body.template);
+      if (!teamId || !template) {
+        return respondControlError(c, 400, "INVALID_PARAM");
+      }
+      const sanitized = await sanitizeTemplateForPublicSkills(
+        template,
+        teamId,
+        ctx,
+        deps,
+      );
+      writeTemplateFile(
+        deps.config.agentTemplateDir,
+        ctx.instanceId,
+        teamId,
+        sanitized.template,
+      );
+      return respondEnvelope(c, {
+        code: 0,
+        message: "ok",
+        request_id: ctx.reqId ?? "",
+        data: {
+          ok: true,
+          template: sanitized.template,
+          skipped_skill_ids: sanitized.skippedSkillIds,
+        },
+      });
     }
-    if (action === 'agent/create' && envelope.code === 0) {
-      const agent = envelope.data as { agent_id?: string; team_id?: string; owner_user_id?: string } | null;
+    if (action === "agent/get-default-template") {
+      const teamId = typeof body.team_id === "string" ? body.team_id : "";
+      const template = teamId
+        ? readTemplateFile(deps.config.agentTemplateDir, ctx.instanceId, teamId)
+        : null;
+      return respondEnvelope(c, {
+        code: 0,
+        message: "ok",
+        request_id: ctx.reqId ?? "",
+        data: template ?? {},
+      });
+    }
+
+    const envelope = await deps.metaKernel.invoke(action, body, ctx);
+    // team-member/add 成功后，为默认 Agent 复制模板资产（best-effort，异步不阻塞响应）
+    if (action === "team-member/add" && envelope.code === 0) {
+      const userId = typeof body.user_id === "string" ? body.user_id : "";
+      const teamId = typeof body.team_id === "string" ? body.team_id : "";
+      if (userId && teamId) {
+        void ensureDefaultAgentForUser({ userId, teamId }, ctx, deps).catch(
+          (error) => {
+            deps.logger.warn("default Agent orchestration failed", {
+              userId,
+              teamId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          },
+        );
+      }
+    }
+    if (action === "team/create" && envelope.code === 0) {
+      const team = envelope.data as {
+        team_id?: string;
+        owner_user_id?: string;
+      } | null;
+      if (team?.team_id && team.owner_user_id) {
+        void ensureDefaultAgentForUser(
+          { teamId: team.team_id, userId: team.owner_user_id },
+          ctx,
+          deps,
+        ).catch((error) => {
+          deps.logger.warn("team owner default Agent orchestration failed", {
+            userId: team.owner_user_id,
+            teamId: team.team_id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
+    }
+    if (action === "agent/create" && envelope.code === 0) {
+      const agent = envelope.data as {
+        agent_id?: string;
+        team_id?: string;
+        owner_user_id?: string;
+      } | null;
       if (agent?.agent_id && agent.team_id && agent.owner_user_id) {
-        await enqueuePublicSkillsForAgent({ agent_id: agent.agent_id, team_id: agent.team_id, owner_user_id: agent.owner_user_id }, ctx, deps);
+        await enqueuePublicSkillsForAgent(
+          {
+            agent_id: agent.agent_id,
+            team_id: agent.team_id,
+            owner_user_id: agent.owner_user_id,
+          },
+          ctx,
+          deps,
+        );
+      }
+    }
+    if (action === "team/delete" && envelope.code === 0) {
+      const teamIds = Array.isArray(body.team_ids)
+        ? body.team_ids.filter(
+            (value): value is string => typeof value === "string",
+          )
+        : [];
+      for (const teamId of teamIds) {
+        deleteAgentTemplate(
+          deps.config.agentTemplateDir,
+          ctx.instanceId,
+          teamId,
+        );
       }
     }
 
-    if (action.startsWith('user-key/')) c.header('Cache-Control', 'no-store');
-    if (action === 'user/list' && envelope.code === 0) {
+    if (action.startsWith("user-key/")) c.header("Cache-Control", "no-store");
+    if (action === "user/list" && envelope.code === 0) {
       hideKnowledgeServiceUser(envelope.data);
     }
     // 切私密后：不再由 backend 主动 prune 其它 agent 的绑定。
@@ -199,105 +314,4 @@ export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
     // apply_visibility_filter=true 过滤掉 canBindAsset=false 的项。
     return respondEnvelope(c, envelope);
   });
-}
-
-export async function enqueuePublicSkillsForAgent(
-  agent: { agent_id: string; team_id: string; owner_user_id: string },
-  ctx: MetaCallContext,
-  deps: PanelDeps,
-): Promise<void> {
-  try {
-    await deps.knowledgeClientFactory(ctx.instanceId).publicSkillBootstrapCreate({
-      team_id: agent.team_id,
-      agent_id: agent.agent_id,
-      owner_user_id: agent.owner_user_id,
-    });
-  } catch (error) {
-    deps.logger.warn('public skill bootstrap enqueue failed', {
-      agentId: agent.agent_id,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-// ── team-member/add 成功后：为 default-agent 导入预置 Skill ──
-
-async function importDefaultSkillsForNewMember(
-  body: Record<string, unknown>,
-  ctx: MetaCallContext,
-  deps: PanelDeps,
-): Promise<void> {
-  try {
-    const userId = body.user_id as string | undefined;
-    const teamId = body.team_id as string | undefined;
-    if (!userId || !teamId) return;
-
-    // 1. 获取用户信息（拿 username 拼 agent 名称）
-    const userEnv = await deps.metaKernel.invoke('user/get', { user_id: userId }, ctx);
-    if (userEnv.code !== 0) return;
-    const user = userEnv.data as { username?: string };
-    const agentName = `default-agent-${user.username ?? userId}`;
-
-    // 2. 查 default-agent
-    const agentsEnv = await deps.metaKernel.invoke('agent/list', {
-      team_id: teamId,
-      owner_user_id: userId,
-      limit: 50,
-      offset: 0,
-    }, ctx);
-    if (agentsEnv.code !== 0) return;
-    const agents = (agentsEnv.data as { items?: Array<{ agent_id: string; name: string }> })?.items ?? [];
-    const defaultAgent = agents.find(a => a.name === agentName);
-    if (!defaultAgent) {
-      deps.logger.warn('default agent not found, skip skill import', {
-        instanceId: ctx.instanceId, userId, teamId, agentName,
-      });
-      return;
-    }
-
-    void deps.knowledgeClientFactory(ctx.instanceId).publicSkillBootstrapCreate({
-      team_id: teamId,
-      agent_id: defaultAgent.agent_id,
-      owner_user_id: userId,
-    }).catch((error) => deps.logger.warn('default agent public skill bootstrap enqueue failed', {
-      agentId: defaultAgent.agent_id,
-      error: error instanceof Error ? error.message : String(error),
-    }));
-
-    // 3. 创建预置 Skill（依赖内核 name 唯一约束做幂等，42201 直接跳过）
-    for (const skill of DEFAULT_SKILLS) {
-      try {
-        const createEnv = await deps.skillKernel.invoke('create', {
-          user_id: userId,
-          team_id: teamId,
-          agent_id: defaultAgent.agent_id,
-          name: skill.name,
-          content: skill.content,
-        }, ctx);
-        if (createEnv.code === 0) {
-          deps.logger.info(`default skill "${skill.name}" created`, {
-            instanceId: ctx.instanceId,
-            agentId: defaultAgent.agent_id,
-          });
-        } else if (createEnv.code !== 42201) {
-          // 42201 = SKILL_NAME_DUPLICATE，忽略
-          deps.logger.warn(`default skill "${skill.name}" create failed`, {
-            instanceId: ctx.instanceId,
-            code: createEnv.code,
-            message: createEnv.message,
-          });
-        }
-      } catch (err) {
-        deps.logger.warn(`default skill "${skill.name}" create error`, {
-          instanceId: ctx.instanceId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-  } catch (err) {
-    deps.logger.warn('import default skills for new member failed', {
-      instanceId: ctx.instanceId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
 }

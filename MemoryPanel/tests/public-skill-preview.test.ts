@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildSkillFileTree } from '../web/src/pages/skills/SkillsPage/components/skill-file-tree.js';
+import { buildSkillFileTree } from '../web/src/pages/SkillsPage/components/skill-file-tree.js';
 import {
   decodePublicSkillResource,
   publicSkillPreviewKind,
   splitSkillMarkdown,
-} from '../web/src/pages/skills/SkillsPage/components/public-skill-preview.js';
+} from '../web/src/pages/SkillsPage/components/public-skill-preview.js';
 
 describe('public Skill preview helpers', () => {
   it('builds a stable nested tree that includes SKILL.md and every resource', () => {
