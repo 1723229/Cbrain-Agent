@@ -57,6 +57,8 @@ export function GuidePage() {
     { id: 'codex' as const, label: 'Codex' },
     { id: 'claude-code' as const, label: 'Claude Code' },
   ];
+  const platformSteps = ['login', 'team', 'agent', 'assets'] as const;
+  const clientSteps = ['apiKey', 'install', 'binding'] as const;
 
   return (
     <div className="guide-page">
@@ -71,14 +73,87 @@ export function GuidePage() {
         <span className="guide-brand">Cbrain</span>
       </header>
 
-      <section className="guide-surface" style={{ marginTop: 16 }}>
+      <section className="guide-surface guide-section guide-section--platform">
+        <header className="guide-section-heading">
+          <span className="guide-section-index">01</span>
+          <div>
+            <h2>{t('guide.platform.title')}</h2>
+            <p>{t('guide.platform.desc')}</p>
+          </div>
+        </header>
+
+        <ol className="guide-stepper">
+          {platformSteps.map((step, index) => (
+            <li key={step} className="done">
+              <div className="guide-command secondary">
+                <span className="guide-stepper-badge">{index + 1}</span>
+                <span className="guide-stepper-meta">
+                  <b>{t(`guide.platform.${step}.title`)}</b>
+                  <small>{t(`guide.platform.${step}.desc`)}</small>
+                </span>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <h3 className="guide-subheading">{t('guide.platform.assets.detailTitle')}</h3>
+        <div className="guide-practice-rules guide-practice-rules--four">
+          <p>
+            <b>Wiki / RAG</b>
+            {t('guide.cbrain.wiki')}
+          </p>
+          <p>
+            <b>CodeGraph</b>
+            {t('guide.cbrain.code')}
+          </p>
+          <p>
+            <b>Skill</b>
+            {t('guide.cbrain.skills')}
+          </p>
+          <p>
+            <b>Chat Memory</b>
+            {t('guide.platform.memory')}
+          </p>
+        </div>
+        <div className="guide-practice-links">
+          <span>{t('guide.cbrain.open')}</span>
+          <button type="button" onClick={() => navigate('/team/members')}>
+            {t('guide.platform.members')}
+          </button>
+          <button type="button" onClick={() => navigate('/team/agents')}>
+            Agent
+          </button>
+          <button type="button" onClick={() => navigate('/wiki')}>
+            Wiki
+          </button>
+          <button type="button" onClick={() => navigate('/code')}>
+            CodeGraph
+          </button>
+          <button type="button" onClick={() => navigate('/skills')}>
+            Skill
+          </button>
+          <button type="button" onClick={() => navigate('/memory')}>
+            Chat Memory
+          </button>
+        </div>
+      </section>
+
+      <section className="guide-surface guide-section guide-section--client">
+        <header className="guide-section-heading">
+          <span className="guide-section-index">02</span>
+          <div>
+            <h2>{t('guide.client.title')}</h2>
+            <p>{t('guide.client.desc')}</p>
+          </div>
+        </header>
+
         <div className="guide-prepare">
           <div className="guide-prepare-row">
             <b>{t('guide.cbrain.architecture')}</b>
             <span>{t('guide.cbrain.directModel')}</span>
           </div>
           <div className="guide-prepare-row">
-            <b>{t('guide.cbrain.auth')}</b>
+            <b>{t('guide.client.apiKey.title')}</b>
             <button
               type="button"
               className="guide-key-link"
@@ -95,14 +170,14 @@ export function GuidePage() {
           </div>
         </div>
 
-        <ol className="guide-stepper">
-          {[1, 2, 3, 4].map((step) => (
+        <ol className="guide-stepper guide-stepper--three">
+          {clientSteps.map((step, index) => (
             <li key={step} className="done">
               <div className="guide-command secondary">
-                <span className="guide-stepper-badge">{step}</span>
+                <span className="guide-stepper-badge">{index + 1}</span>
                 <span className="guide-stepper-meta">
-                  <b>{t(`guide.cbrain.step${step}.title`)}</b>
-                  <small>{t(`guide.cbrain.step${step}.desc`)}</small>
+                  <b>{t(`guide.client.${step}.title`)}</b>
+                  <small>{t(`guide.client.${step}.desc`)}</small>
                 </span>
               </div>
             </li>
@@ -133,39 +208,6 @@ export function GuidePage() {
             </div>
           );
         })}
-      </section>
-
-      <section className="guide-surface guide-practice" style={{ marginTop: 16 }}>
-        <h2>{t('guide.cbrain.assetsTitle')}</h2>
-        <div className="guide-practice-rules">
-          <p>
-            <b>Wiki / RAG</b>
-            {t('guide.cbrain.wiki')}
-          </p>
-          <p>
-            <b>CodeGraph</b>
-            {t('guide.cbrain.code')}
-          </p>
-          <p>
-            <b>Public Skills</b>
-            {t('guide.cbrain.skills')}
-          </p>
-        </div>
-        <div className="guide-practice-links" style={{ marginTop: 16 }}>
-          <span>{t('guide.cbrain.open')}</span>
-          <button type="button" onClick={() => navigate('/wiki')}>
-            Wiki
-          </button>
-          <button type="button" onClick={() => navigate('/code')}>
-            CodeGraph
-          </button>
-          <button type="button" onClick={() => navigate('/skills')}>
-            Skill
-          </button>
-          <button type="button" onClick={() => navigate('/memory')}>
-            Chat Memory
-          </button>
-        </div>
       </section>
 
       <section className="guide-replay">
