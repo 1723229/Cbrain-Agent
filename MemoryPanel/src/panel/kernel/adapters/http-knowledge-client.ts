@@ -31,7 +31,9 @@ import type {
   CodeGraphSyncResult,
   CodeGraphToolResult,
   PublicSkillCatalogItem,
+  PublicSkillDocument,
   PublicSkillSnapshot,
+  PublicSkillTeamPolicy,
 } from '../ports/knowledge-client-port.js';
 
 export interface KnowledgeClientConfig {
@@ -192,10 +194,15 @@ export class HttpKnowledgeClient implements KnowledgeClientPort {
 
   async publicSkillStatus(): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/status', {}); }
   async publicSkillList(query = '', limit = 100, offset = 0): Promise<{ items: PublicSkillCatalogItem[]; total: number }> { return this.post('/v3/public-skills/list', { query, limit, offset }); }
+  async publicSkillEffective(teamId: string): Promise<{ items: PublicSkillCatalogItem[]; total: number }> { return this.post('/v3/public-skills/effective', { team_id: teamId }); }
+  async publicSkillDocuments(): Promise<PublicSkillDocument[]> { return this.post('/v3/public-skills/documents', {}); }
+  async publicSkillPolicyGet(teamId: string): Promise<PublicSkillTeamPolicy> { return this.post('/v3/public-skills/policy/get', { team_id: teamId }); }
+  async publicSkillPolicySet(params: { team_id: string; pack_keys: string[]; item_ids: string[]; updated_by: string }): Promise<PublicSkillTeamPolicy> { return this.post('/v3/public-skills/policy/set', params); }
   async publicSkillGet(itemId: string): Promise<PublicSkillCatalogItem> { return this.post('/v3/public-skills/get', { item_id: itemId }); }
   async publicSkillSnapshot(itemId: string, revision?: string): Promise<PublicSkillSnapshot> { return this.post('/v3/public-skills/snapshot', { item_id: itemId, expected_revision: revision }); }
   async publicSkillSync(): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/sync', {}); }
   async publicSkillBootstrapCreate(params: { team_id: string; agent_id: string; owner_user_id: string }): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/bootstrap/create', params); }
+  async publicSkillPackInstallCreate(params: { team_id: string; agent_id: string; owner_user_id: string; pack_key: string }): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/bootstrap/create-pack', params); }
   async publicSkillBootstrapStatus(params: { job_id?: string; agent_id?: string }): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/bootstrap/status', params); }
   async publicSkillBootstrapRetry(jobId: string): Promise<Record<string, unknown>> { return this.post('/v3/public-skills/bootstrap/retry', { job_id: jobId }); }
   async publicSkillBootstrapClaim(): Promise<Record<string, unknown> | null> { return this.post('/v3/public-skills/bootstrap/claim', {}); }

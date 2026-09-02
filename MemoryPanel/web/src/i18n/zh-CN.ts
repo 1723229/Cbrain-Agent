@@ -1316,7 +1316,7 @@ export const zhCN = {
   'login.error.emptyAdminApiKey': '请输入系统管理员 API Key。',
   'wiki.detail.upload.tooLarge': '已忽略 {{count}} 个超过 {{size}} MiB 的文件',
   'skills.scope.public': '公共技能',
-  'skills.subtitle.public': '实例公共 Skill 仓库 · 新 Agent 自动安装全部',
+  'skills.subtitle.public': '实例公共 Skill 仓库 · 新 Agent 自动安装 Core 与 Team 默认扩展',
   'team.deleteTeam.notify': '团队删除失败，请刷新后重试或联系管理员。',
   'addMember.user': '选择用户',
   'addMember.user.placeholder': '请选择用户',

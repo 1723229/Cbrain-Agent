@@ -25,7 +25,7 @@ export const TAB_I18N_KEY: Record<Tab, string> = {
   public: 'skills.scope.public',
 };
 
-export function useSkillsPanel() {
+export function useSkillsPanel(canManageTeam = false) {
   const { t } = useTranslation();
   // 默认展示 Agent 资产（fixed），避免用户误以为自己的资产在「团队资产」里
   const [tab, setTab] = useState<Tab>('fixed');
@@ -41,6 +41,7 @@ export function useSkillsPanel() {
   //   - teamAgents：前端按 owner_user_id === myUserId 过滤出**我 owner 的 agent**
   //     （fixed tab 下拉 / 导入 / fork 用；agent 私有可见性语义）。
   const [teamAgents, setTeamAgents] = useState<Array<{ id: string; name: string }>>([]);
+  const [allTeamAgents, setAllTeamAgents] = useState<Array<{ id: string; name: string }>>([]);
   const [agentNameMap, setAgentNameMap] = useState<Record<string, string>>({});
   // agent 列表加载态：fixed tab 依赖 agent（下拉 + 按 agent 拉 skill），
   // 初始 true 让首屏就是加载态，避免 agent 请求期间左侧列表先闪空态再变加载态。
@@ -51,6 +52,7 @@ export function useSkillsPanel() {
     if (!activeTeamId) {
       setAgentNameMap({});
       setTeamAgents([]);
+      setAllTeamAgents([]);
       setAgentsLoading(false);
       return () => {
         cancelled = true;
@@ -62,6 +64,7 @@ export function useSkillsPanel() {
       .then((agents) => {
         if (cancelled) return;
         setAgentNameMap(Object.fromEntries(agents.map((a) => [a.agent_id, a.name])));
+        setAllTeamAgents(agents.map((a) => ({ id: a.agent_id, name: a.name })));
         setTeamAgents(
           agents
             .filter((a) => !!myUserId && a.owner_user_id === myUserId)
@@ -74,6 +77,7 @@ export function useSkillsPanel() {
         tea.notify.error(err?.message || t('skills.notify.loadAgentsFailed'));
         setAgentNameMap({});
         setTeamAgents([]);
+        setAllTeamAgents([]);
       })
       .finally(() => {
         if (!cancelled) setAgentsLoading(false);
@@ -232,18 +236,20 @@ export function useSkillsPanel() {
     }
   }, [tab, selectedAgent, activeTeamId]);
 
-  // 同步 selectedAgent 到 teamAgents：
+  const selectableAgents = tab === 'public' && canManageTeam ? allTeamAgents : teamAgents;
+
+  // 同步 selectedAgent 到当前页允许操作的 Agent：
   //   - 切换 team 后，老 selectedAgent 可能已不在新 team 内，需要重置；
   //   - 首次渲染时也要给 selectedAgent 一个默认值。
   useEffect(() => {
-    if (teamAgents.length === 0) {
+    if (selectableAgents.length === 0) {
       if (selectedAgent) setSelectedAgent('');
       return;
     }
-    if (!selectedAgent || !teamAgents.some((a) => a.id === selectedAgent)) {
-      setSelectedAgent(teamAgents[0].id);
+    if (!selectedAgent || !selectableAgents.some((a) => a.id === selectedAgent)) {
+      setSelectedAgent(selectableAgents[0].id);
     }
-  }, [teamAgents, selectedAgent]);
+  }, [selectableAgents, selectedAgent]);
 
   // 触发 refresh：依赖原始参数 + refresh，并用 key 去重防止短时间内重复触发。
   // 之前直接 `useEffect(() => refresh(), [refresh])` 会因 refresh 引用变化
@@ -410,6 +416,7 @@ export function useSkillsPanel() {
     activeTeamId,
     myUserId,
     teamAgents,
+    publicAgents: canManageTeam ? allTeamAgents : teamAgents,
     agentNameMap,
     // state
     tab,

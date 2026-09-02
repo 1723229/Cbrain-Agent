@@ -1,16 +1,17 @@
 import { ResourcePage } from '@/pages/ResourcePage';
 import SkillsPanel from './components/SkillsPanel';
 import { useAuthStore } from '@/stores/auth';
-import { useCurrentRole } from '@/services/useCurrentRole';
+import { isTeamAdmin, useTeams } from '@/services';
 
 export function SkillsPage() {
   const { auth } = useAuthStore();
-  const role = useCurrentRole();
+  const { activeTeam } = useTeams();
   if (!auth) return null;
 
   return (
     <ResourcePage>
-      <SkillsPanel currentUser={auth.user_id} isAdmin={role === 'admin'} isSystemAdmin={auth.isAdmin} />
+      <SkillsPanel currentUser={auth.user_id}
+        isAdmin={auth.isAdmin || isTeamAdmin(activeTeam, auth.user_id)} isSystemAdmin={auth.isAdmin} />
     </ResourcePage>
   );
 }

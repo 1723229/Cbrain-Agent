@@ -13,7 +13,7 @@
  * 资源已绑定态读真实绑定源（skill 表 owner_agent_id + agent-fixed-asset 表），与运行时一致。
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Alert, Button, Input, Modal } from 'tea-component';
 import { useTranslation } from 'react-i18next';
 import { ToolsIcon, CodeIcon, BooksIcon, ChatIcon } from 'tea-icons-react';
@@ -24,6 +24,7 @@ import { tea } from '@/lib/tea-bridge';
 import { useTeamAssets, syncChatMemoryBindings } from './useAgentAssets';
 import { LightField, CollapseGroup, AssetCheckList } from './shared';
 import { publicSkillApi } from '@/lib/public-skill-api';
+import { shouldRefreshBindingsAfterBootstrap } from './public-skill-bootstrap-state';
 
 export default function AgentEditDialog({
   agent,
@@ -40,6 +41,7 @@ export default function AgentEditDialog({
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [bootstrap, setBootstrap] = useState<Record<string, unknown> | null>(null);
   const [bootstrapRefresh, setBootstrapRefresh] = useState(0);
+  const bootstrapStatusRef = useRef('');
 
   const [codeGraphOpen, setCodeGraphOpen] = useState(false);
   const [wikiOpen, setWikiOpen] = useState(false);
@@ -74,8 +76,15 @@ export default function AgentEditDialog({
       try {
         const value = await publicSkillApi.bootstrapStatus(agent.agent_id);
         if (!cancelled) {
+          const nextStatus = String(value.status ?? '');
+          const previousStatus = bootstrapStatusRef.current;
+          bootstrapStatusRef.current = nextStatus;
           setBootstrap(value);
-          if (['pending', 'running'].includes(String(value.status))) timer = setTimeout(() => void load(), 2500);
+          if (['pending', 'running'].includes(nextStatus)) timer = setTimeout(() => void load(), 2500);
+          else if (shouldRefreshBindingsAfterBootstrap(previousStatus, nextStatus)) {
+            setRealBindingsLoaded(false);
+            invalidateBackendCache();
+          }
         }
       }
       catch { if (!cancelled) setBootstrap(null); }
@@ -309,7 +318,11 @@ export default function AgentEditDialog({
           <div className="_memory-modal-description">{agent.agent_id}</div>
           {bootstrap && <Alert type={bootstrap.status === 'partial' ? 'warning' : 'info'}>
             公共技能：{String(bootstrap.status)} · {String(bootstrap.succeeded ?? 0)}/{String(bootstrap.total ?? 0)}
-            {bootstrap.status === 'partial' && <Button onClick={() => void publicSkillApi.retryBootstrap(String(bootstrap.job_id)).then((value) => { setBootstrap(value); setBootstrapRefresh((current) => current + 1); }).catch(tea.notify.error)}>一键补齐</Button>}
+            {bootstrap.status === 'partial' && <Button onClick={() => void publicSkillApi.retryBootstrap(String(bootstrap.job_id)).then((value) => {
+              bootstrapStatusRef.current = String(value.status ?? '');
+              setBootstrap(value);
+              setBootstrapRefresh((current) => current + 1);
+            }).catch(tea.notify.error)}>一键补齐</Button>}
           </Alert>}
           <LightField label={t('agentEdit.name')}>
             <Input size="full" value={name} onChange={setName} disabled={saving} />

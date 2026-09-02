@@ -49,7 +49,7 @@ import '../styles/skills-list.css';
 
 export default function SkillsPanel({
   currentUser: _currentUser,
-  isAdmin: _isAdmin,
+  isAdmin,
   isSystemAdmin,
 }: {
   currentUser: string;
@@ -57,7 +57,7 @@ export default function SkillsPanel({
   isSystemAdmin: boolean;
 }) {
   const { t } = useTranslation();
-  const store = useSkillsPanel();
+  const store = useSkillsPanel(isAdmin || isSystemAdmin);
 
   const {
     // context
@@ -65,6 +65,7 @@ export default function SkillsPanel({
     activeTeamId,
     myUserId,
     teamAgents,
+    publicAgents,
     agentNameMap,
     // state
     tab,
@@ -99,11 +100,11 @@ export default function SkillsPanel({
         subtitle={t('skills.subtitle.public')}
         scope={<Segment value={tab} onChange={(v) => setTab(v as Tab)} options={(['team', 'fixed', 'public'] as Tab[]).map((value) => ({ value, text: t(TAB_I18N_KEY[value]) }))} />}
         agent={<Select appearance="button" matchButtonWidth value={selectedAgent} onChange={setSelectedAgent}
-          disabled={teamAgents.length === 0} placeholder={t('skills.noAgent')}
-          options={teamAgents.map((agent) => ({ value: agent.id, text: `${agent.name}（${agent.id}）` }))} />}
+          disabled={publicAgents.length === 0} placeholder={t('skills.noAgent')}
+          options={publicAgents.map((agent) => ({ value: agent.id, text: `${agent.name}（${agent.id}）` }))} />}
       />
-      <PublicSkillsPanel teamId={activeTeamId ?? ''} agents={teamAgents} selectedAgent={selectedAgent}
-        onAgentChange={setSelectedAgent} isSystemAdmin={isSystemAdmin} />
+      <PublicSkillsPanel teamId={activeTeamId ?? ''} selectedAgent={selectedAgent}
+        isSystemAdmin={isSystemAdmin} canManageTeam={isAdmin || isSystemAdmin} />
     </div>;
   }
 

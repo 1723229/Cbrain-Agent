@@ -23,7 +23,25 @@ export function createPublicSkillRoutes(catalog: PublicSkillCatalog) {
   app.post("/list", async (c) => {
     const sid = serviceId(c); const b = await body(c);
     if (!sid) return c.json(wrapError(400, "x-tdai-service-id header is required"), 400);
-    return c.json(wrapOk(catalog.list(sid, str(b.query), num(b.limit, 100), num(b.offset, 0))));
+    return c.json(wrapOk(catalog.list(sid, str(b.query), num(b.limit, 100), num(b.offset, 0), {
+      layer: str(b.layer) || undefined, packKey: str(b.pack_key) || undefined,
+    })));
+  });
+  app.post("/effective", async (c) => {
+    const sid = serviceId(c); const b = await body(c);
+    return c.json(wrapOk(catalog.effectiveItems(sid, str(b.team_id))));
+  });
+  app.post("/documents", (c) => c.json(wrapOk(catalog.documents(serviceId(c)))));
+  app.post("/policy/get", async (c) => {
+    const sid = serviceId(c); const b = await body(c);
+    return c.json(wrapOk(catalog.getTeamPolicy(sid, str(b.team_id))));
+  });
+  app.post("/policy/set", async (c) => {
+    try {
+      const sid = serviceId(c); const b = await body(c);
+      return c.json(wrapOk(catalog.setTeamPolicy({ serviceId: sid, teamId: str(b.team_id),
+        packKeys: strings(b.pack_keys), itemIds: strings(b.item_ids), updatedBy: str(b.updated_by) })));
+    } catch (error) { return catalogError(c, error); }
   });
   app.post("/get", async (c) => {
     const sid = serviceId(c); const b = await body(c); const item = catalog.get(sid, str(b.item_id));
@@ -42,6 +60,14 @@ export function createPublicSkillRoutes(catalog: PublicSkillCatalog) {
     const sid = serviceId(c); const b = await body(c);
     await Promise.race([catalog.ensureFresh(sid), new Promise((resolve) => setTimeout(resolve, 5000))]);
     return c.json(wrapOk(catalog.createBootstrap({ serviceId: sid, teamId: str(b.team_id), agentId: str(b.agent_id), ownerUserId: str(b.owner_user_id) })));
+  });
+  app.post("/bootstrap/create-pack", async (c) => {
+    try {
+      const sid = serviceId(c); const b = await body(c);
+      await Promise.race([catalog.ensureFresh(sid), new Promise((resolve) => setTimeout(resolve, 5000))]);
+      return c.json(wrapOk(catalog.createPackInstall({ serviceId: sid, teamId: str(b.team_id),
+        agentId: str(b.agent_id), ownerUserId: str(b.owner_user_id), packKey: str(b.pack_key) })));
+    } catch (error) { return catalogError(c, error); }
   });
   app.post("/bootstrap/status", async (c) => {
     const sid = serviceId(c); const b = await body(c);
@@ -62,9 +88,14 @@ export function createPublicSkillRoutes(catalog: PublicSkillCatalog) {
 }
 
 function str(value: unknown): string { return typeof value === "string" ? value.trim() : ""; }
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && !!item.trim()).map((item) => item.trim()) : [];
+}
 function num(value: unknown, fallback: number): number { return typeof value === "number" && Number.isFinite(value) ? value : fallback; }
 function catalogError(c: Context, error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
-  const status = error instanceof CatalogError && message === "CATALOG_REVISION_CHANGED" ? 409 : 404;
+  const status = error instanceof CatalogError && message === "CATALOG_REVISION_CHANGED" ? 409
+    : error instanceof CatalogError && message.endsWith("_DISABLED") ? 409
+      : error instanceof CatalogError && message.endsWith("_TOO_LARGE") ? 400 : 404;
   return c.json(wrapError(status, message), status);
 }

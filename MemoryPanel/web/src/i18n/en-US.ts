@@ -1356,7 +1356,7 @@ export const enUS = {
   'login.error.emptyAdminApiKey': 'Enter a system administrator API key.',
   'wiki.detail.upload.tooLarge': 'Ignored {{count}} files larger than {{size}} MiB',
   'skills.scope.public': 'Public Skills',
-  'skills.subtitle.public': 'Instance-wide public Skill repository · automatically installed for new Agents',
+  'skills.subtitle.public': 'Public Skill repository · Core and Team defaults install on new Agents',
   'team.deleteTeam.notify': 'Team deletion failed. Refresh and retry or contact an administrator.',
   'addMember.user': 'Select user',
   'addMember.user.placeholder': 'Select a user',

@@ -100,6 +100,49 @@ export async function isTeamMember(
   }
 }
 
+export interface PanelTeamUser {
+  user_id: string;
+  user_type?: string;
+}
+
+/** Team read gate shared by control-plane routes; Team owner need not have an explicit member row. */
+export async function canReadTeam(
+  deps: PanelDeps,
+  ctx: MetaCallContext,
+  user: PanelTeamUser,
+  teamId: string,
+): Promise<boolean> {
+  if (user.user_type === "system_admin") return true;
+  try {
+    const team = await deps.metaKernel.invoke("team/get", { team_id: teamId }, ctx);
+    if (team.code === 0 && (team.data as { owner_user_id?: string } | null)?.owner_user_id === user.user_id) return true;
+    const member = await deps.metaKernel.invoke("team-member/get", { team_id: teamId, user_id: user.user_id }, ctx);
+    return member.code === 0 && (member.data as { status?: string } | null)?.status === "active";
+  } catch {
+    return false;
+  }
+}
+
+/** Team write gate shared by templates and public Skill policy/install routes. */
+export async function canManageTeam(
+  deps: PanelDeps,
+  ctx: MetaCallContext,
+  user: PanelTeamUser,
+  teamId: string,
+): Promise<boolean> {
+  if (user.user_type === "system_admin") return true;
+  try {
+    const team = await deps.metaKernel.invoke("team/get", { team_id: teamId }, ctx);
+    if (team.code !== 0) return false;
+    if ((team.data as { owner_user_id?: string } | null)?.owner_user_id === user.user_id) return true;
+    const member = await deps.metaKernel.invoke("team-member/get", { team_id: teamId, user_id: user.user_id }, ctx);
+    const data = member.data as { role?: string; status?: string } | null;
+    return member.code === 0 && data?.status === "active" && data.role === "admin";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * team 门控：要求 caller 是有效用户且为 team 成员。
  * 通过返回 { userId }；不通过返回 { error: Response }（路由直接 return）。

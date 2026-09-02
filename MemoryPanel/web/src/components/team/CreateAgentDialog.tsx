@@ -132,7 +132,7 @@ export default function CreateAgentDialog({
   return (
     <Modal visible caption={t('createAgent.caption')} size="l" onClose={onClose} disableEscape={busy}>
       <Modal.Body>
-        <Alert type="info">Agent 创建成功后会在后台安装当前公共仓库中的全部 Skill；部分失败可在 Agent 详情中补齐。</Alert>
+        <Alert type="info">Agent 创建成功后会在后台安装公共 Core 与当前 Team 默认扩展；部分失败可在 Agent 详情中补齐。</Alert>
         <div className="_memory-form-stack">
           <div className="_memory-modal-description">{t('createAgent.desc')}</div>
         <div className="_memory-target-team-row">

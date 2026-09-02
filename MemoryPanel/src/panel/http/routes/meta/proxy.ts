@@ -20,6 +20,7 @@ import {
   ensureDefaultAgentForUser,
   sanitizeTemplateForPublicSkills,
 } from "../../../services/default-agent-orchestrator.js";
+import { canManageTeam } from "../knowledge/common.js";
 
 /**
  * Hide the internal per-instance `knowledge-service` billing user from panel user
@@ -149,30 +150,6 @@ async function checkDuplicate(
   return null;
 }
 
-async function canManageTeam(
-  teamId: string,
-  user: { user_id: string; user_type?: string },
-  ctx: MetaCallContext,
-  deps: PanelDeps,
-): Promise<boolean> {
-  if (user.user_type === "system_admin") return true;
-  try {
-    const teamEnvelope = await deps.metaKernel.invoke("team/get", { team_id: teamId }, ctx);
-    const team = teamEnvelope.data as { owner_user_id?: string } | null;
-    if (teamEnvelope.code !== 0 || !team) return false;
-    if (team.owner_user_id === user.user_id) return true;
-    const memberEnvelope = await deps.metaKernel.invoke(
-      "team-member/get",
-      { team_id: teamId, user_id: user.user_id },
-      ctx,
-    );
-    const member = memberEnvelope.data as { role?: string; status?: string } | null;
-    return memberEnvelope.code === 0 && member?.status === "active" && member.role === "admin";
-  } catch {
-    return false;
-  }
-}
-
 // ── 路由注册 ──
 
 export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
@@ -220,7 +197,7 @@ export function registerMetaProxyRoutes(api: Hono, deps: PanelDeps): void {
       if (!teamId || !template) {
         return respondControlError(c, 400, "INVALID_PARAM");
       }
-      if (!(await canManageTeam(teamId, panelMeta.user, ctx, deps))) {
+      if (!(await canManageTeam(deps, ctx, panelMeta.user, teamId))) {
         return respondControlError(c, 403, "permission_denied");
       }
       const sanitized = await sanitizeTemplateForPublicSkills(

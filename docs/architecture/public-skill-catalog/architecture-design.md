@@ -1,212 +1,120 @@
-# Architecture Design — 公共 Skill 仓库与新 Agent 自动安装
+# 公共 Skill 两层目录、Team 默认策略与安装任务
 
-## 1. Executive Summary
+## 1. 目标与边界
 
-Cbrain 增加实例级、只读的公共 Skill 目录。目录由固定 Git 仓库
-`http://10.0.0.5/shared-components/shared-skills.git` 提供，MemoryKnowledge
-负责安全同步和 last-good 快照；公共项本身不是运行时资产。新 Agent 创建后，
-Panel 创建持久化 bootstrap job，把创建时目录快照中的全部 Skill 幂等安装为该
-Agent 的 private fixed Skill。部分失败不回滚 Agent，可重试；已有 Agent 和已安装
-Skill 不自动跟随仓库更新。
+Cbrain 从固定 Git 仓库同步公共 Skill，并把目录分为：
 
-## 2. Goals and Non-Goals
+- `core/`：通用基础技能，新建 Agent 时全量复制安装。
+- `extensions/<pack>/`：业务扩展技能，可单项或整包安装；Team 可配置仅对未来 Agent 生效的默认项。
 
-目标：
+公共目录是只读发布源，不是运行时资产。安装后仍由 MemoryCore 创建 Agent 私有 Skill 和固定绑定。已有 Agent、已有 Skill、插件、MCP 与 Gateway 工具协议不自动改变。
 
-- 同一实例所有团队可浏览公共 Skill。
-- 新 Agent 自动安装创建时公共目录中的全部 Skill。
-- 支持已有 Agent 手动安装、已安装 Skill 手动升级。
-- 仓库、进程或单个 Skill 故障不阻断 Agent 创建。
-- 保持现有插件、MCP、Skill 权限和运行时加载链路不变。
-
-非目标：
-
-- 不让 Agent 运行时直接读取 Git 仓库。
-- 不自动补装现有 Agent，不持续向已有 Agent推送新增 Skill。
-- 不自动升级已安装 Skill，不从 Cbrain 写回公共仓库。
-- MVP 不支持在页面添加任意公共仓库。
-
-## 3. Confirmed Facts and Assumptions
-
-已确认：
-
-- 现有 Skill 必须归属 team 和 owner Agent，创建后登记为 private asset 并 fixed bind。
-- Skill 内容和资源支持不可变版本、乐观锁、单文件 5 MB、单 Skill 50 MB。
-- MemoryKnowledge 已具备 Git HTTP(S)、内网 host 白名单、只读 Token 和持久化 SQLite。
-- 公共仓库当前存在但没有任何 refs；初始状态应为 `empty`，不是错误。
-
-默认：
-
-- source id=`shared-skills`，branch=`main`，同步周期 300 秒。
-- 创建 Agent 时使用 last-good；目录过期时最多等待同步 5 秒。
-- bootstrap 并发 3，单项自动重试 3 次，之后进入可人工重试的 partial 状态。
-
-## 4. System Boundary and Data Flow
-
-```mermaid
-flowchart LR
-    Repo["GitLab shared-skills.git"]
-    Catalog["MemoryKnowledge PublicSkillCatalog"]
-    DB[("Catalog Snapshot + Bootstrap Jobs")]
-    Panel["MemoryPanel"]
-    Core["MemoryCore Skill Snapshot Apply"]
-    Agent["Team / Agent Skill"]
-    Runtime["Codex / Claude Code"]
-
-    Repo -->|fetch/sync| Catalog
-    Catalog -->|validate + atomic publish| DB
-    Panel -->|list/get/status| Catalog
-    Panel -->|enqueue after agent/create| DB
-    DB -->|claim pending items| Panel
-    Panel -->|internal apply-owned| Core
-    Core -->|private asset + fixed binding| Agent
-    Agent --> Runtime
-```
-
-MemoryKnowledge owns external source and bootstrap state; MemoryCore owns installed Skill;
-MemoryPanel owns authenticated UI orchestration. Public catalog items never enter `meta_assets`.
-
-## 5. Repository Contract
+## 2. 仓库契约
 
 ```text
 shared-skills/
 ├── README.md
-└── skills/
-    └── <skill-name>/
-        ├── SKILL.md
-        ├── scripts/
-        ├── references/
-        └── assets/
+├── CHANGELOG.md
+├── core/
+│   ├── README.md
+│   └── <skill-name>/SKILL.md
+└── extensions/
+    ├── README.md
+    └── <pack>/
+        ├── README.md
+        └── <pack-skill-name>/SKILL.md
 ```
 
-- Directory name must equal frontmatter `name`; `description` is required.
-- Only regular files are accepted; symlinks, submodules, path traversal and Git LFS pointers fail the commit.
-- At most 100 resources, 5 MB each and 50 MB total per Skill.
-- One invalid item rejects the complete commit. The previous active snapshot remains readable.
-- Scripts are stored and exposed as resources but never executed by the server.
+- Skill 目录名必须等于 frontmatter `name`，`description` 必填。
+- Skill 名在整个仓库内全局唯一；扩展技能使用领域前缀避免跨包冲突。
+- README 是可展示的目录文档，不安装到 Agent。
+- Skill 可包含 `agents/`、`scripts/`、`references/`、`assets/`；服务端只存储和复制，不执行脚本。
+- 拒绝符号链接、嵌套 Git、Git LFS 指针与路径逃逸；资源限制沿用单文件 5 MB、每 Skill 100 个资源、合计 50 MB。
+- 不兼容旧 `skills/` 目录；仓库与服务必须按发布顺序协调升级。
 
-## 6. Components and Interfaces
-
-MemoryKnowledge exposes `/v3/public-skills/{list,get,status,snapshot,sync}` and
-`/v3/public-skills/bootstrap/{create,status,retry,claim,complete}`. `sync`, worker-facing
-claim and completion endpoints are control-plane operations. A bootstrap job pins one
-catalog revision and contains one idempotent item per `(agent_id, source_id, item_id)`.
-
-MemoryPanel exposes authenticated `/api/v1/public-skills/*` routes. All users may list/get;
-system_admin alone may sync; installation and retry require that the caller owns the target
-Agent in the selected Team. `agent/create` success enqueues a job without blocking the response.
-
-MemoryCore adds `/v3/internal/skill/snapshot/apply-owned`. It validates actual Agent owner/team,
-then creates v1 or appends exactly one version with full resource replacement and catalog
-provenance metadata. Existing public Skill APIs stay compatible.
-
-## 7. Data Model
+## 3. 架构与数据流
 
 ```mermaid
-erDiagram
-    CATALOG_SOURCE ||--o{ CATALOG_ITEM : contains
-    CATALOG_SOURCE ||--o{ CATALOG_SNAPSHOT : publishes
-    CATALOG_SNAPSHOT ||--o{ BOOTSTRAP_JOB : pins
-    BOOTSTRAP_JOB ||--o{ BOOTSTRAP_ITEM : contains
-    CATALOG_ITEM ||--o{ BOOTSTRAP_ITEM : installs
+flowchart LR
+  Repo[shared-skills GitLab]
+  Catalog[MemoryKnowledge Catalog]
+  Partition[(分区 Last-good)]
+  Policy[(Team 默认策略)]
+  Job[(安装任务)]
+  Panel[Cbrain Panel]
+  Core[MemoryCore Skill Snapshot]
+  Agent[Agent 私有 Skill]
 
-    CATALOG_SOURCE {
-      string service_id PK
-      string source_id PK
-      string active_commit
-      string status
-      string last_error
-    }
-    CATALOG_ITEM {
-      string service_id PK
-      string source_id PK
-      string item_id PK
-      string repo_path
-      string name
-      string source_revision
-      string content_hash
-      json manifest_json
-    }
-    BOOTSTRAP_JOB {
-      string job_id PK
-      string service_id
-      string team_id
-      string agent_id
-      string owner_user_id
-      string source_revision
-      string status
-    }
-    BOOTSTRAP_ITEM {
-      string job_id PK
-      string item_id PK
-      string status
-      string installed_skill_id
-      int attempts
-      string last_error
-    }
+  Repo -->|只读同步| Catalog
+  Catalog --> Partition
+  Panel -->|维护未来默认项| Policy
+  Partition -->|Core + Team 扩展| Job
+  Panel -->|单项或整包| Job
+  Job --> Core --> Agent
 ```
 
-Installed Skill `metadata_json.catalog_origin` stores source id, item id, repo path,
-revision, content hash and bootstrap job id. This provenance drives installed/update status
-but grants no permission.
+MemoryKnowledge 拥有外部源码快照、目录项、README、Team 默认策略与安装任务。MemoryPanel 负责 Web Session 权限门控和工作进程。MemoryCore 负责安装后的版本、资源、资产登记与 Agent 绑定。
 
-## 8. Core Sequence and Failure Semantics
+## 4. 同步与故障隔离
 
-```mermaid
-sequenceDiagram
-    participant UI
-    participant Panel
-    participant Meta as Metadata Core
-    participant KS as PublicSkillCatalog
-    participant Worker
-    participant Skill as SkillCore
+同步分区为 `core` 和每个 `extension:<pack>`：
 
-    UI->>Panel: create Agent
-    Panel->>Meta: agent/create
-    Meta-->>Panel: agent_id
-    Panel->>KS: ensureFresh + bootstrap/create
-    Panel-->>UI: Agent created, bootstrap pending
-    loop concurrency 3
-      Worker->>KS: claim item
-      Worker->>Skill: snapshot/apply-owned
-      Skill-->>Worker: skill_id or error
-      Worker->>KS: complete item
-    end
-    UI->>Panel: bootstrap/status
-    Panel-->>UI: progress / partial / retry
+1. Git 提交先落不可变快照。
+2. 每个分区独立解析、校验并生成候选目录。
+3. 成功分区发布新版本；失败分区保留自己的 last-good。
+4. 合并候选目录后执行全局名称唯一检查。冲突涉及的本次成功分区均拒绝发布，避免覆盖任一既有 Skill。
+5. 删除扩展包视为显式发布删除，只移出公共目录，不删除 Agent 已安装副本。
+
+目录项保留 `layer`、`pack_key`、`category_path`、`partition_key` 和每项 `source_revision`。同名 Skill 仅移动目录时复用原 `item_id`，确保安装来源身份稳定。
+
+## 5. Team 策略与安装语义
+
+Team 策略保存两类选择：扩展包 `pack` 和单项 `item`。新 Agent 的有效初始化集合为：
+
+```text
+全部 Core
++ Team 选择的扩展包中的全部 Skill
++ Team 选择的单个扩展 Skill
+→ 按 item_id/name 去重
 ```
 
-- Repo failure with last-good uses last-good; without it creates an empty/failed job.
-- Successful items are never repeated. Failed items retry three times and remain visible.
-- Name collision with non-catalog Skill returns `SKILL_NAME_CONFLICT`; no overwrite or rename.
-- Quota and version conflicts produce partial jobs; Agent remains usable.
-- Agent deletion cancels uncompleted jobs. Source deletion never removes installed copies.
+- 策略只影响保存后创建的 Agent，不补装已有 Agent。
+- 普通成员可读取策略，只能给自己拥有的 Agent 手动安装。
+- Team Admin、Team Owner、System Admin 可维护策略，并可给 Team 内任意 Agent 安装。
+- Team 默认模板只排除有效初始化集合中的同名 Skill，不以整个公共目录作为冲突范围。
 
-## 9. Security, Availability, and Observability
+单项安装保持同步。整包安装和 Agent 初始化统一使用持久化任务：`job_type=manual_pack|agent_init`。每项记录自己的来源版本，成功项不重复执行，失败项最多自动重试三次并可人工仅重试失败项。整包任务的幂等键包含 Agent、包和内容指纹；目录内容变化后会产生新的升级任务。
 
-- Git host must pass the existing SSRF allowlist; embedded credentials are forbidden.
-- Token is injected only into Git subprocesses and is excluded from DB, metadata and logs.
-- `main` is the publication boundary and should be protected by GitLab review rules.
-- Snapshot publication is atomic and last-good survives invalid commits and restarts.
-- Structured logs and metrics cover source, commit, item id, sync duration, rejection reason,
-  bootstrap progress and retries, without logging Skill bodies or credentials.
+## 6. 接口
 
-## 10. Migration, Testing, and ADR
+MemoryKnowledge 控制接口：
 
-Rollout is disabled-by-default: deploy schema and APIs, configure the fixed repo, validate empty
-state, publish a first valid commit, validate manual install, then enable Agent auto-install.
-Rollback clears the feature configuration and reverts the image; already installed Skills remain.
+- 目录：`status`、`list`、`get`、`snapshot`、`documents`、`effective`、`sync`。
+- Team 策略：`policy/get`、`policy/set`。
+- 安装任务：`bootstrap/create`、`bootstrap/create-pack`、`bootstrap/status`、`bootstrap/retry`、`bootstrap/claim`、`bootstrap/complete`、`bootstrap/cancel`。
 
-Tests cover parser limits, empty/invalid/unchanged repo sync, last-good, snapshot atomicity,
-owner/team authorization, idempotent retry, restart recovery, cancellation, conflict/quota errors,
-UI states, and real `skill_search/get/file_read` after a new Agent bootstrap.
+MemoryPanel 暴露同源 Web Session 接口，额外执行 Team/Agent 权限检查。安装元数据 `catalog_origin` 保存 source、item、path、revision、content hash 与 job id，用于幂等及升级判断，不赋予权限。
 
-ADR decisions:
+## 7. 迁移、发布与回滚
 
-1. Public catalog + copy-on-install instead of cross-team live references.
-2. MemoryKnowledge owns Git and jobs; MemoryCore owns installed Skills.
-3. Creation-time pinned snapshot; no existing-Agent backfill and no automatic upgrades.
-4. Agent creation survives partial bootstrap failure and exposes explicit retry.
+数据库启动迁移把旧的一 Agent 一任务约束转换为带类型和幂等键的多任务结构，并把旧任务标记为 `agent_init`。目录项新增层级字段，第一次新目录同步会以名称复用旧 ID。
 
-Three reviews pass with one accepted scaling risk: if the public catalog becomes too large for
-every new Agent, revisit the policy and introduce repository `default: true` selection.
+发布顺序：
+
+1. 暂停公共目录自动同步和 Agent 自动初始化。
+2. 部署包含新模型与解析器的 MemoryKnowledge/Panel。
+3. 发布 `shared-skills` 两层目录提交。
+4. 手动同步并核对 Core、各扩展包、README 和分区状态。
+5. 恢复新 Agent 自动初始化，创建真实 Agent 验证。
+
+回滚时恢复公共仓库上一提交并回退服务镜像；已安装到 Agent 的 Skill 不删除。
+
+## 8. 验收
+
+- 解析 Core、扩展包、README 和全部资源；拒绝目录/名称错误及跨分区同名。
+- 某扩展包损坏时 Core 与其他包升级，损坏包继续使用 last-good。
+- 新 Agent 获得六个 Core 和 Team 默认扩展；已有 Agent 不发生变化。
+- Team 策略权限、普通成员安装边界和管理员跨 owner Agent 安装正确。
+- 单项、整包、部分失败、自动重试、人工重试、重复请求及目录升级均可验证。
+- 页面可切换 Core/Extensions、渲染 README/完整 Skill 文件、保存策略并展示安装进度。
+- 使用真实 GitLab、MemoryCore 和浏览器完成端到端验证，并在 Codex、Claude Code 中读取安装后的 Skill。

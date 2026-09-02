@@ -93,7 +93,7 @@ describe("default Agent templates", () => {
         }),
       },
       knowledgeClientFactory: () => ({
-        publicSkillList: async () => ({ items: [], total: 0 }),
+        publicSkillEffective: async () => ({ items: [], total: 0 }),
       }),
       skillKernel: { invoke: vi.fn() },
       logger: {
@@ -162,7 +162,7 @@ describe("default Agent templates", () => {
         }),
       },
       metaKernel: { invoke },
-      knowledgeClientFactory: () => ({ publicSkillList: async () => ({ items: [], total: 0 }) }),
+      knowledgeClientFactory: () => ({ publicSkillEffective: async () => ({ items: [], total: 0 }) }),
       skillKernel: { invoke: vi.fn() },
       logger: {
         debug() {}, info() {}, warn() {}, error() {}, child() { return this; },
@@ -230,7 +230,7 @@ describe("default Agent templates", () => {
         },
       },
       knowledgeClientFactory: () => ({
-        publicSkillList: async () => ({
+        publicSkillEffective: async () => ({
           items: [{ name: "code-review" }],
           total: 1,
         }),

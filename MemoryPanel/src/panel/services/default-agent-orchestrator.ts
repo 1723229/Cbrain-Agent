@@ -67,13 +67,8 @@ export async function sanitizeTemplateForPublicSkills(
   let publicNames = new Set<string>();
   try {
     const client = deps.knowledgeClientFactory(ctx.instanceId);
-    const names: string[] = [];
-    for (let offset = 0; ; offset += 500) {
-      const catalog = await client.publicSkillList("", 500, offset);
-      names.push(...catalog.items.map((item) => item.name));
-      if (offset + catalog.items.length >= catalog.total || catalog.items.length === 0) break;
-    }
-    publicNames = new Set(names);
+    const catalog = await client.publicSkillEffective(teamId);
+    publicNames = new Set(catalog.items.map((item) => item.name));
   } catch {
     return { template, skippedSkillIds: [] };
   }

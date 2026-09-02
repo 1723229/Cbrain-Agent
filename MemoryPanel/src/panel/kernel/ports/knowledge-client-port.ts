@@ -153,8 +153,17 @@ export interface CodeGraphToolResult {
 
 export interface PublicSkillCatalogItem {
   item_id: string; source_id: string; repo_path: string; name: string; description: string;
+  layer: 'core' | 'extension'; pack_key: string | null; category_path: string; partition_key: string;
   source_revision: string; content_hash: string; manifest: Array<{ path: string; size_bytes: number; mime_type: string; is_executable: boolean }>;
   total_bytes: number; updated_at: string;
+}
+
+export interface PublicSkillDocument {
+  document_key: string; repo_path: string; title: string; content: string; source_revision: string; updated_at: string;
+}
+
+export interface PublicSkillTeamPolicy {
+  team_id: string; pack_keys: string[]; item_ids: string[]; updated_by: string | null; updated_at: string | null;
 }
 
 export interface PublicSkillSnapshot extends PublicSkillCatalogItem {
@@ -199,10 +208,15 @@ export interface KnowledgeClientPort {
   codeGraphQuery(codeGraphId: string, tool: string, params: Record<string, unknown>): Promise<CodeGraphToolResult>;
   publicSkillStatus(): Promise<Record<string, unknown>>;
   publicSkillList(query?: string, limit?: number, offset?: number): Promise<{ items: PublicSkillCatalogItem[]; total: number }>;
+  publicSkillEffective(teamId: string): Promise<{ items: PublicSkillCatalogItem[]; total: number }>;
+  publicSkillDocuments(): Promise<PublicSkillDocument[]>;
+  publicSkillPolicyGet(teamId: string): Promise<PublicSkillTeamPolicy>;
+  publicSkillPolicySet(params: { team_id: string; pack_keys: string[]; item_ids: string[]; updated_by: string }): Promise<PublicSkillTeamPolicy>;
   publicSkillGet(itemId: string): Promise<PublicSkillCatalogItem>;
   publicSkillSnapshot(itemId: string, revision?: string): Promise<PublicSkillSnapshot>;
   publicSkillSync(): Promise<Record<string, unknown>>;
   publicSkillBootstrapCreate(params: { team_id: string; agent_id: string; owner_user_id: string }): Promise<Record<string, unknown>>;
+  publicSkillPackInstallCreate(params: { team_id: string; agent_id: string; owner_user_id: string; pack_key: string }): Promise<Record<string, unknown>>;
   publicSkillBootstrapStatus(params: { job_id?: string; agent_id?: string }): Promise<Record<string, unknown>>;
   publicSkillBootstrapRetry(jobId: string): Promise<Record<string, unknown>>;
   publicSkillBootstrapClaim(): Promise<Record<string, unknown> | null>;

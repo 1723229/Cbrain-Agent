@@ -129,7 +129,7 @@ docker run -d --name memory-hub \
 | `KNOWLEDGE_PUBLIC_SKILL_REPO_URL` | 空 | 公共 Skill Git 仓库；空表示关闭公共目录 |
 | `KNOWLEDGE_PUBLIC_SKILL_REPO_BRANCH` | `main` | 公共 Skill 发布分支 |
 | `KNOWLEDGE_PUBLIC_SKILL_SYNC_INTERVAL_MS` | `300000` | 公共目录自动同步周期 |
-| `PUBLIC_SKILL_AUTO_INSTALL_ON_AGENT_CREATE` | `false` | 新 Agent 是否自动安装当前公共目录全部 Skill |
+| `PUBLIC_SKILL_AUTO_INSTALL_ON_AGENT_CREATE` | `false` | 新 Agent 是否自动安装公共 Core 与该 Team 已选择的默认扩展；不补装已有 Agent |
 | `KNOWLEDGE_AUTH_TOKEN` | 启动时随机生成 | Panel→Knowledge 公共 Skill 控制面凭证；一般无需手工设置 |
 | `KNOWLEDGE_TIMEOUT_MS` | `15000` | Panel 调 KS 的请求超时 |
 | `METADATA_REMOTE_TIMEOUT_MS` | `15000` | Panel 调远端 Gateway 的请求超时 |
