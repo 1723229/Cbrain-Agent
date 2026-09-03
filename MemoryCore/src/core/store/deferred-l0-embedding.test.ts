@@ -69,4 +69,55 @@ describe("deferred L0 embedding queue", () => {
 
     expect(retry).toHaveBeenCalledWith("msg-1", 3, "embedding unavailable");
   });
+
+  it("removes queued jobs when an L0 session is deleted", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "cbrain-l0-session-delete-"));
+    const store = new VectorStore(join(directory, "vectors.db"), 2);
+    try {
+      await store.init({ provider: "test", model: "test" });
+      const record = l0Record("msg-session-delete", "session-delete");
+      store.upsertL0(record, undefined);
+      store.enqueueL0Embedding(record.id, record.messageText);
+      expect(store.dueL0Embeddings()).toHaveLength(1);
+
+      expect(store.deleteL0BySession(record.sessionId)).toBe(1);
+      expect(store.dueL0Embeddings()).toHaveLength(0);
+    } finally {
+      store.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("removes queued jobs when an Agent's memory content is cleared", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "cbrain-l0-content-clear-"));
+    const store = new VectorStore(join(directory, "vectors.db"), 2);
+    try {
+      await store.init({ provider: "test", model: "test" });
+      const record = l0Record("msg-content-clear", "session-clear");
+      store.upsertL0(record, undefined);
+      store.enqueueL0Embedding(record.id, record.messageText);
+      expect(store.dueL0Embeddings()).toHaveLength(1);
+
+      expect(store.clearMemoryContent({ teamId: record.teamId, agentId: record.agentId })).toMatchObject({ l0Deleted: 1 });
+      expect(store.dueL0Embeddings()).toHaveLength(0);
+    } finally {
+      store.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });
+
+function l0Record(id: string, sessionId: string) {
+  return {
+    id,
+    sessionKey: sessionId,
+    sessionId,
+    teamId: "team-1",
+    userId: "user-1",
+    agentId: "agent-1",
+    role: "user" as const,
+    messageText: `queued message ${id}`,
+    recordedAt: "2026-09-03T10:00:00.000Z",
+    timestamp: Date.parse("2026-09-03T10:00:00.000Z"),
+  };
+}

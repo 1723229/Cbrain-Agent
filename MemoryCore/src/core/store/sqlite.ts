@@ -2181,13 +2181,9 @@ export class VectorStore implements IMemoryStore {
       }
       this.db.exec("BEGIN");
       try {
-        this.db.prepare("DELETE FROM l0_embedding_jobs WHERE record_id=?").run(recordId);
         const result = this.stmtL0DeleteMeta.run(recordId);
         const deleted = (result as any)?.changes > 0;
-        if (this.vecTablesReady) this.stmtL0DeleteVec!.run(recordId);
-        if (this.ftsAvailable) {
-          try { this.stmtL0FtsDelete.run(recordId); } catch { /* non-fatal */ }
-        }
+        this.deleteL0Artifacts(recordId);
         this.db.exec("COMMIT");
         return deleted;
       } catch (err) {
@@ -2201,6 +2197,15 @@ export class VectorStore implements IMemoryStore {
         `${TAG} deleteL0 failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`,
       );
       return false;
+    }
+  }
+
+  /** Remove every row derived from an L0 record inside the caller's transaction. */
+  private deleteL0Artifacts(recordId: string): void {
+    this.db.prepare("DELETE FROM l0_embedding_jobs WHERE record_id=?").run(recordId);
+    if (this.vecTablesReady) this.stmtL0DeleteVec!.run(recordId);
+    if (this.ftsAvailable) {
+      try { this.stmtL0FtsDelete.run(recordId); } catch { /* non-fatal */ }
     }
   }
 
@@ -2784,12 +2789,7 @@ export class VectorStore implements IMemoryStore {
           const result = this.db.prepare("DELETE FROM l0_conversations WHERE record_id = ?").run(row.record_id);
           if (((result as any)?.changes ?? 0) <= 0) continue;
           deletedCount++;
-          if (this.vecTablesReady) {
-            try { this.db.prepare("DELETE FROM l0_vec WHERE record_id = ?").run(row.record_id); } catch { /* vec may not exist */ }
-          }
-          if (this.ftsAvailable) {
-            try { this.db.prepare("DELETE FROM l0_fts WHERE record_id = ?").run(row.record_id); } catch { /* fts may not exist */ }
-          }
+          this.deleteL0Artifacts(row.record_id);
         }
         this.db.exec("COMMIT");
         return deletedCount;
@@ -2841,12 +2841,7 @@ export class VectorStore implements IMemoryStore {
           const res = this.db.prepare("DELETE FROM l0_conversations WHERE record_id = ?").run(id);
           if (((res as any)?.changes ?? 0) <= 0) continue;
           l0Deleted++;
-          if (this.vecTablesReady) {
-            try { this.db.prepare("DELETE FROM l0_vec WHERE record_id = ?").run(id); } catch { /* vec may not exist */ }
-          }
-          if (this.ftsAvailable) {
-            try { this.db.prepare("DELETE FROM l0_fts WHERE record_id = ?").run(id); } catch { /* fts may not exist */ }
-          }
+          this.deleteL0Artifacts(id);
         }
 
         let l1Deleted = 0;
