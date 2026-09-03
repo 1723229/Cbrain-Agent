@@ -759,6 +759,20 @@ export class VectorStore implements IMemoryStore {
         timestamp INTEGER DEFAULT 0
       )
     `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS l0_embedding_jobs (
+        record_id TEXT PRIMARY KEY,
+        message_text TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_l0_embedding_jobs_due
+        ON l0_embedding_jobs(status, next_attempt_at);
+    `);
 
     // Online migrations: each ADD COLUMN is wrapped in try/catch so re-running
     // init() on an already-migrated DB is a no-op.
@@ -1948,6 +1962,59 @@ export class VectorStore implements IMemoryStore {
     }
   }
 
+  hasL0(recordId: string): boolean {
+    if (this.degraded) return false;
+    return this.stmtL0GetMeta.get(recordId) !== undefined;
+  }
+
+  enqueueL0Embedding(recordId: string, messageText: string): void {
+    if (this.degraded || !this.vecTablesReady) return;
+    const now = Date.now();
+    this.db.prepare(`
+      INSERT INTO l0_embedding_jobs(record_id,message_text,status,attempts,next_attempt_at,last_error,created_at,updated_at)
+      SELECT ?,?,'pending',0,?,NULL,?,?
+      WHERE NOT EXISTS (SELECT 1 FROM l0_vec WHERE record_id=?)
+      ON CONFLICT(record_id) DO UPDATE SET message_text=excluded.message_text,updated_at=excluded.updated_at
+    `).run(recordId, messageText, now, now, now, recordId);
+  }
+
+  dueL0Embeddings(limit = 32): Array<{ recordId: string; messageText: string; attempts: number }> {
+    if (this.degraded || !this.vecTablesReady) return [];
+    const now = Date.now();
+    this.db.prepare("DELETE FROM l0_embedding_jobs WHERE status='dead' AND updated_at<?")
+      .run(now - 7 * 24 * 60 * 60_000);
+    const rows = this.db.prepare(`
+      SELECT record_id,message_text,attempts
+      FROM l0_embedding_jobs
+      WHERE status='pending' AND next_attempt_at<=?
+      ORDER BY created_at
+      LIMIT ?
+    `).all(now, Math.max(1, Math.min(100, Math.floor(limit)))) as Array<{
+      record_id: string;
+      message_text: string;
+      attempts: number;
+    }>;
+    return rows.map((row) => ({ recordId: row.record_id, messageText: row.message_text, attempts: row.attempts }));
+  }
+
+  completeL0Embedding(recordId: string): void {
+    if (this.degraded) return;
+    this.db.prepare("DELETE FROM l0_embedding_jobs WHERE record_id=?").run(recordId);
+  }
+
+  retryL0Embedding(recordId: string, attempts: number, error: string): void {
+    if (this.degraded) return;
+    const now = Date.now();
+    const terminal = attempts >= 8;
+    const delay = Math.min(5 * 60_000, 1000 * 2 ** Math.min(attempts, 8));
+    this.db.prepare(`
+      UPDATE l0_embedding_jobs
+      SET status=?,attempts=?,next_attempt_at=?,last_error=?,updated_at=?
+      WHERE record_id=?
+    `).run(terminal ? "dead" : "pending", attempts, terminal ? now : now + delay, error.slice(0, 1000), now, recordId);
+    if (terminal) this.logger?.warn(`${TAG} [L0-embedding] DEAD id=${recordId} attempts=${attempts}: ${error.slice(0, 300)}`);
+  }
+
   /**
    * Update ONLY the vector embedding for an existing L0 record.
    * The metadata row must already exist in l0_conversations (written by upsertL0).
@@ -2114,6 +2181,7 @@ export class VectorStore implements IMemoryStore {
       }
       this.db.exec("BEGIN");
       try {
+        this.db.prepare("DELETE FROM l0_embedding_jobs WHERE record_id=?").run(recordId);
         const result = this.stmtL0DeleteMeta.run(recordId);
         const deleted = (result as any)?.changes > 0;
         if (this.vecTablesReady) this.stmtL0DeleteVec!.run(recordId);
@@ -2171,6 +2239,12 @@ export class VectorStore implements IMemoryStore {
 
       this.db.exec("BEGIN");
       try {
+        this.db.prepare(`
+          DELETE FROM l0_embedding_jobs
+          WHERE record_id IN (
+            SELECT record_id FROM l0_conversations WHERE recorded_at != '' AND recorded_at < ?
+          )
+        `).run(cutoffIso);
         if (this.vecTablesReady) {
           this.db.prepare(
             "DELETE FROM l0_vec WHERE recorded_at != '' AND recorded_at < ?",

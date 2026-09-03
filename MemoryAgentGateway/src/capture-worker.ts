@@ -10,6 +10,7 @@ export class CaptureWorker {
     private readonly coreConfig: CoreClientConfig,
     private readonly concurrency = 4,
     private readonly maxAttempts = 8,
+    private readonly captureTimeoutMs = 30_000,
   ) {}
 
   async drain(): Promise<void> {
@@ -25,12 +26,12 @@ export class CaptureWorker {
         }
         const core = new CoreClient(this.coreConfig, context);
         const messages = [
-          { role: "user" as const, content: event.user },
-          { role: "assistant" as const, content: event.assistant },
+          { role: "user" as const, content: event.user, recorded_at: new Date(event.createdAt).toISOString() },
+          { role: "assistant" as const, content: event.assistant, recorded_at: new Date(event.createdAt + 1).toISOString() },
         ];
         const jobs: Array<Promise<{ sink: "core" | "skill"; error?: string }>> = [];
         if (event.coreStatus === "pending") {
-          jobs.push(core.addConversation(messages).then(
+          jobs.push(core.addConversation(messages, event.eventId, this.captureTimeoutMs).then(
             () => ({ sink: "core" as const }),
             (error) => ({ sink: "core" as const, error: errorMessage(error) }),
           ));

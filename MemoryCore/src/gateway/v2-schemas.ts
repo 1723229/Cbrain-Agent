@@ -109,6 +109,7 @@ import {
 /** conversationAdd with session_id defaulting to compatibility bucket. */
 export const conversationAddRequestSchema = z.object({
   session_id: z.string().min(1).default(DEFAULT_ISOLATION_ID),
+  idempotency_key: z.string().trim().min(16).max(128).regex(/^[A-Za-z0-9._:-]+$/).optional(),
   messages: z.array(_conversationItemSchema).min(1).max(100),
 });
 export type ConversationAddRequest = z.infer<typeof conversationAddRequestSchema>;

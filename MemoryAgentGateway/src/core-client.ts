@@ -26,7 +26,9 @@ export class CoreClient {
   listScenes(pathPrefix = "", timeoutMs?: number): Promise<SceneData> { return this.postData("/scenario/ls", { path_prefix: pathPrefix }, timeoutMs); }
   readScene(path: string): Promise<SceneFile | null> { return this.postData("/scenario/read", { path }); }
   readProfile(timeoutMs?: number): Promise<SceneFile | null> { return this.postData("/core/read", {}, timeoutMs); }
-  addConversation(messages: ConversationMessage[]): Promise<unknown> { return this.postData("/conversation/add", { messages, session_id: this.identity.sessionId }); }
+  addConversation(messages: ConversationMessage[], idempotencyKey: string, timeoutMs?: number): Promise<unknown> {
+    return this.postData("/conversation/add", { messages, session_id: this.identity.sessionId, idempotency_key: idempotencyKey }, timeoutMs);
+  }
   addSkillConversation(messages: ConversationMessage[]): Promise<unknown> { return this.postData("/skill/conversation/add", { messages, session_id: this.identity.sessionId }); }
   extractSkill(messages: ConversationMessage[], reason: string): Promise<{ ok?: boolean; task_id?: string }> { return this.postData("/skill/extract", { messages, session_id: this.identity.sessionId, reason }); }
 

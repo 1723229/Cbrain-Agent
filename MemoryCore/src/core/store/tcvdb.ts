@@ -1079,6 +1079,23 @@ export class TcvdbMemoryStore implements IMemoryStore {
     }
   }
 
+  async hasL0(recordId: string): Promise<boolean> {
+    await this._ensureInit();
+    if (this.degraded) return false;
+    try {
+      const response = await this.client.query(this.l0Collection, {
+        retrieveVector: false,
+        limit: 1,
+        filter: eqFilter("id", recordId),
+        outputFields: ["id"],
+      });
+      return (response.documents ?? []).length > 0;
+    } catch (err) {
+      this.logger?.warn(`${TAG} [L0-exists] FAILED id=${recordId}: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
+  }
+
   private async _upsertL0Async(record: L0Record): Promise<void> {
     await this._ensureInit();
     if (this.degraded) return;

@@ -32,6 +32,7 @@ import type {
 import type { MemoryTdaiConfig } from "../config.js";
 import type { IMemoryStore } from "./store/types.js";
 import type { EmbeddingService } from "./store/embedding.js";
+import { drainDeferredL0Embeddings } from "./store/deferred-l0-embedding.js";
 import type { StorageAdapter } from "./storage/adapter.js";
 import { performAutoRecall } from "./hooks/auto-recall.js";
 import { reportRecallMetrics } from "./report/metric-tracking-recall.js";
@@ -206,9 +207,8 @@ export class TdaiCore {
   private skillWiringPromise?: Promise<void>;
 
   /**
-   * In-flight fire-and-forget background tasks started by
-   * ``handleTurnCommitted`` (currently: deferred L0 embedding for
-   * SQLite-style stores — see auto-capture.ts path A).
+   * In-flight fire-and-forget background tasks started by auto-capture or the
+   * HTTP conversation endpoint (deferred L0 embedding for SQLite stores).
    *
    * ``destroy()`` awaits all pending entries (with a hard timeout)
    * before closing ``vectorStore`` / ``embeddingService`` so that a
@@ -220,6 +220,7 @@ export class TdaiCore {
    * of currently-running background tasks.
    */
   private readonly bgTasks = new Set<Promise<void>>();
+  private deferredEmbeddingTimer?: ReturnType<typeof setInterval>;
 
   constructor(opts: TdaiCoreOptions) {
     this.hostAdapter = opts.hostAdapter;
@@ -298,6 +299,11 @@ export class TdaiCore {
     // Wait for store init to complete before tearing down
     await this.storeReady?.catch(() => {});
 
+    if (this.deferredEmbeddingTimer) {
+      clearInterval(this.deferredEmbeddingTimer);
+      this.deferredEmbeddingTimer = undefined;
+    }
+
     if (this.scheduler && this.schedulerStartPromise) {
       await this.scheduler.destroy();
       this.schedulerStartPromise = undefined;
@@ -308,8 +314,7 @@ export class TdaiCore {
     // 起, 也在各自的 WiredConversationAdd.stop() 里 graceful shutdown。tdai-core
     // 无需在这里 stop skill 侧的 worker/queue (它已经不再持有它们)。
 
-    // Drain fire-and-forget background tasks started by auto-capture
-    // (currently: deferred L0 embedding writes).  We must wait for
+    // Drain fire-and-forget deferred L0 embedding writes. We must wait for
     // them here — BEFORE closing vectorStore / embeddingService —
     // otherwise a late updateL0Embedding lands on an already-closed
     // DB connection and either throws "database is not open" or
@@ -428,6 +433,14 @@ export class TdaiCore {
       embeddingService: this.embeddingService,
       bgTaskRegistry: this.bgTasks,
       storage: this.storage,
+    });
+  }
+
+  /** Track deferred work so shutdown cannot close stores while a vector update is still running. */
+  trackBackgroundTask(task: Promise<void>): void {
+    this.bgTasks.add(task);
+    void task.finally(() => {
+      this.bgTasks.delete(task);
     });
   }
 
@@ -612,12 +625,25 @@ export class TdaiCore {
       const stores = await initStores(this.cfg, this.dataDir, this.logger);
       this.vectorStore = stores.vectorStore;
       this.embeddingService = stores.embeddingService;
+      this.startDeferredEmbeddingWorker();
       this.logger.debug?.(`${TAG} Stores initialized: backend=${this.cfg.storeBackend}, embedding=${this.cfg.embedding.provider}`);
     } catch (err) {
       this.logger.warn(
         `${TAG} Store init failed; recall/dedup degraded: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  private startDeferredEmbeddingWorker(): void {
+    if (this.deferredEmbeddingTimer || !this.vectorStore || !this.embeddingService) return;
+    if (!this.vectorStore.dueL0Embeddings || !this.vectorStore.updateL0Embedding) return;
+    const drain = () => {
+      if (!this.vectorStore || !this.embeddingService) return;
+      this.trackBackgroundTask(drainDeferredL0Embeddings(this.vectorStore, this.embeddingService, this.logger));
+    };
+    drain();
+    this.deferredEmbeddingTimer = setInterval(drain, 2_000);
+    this.deferredEmbeddingTimer.unref?.();
   }
 
   /**

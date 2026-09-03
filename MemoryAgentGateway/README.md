@@ -83,7 +83,13 @@ CBRAIN_KNOWLEDGE_CACHE_TTL_MS=30000
 CBRAIN_SKILL_SETTLE_MS=5000
 CBRAIN_CAPTURE_CONCURRENCY=4
 CBRAIN_CAPTURE_MAX_ATTEMPTS=8
+CBRAIN_CAPTURE_TIMEOUT_MS=30000
 ```
+
+`CBRAIN_CAPTURE_TIMEOUT_MS` applies only to the asynchronous Core L0 capture
+worker. Authentication, directory access, recall, and MCP reads keep their
+shorter interactive timeouts. Each capture sends its durable queue event ID as
+Core's idempotency key, so an ambiguous timeout can be retried safely.
 
 `CBRAIN_RECALL_MIN_SCORE` is a normalized 0..1 confidence threshold. Core
 SQLite hybrid-search RRF scores are normalized to the same scale before this

@@ -19,6 +19,7 @@ import type http from "node:http";
 import { classifyError } from "./error-handler.js";
 import type { IMemoryStore, L0Record, ProfileSyncRecord } from "../core/store/types.js";
 import type { EmbeddingService } from "../core/store/embedding.js";
+import { drainDeferredL0Embeddings } from "../core/store/deferred-l0-embedding.js";
 import { createScopedStorageAdapter, type StorageAdapter } from "../core/storage/adapter.js";
 import { StoragePaths } from "../core/storage/types.js";
 import type { Logger } from "../core/types.js";
@@ -226,6 +227,8 @@ export interface V2RouterDeps {
   getEmbedding: () => EmbeddingService | undefined;
   /** Get the default StorageAdapter (standalone fallback). */
   getStorage: () => StorageAdapter | undefined;
+  /** Register deferred vector updates with the Core lifecycle shutdown barrier. */
+  trackBackgroundTask?: (task: Promise<void>) => void;
   logger: Logger;
 
   /**
@@ -664,7 +667,7 @@ export async function handleV2Route(
 async function handleConversationAdd(body: unknown, auth: V2AuthContext, requestId: string, deps: V2RouterDeps): Promise<ApiResponseEnvelope> {
   const parsed = conversationAddRequestSchema.safeParse(body);
   if (!parsed.success) return errorEnvelope(400, formatZodError(parsed.error), requestId);
-  const { session_id, messages } = parsed.data;
+  const { session_id, messages, idempotency_key } = parsed.data;
 
   // Enforce three-dim isolation. user_id / agent_id come from request body
   // or x-tdai-* headers (resolved in dispatchV2Request).  When the gateway's
@@ -683,9 +686,63 @@ async function handleConversationAdd(body: unknown, auth: V2AuthContext, request
   const store = deps.getStore();
   if (!store) return errorEnvelope(503, "Store not available", requestId);
 
-  // Quota check: memory limit
+  const ingestBaseMs = Date.now();
+  const records = messages.map((msg, index): L0Record => {
+    const ingestRecordedAtMs = ingestBaseMs + index;
+    const recordedAtMs = msg.recorded_at
+      ? new Date(msg.recorded_at).getTime()
+      : ingestRecordedAtMs;
+    const id = idempotency_key
+      ? deterministicConversationMessageId(auth.serviceId, iso, session_id, idempotency_key, index, msg.role)
+      : `msg-${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+    return {
+      id,
+      sessionKey: session_id,
+      sessionId: session_id,
+      taskId: iso?.taskId,
+      teamId: iso?.teamId,
+      userId: iso?.userId,
+      agentId: iso?.agentId,
+      role: msg.role,
+      messageText: msg.content,
+      recordedAt: new Date(recordedAtMs).toISOString(),
+      timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : recordedAtMs,
+    };
+  });
+  const acceptedIds = records.map((record) => record.id);
+  const existing = new Set<string>();
+  if (idempotency_key && store.hasL0) {
+    const states = await Promise.all(records.map((record) => store.hasL0!(record.id)));
+    states.forEach((found, index) => {
+      if (found) existing.add(records[index]!.id);
+    });
+  }
+  const acceptedRecords = records.filter((record) => !existing.has(record.id));
+  const embedding = deps.getEmbedding();
+  const canDeferEmbedding = Boolean(
+    embedding &&
+    embedding.getDimensions() > 0 &&
+    store.supportsDeferredEmbedding === true &&
+    store.updateL0Embedding,
+  );
+
+  if (acceptedRecords.length === 0) {
+    if (canDeferEmbedding && embedding && store.enqueueL0Embedding) {
+      await Promise.all(records.map((record) =>
+        Promise.resolve(store.enqueueL0Embedding!(record.id, record.messageText))));
+      const background = drainDeferredL0Embeddings(store, embedding, deps.logger);
+      if (deps.trackBackgroundTask) deps.trackBackgroundTask(background);
+      else void background;
+    }
+    return successEnvelope<ConversationAddData>(
+      { accepted_ids: acceptedIds, accepted_versions: acceptedIds.map(() => "v1"), total_count: acceptedIds.length },
+      requestId,
+    );
+  }
+
+  // Quota applies only to records that this idempotent request has not already stored.
   if (deps.quotaManager) {
-    const check = await deps.quotaManager.checkMemoryQuota(auth.serviceId, messages.length);
+    const check = await deps.quotaManager.checkMemoryQuota(auth.serviceId, acceptedRecords.length);
     if (!check.allowed) {
       return errorEnvelope(4291, `Memory limit exceeded (current=${check.current}, limit=${check.limit})`, requestId);
     }
@@ -710,47 +767,49 @@ async function handleConversationAdd(body: unknown, auth: V2AuthContext, request
     }
   }
 
-  const embedding = deps.getEmbedding();
-  const acceptedIds: string[] = [];
-  const acceptedRecords: L0Record[] = [];
-  const ingestBaseMs = Date.now();
-
-  for (const [index, msg] of messages.entries()) {
-    const id = `msg-${randomUUID().replace(/-/g, "").slice(0, 12)}`;
-    const ingestRecordedAtMs = ingestBaseMs + index;
-    const recordedAtMs = msg.recorded_at
-      ? new Date(msg.recorded_at).getTime()
-      : ingestRecordedAtMs;
-    const record: L0Record = {
-      id,
-      sessionKey: session_id,
-      sessionId: session_id,
-      taskId: iso?.taskId,
-      // Tenancy isolation: resolveIsolation() defaults missing fields to the default bucket.
-      teamId: iso?.teamId,
-      userId: iso?.userId,
-      agentId: iso?.agentId,
-      role: msg.role,
-      messageText: msg.content,
-      recordedAt: new Date(recordedAtMs).toISOString(),
-      timestamp: msg.timestamp ? new Date(msg.timestamp).getTime() : recordedAtMs,
-    };
-
-    let emb: Float32Array | undefined;
-    if (embedding) {
-      try { emb = await embedding.embed(msg.content); } catch (e) { console.warn(`[v2-router] L0 embedding failed:`, e); }
+  let inlineEmbeddings: Float32Array[] = [];
+  if (embedding && embedding.getDimensions() > 0 && !canDeferEmbedding) {
+    try {
+      inlineEmbeddings = await embedding.embedBatch(acceptedRecords.map((record) => record.messageText));
+    } catch (err) {
+      deps.logger.warn(`${TAG} L0 embedding failed; storing metadata only: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
 
-    await store.upsertL0(record, emb);
-    acceptedIds.push(id);
-    acceptedRecords.push(record);
+  for (const [index, record] of acceptedRecords.entries()) {
+    await store.upsertL0(record, canDeferEmbedding ? undefined : inlineEmbeddings[index]);
+  }
+
+  if (canDeferEmbedding && embedding) {
+    let background: Promise<void>;
+    if (store.enqueueL0Embedding) {
+      await Promise.all(acceptedRecords.map((record) =>
+        Promise.resolve(store.enqueueL0Embedding!(record.id, record.messageText))));
+      background = drainDeferredL0Embeddings(store, embedding, deps.logger);
+    } else {
+      background = (async () => {
+        try {
+          const vectors = await embedding.embedBatch(acceptedRecords.map((record) => record.messageText));
+          for (const [index, record] of acceptedRecords.entries()) {
+            const vector = vectors[index];
+            if (vector) await store.updateL0Embedding!(record.id, vector);
+          }
+        } catch (err) {
+          deps.logger.warn(`${TAG} Deferred L0 embedding failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      })();
+    }
+    if (deps.trackBackgroundTask) deps.trackBackgroundTask(background);
+    else void background;
   }
 
   // Notify pipeline: trigger async L1 extraction (service mode).
   // Each role=user message counts as one conversation round for threshold/timer logic.
   // teamId/agentId 透传给 captureAtomic 决定 hash slot 与锁粒度。
-  if (deps.notifyPipeline) {
-    const rounds = messages.filter((m) => m.role === "user").length;
+  if (deps.notifyPipeline && acceptedRecords.length > 0) {
+    const rounds = idempotency_key
+      ? messages.filter((message) => message.role === "user").length
+      : acceptedRecords.filter((record) => record.role === "user").length;
     if (rounds > 0) {
       try {
         await deps.notifyPipeline(auth.serviceId, session_id, rounds, iso?.teamId, iso?.agentId);
@@ -799,8 +858,8 @@ async function handleConversationAdd(body: unknown, auth: V2AuthContext, request
   }
 
   // Report memory usage (non-fatal)
-  if (deps.quotaManager && acceptedIds.length > 0) {
-    deps.quotaManager.reportMemoryAdded(auth.serviceId, acceptedIds.length).catch(() => {});
+  if (deps.quotaManager && acceptedRecords.length > 0) {
+    deps.quotaManager.reportMemoryAdded(auth.serviceId, acceptedRecords.length).catch(() => {});
   }
 
   return successEnvelope<ConversationAddData>(
@@ -2250,6 +2309,30 @@ function formatLocalDateForJsonl(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function deterministicConversationMessageId(
+  serviceId: string,
+  isolation: { teamId?: string; userId: string; agentId: string; sessionId: string; taskId?: string } | undefined,
+  sessionId: string,
+  idempotencyKey: string,
+  index: number,
+  role: string,
+): string {
+  const digest = createHash("sha256")
+    .update([
+      serviceId,
+      isolation?.teamId ?? "",
+      isolation?.userId ?? "",
+      isolation?.agentId ?? "",
+      isolation?.taskId ?? "",
+      sessionId,
+      idempotencyKey,
+      String(index),
+      role,
+    ].join("\0"))
+    .digest("hex");
+  return `msg-${digest.slice(0, 24)}`;
 }
 
 // ============================

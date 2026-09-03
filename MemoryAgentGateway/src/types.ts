@@ -49,6 +49,7 @@ export interface ConversationMessage {
   role: "user" | "assistant" | "tool_call" | "tool_result" | "system";
   content: string;
   timestamp?: string;
+  recorded_at?: string;
   tool_name?: string;
   tool_call_id?: string;
 }

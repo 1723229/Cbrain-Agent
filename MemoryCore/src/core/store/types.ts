@@ -161,6 +161,12 @@ export interface L0Record {
   timestamp: number;
 }
 
+export interface DeferredL0EmbeddingJob {
+  recordId: string;
+  messageText: string;
+  attempts: number;
+}
+
 /** Result from an L0 vector similarity search. */
 export interface L0SearchResult {
   record_id: string;
@@ -595,6 +601,14 @@ export interface IMemoryStore extends MemoryPromptStore, MemoryGenerationRefStor
   // ── L0 Write ─────────────────────────────────────────────
 
   upsertL0(record: L0Record, embedding?: Float32Array): MaybePromise<boolean>;
+  /** Check whether one deterministic L0 record already exists. Used to short-circuit idempotent retries. */
+  hasL0?(recordId: string): MaybePromise<boolean>;
+  /** Persist a vector backfill job after the L0 metadata row is durable. */
+  enqueueL0Embedding?(recordId: string, messageText: string): MaybePromise<void>;
+  /** Return currently due vector backfill jobs. Implementations keep retries durable. */
+  dueL0Embeddings?(limit?: number): MaybePromise<DeferredL0EmbeddingJob[]>;
+  completeL0Embedding?(recordId: string): MaybePromise<void>;
+  retryL0Embedding?(recordId: string, attempts: number, error: string): MaybePromise<void>;
   /** Update only the vector embedding for an existing L0 record (sqlite background path). */
   updateL0Embedding?(recordId: string, embedding: Float32Array): MaybePromise<boolean>;
   deleteL0(recordId: string, filter?: IsolationFilter): MaybePromise<boolean>;

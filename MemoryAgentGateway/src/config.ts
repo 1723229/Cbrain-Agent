@@ -23,6 +23,7 @@ export interface GatewayConfig {
   skillSettleMs: number;
   captureConcurrency: number;
   captureMaxAttempts: number;
+  captureTimeoutMs: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
@@ -55,6 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig 
     skillSettleMs: integer(env.CBRAIN_SKILL_SETTLE_MS, 5_000),
     captureConcurrency: integer(env.CBRAIN_CAPTURE_CONCURRENCY, 4),
     captureMaxAttempts: integer(env.CBRAIN_CAPTURE_MAX_ATTEMPTS, 8),
+    captureTimeoutMs: integer(env.CBRAIN_CAPTURE_TIMEOUT_MS, 30_000),
   };
 }
 function integer(value: string | undefined, fallback: number): number { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback; }

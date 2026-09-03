@@ -12,6 +12,7 @@ export interface CaptureEvent {
   coreStatus: "pending" | "done" | "dead";
   skillStatus: "pending" | "done" | "dead";
   attempts: number;
+  createdAt: number;
 }
 
 export interface SkillExtractionEvent {
@@ -246,9 +247,9 @@ export class GatewayStore {
   }
 
   dueCaptures(limit = 20): CaptureEvent[] {
-    const rows = this.db.prepare(`SELECT event_id,context_id,user_text,assistant_text,core_status,skill_status,attempts FROM capture_events WHERE (core_status='pending' OR skill_status='pending') AND next_attempt_at<=? ORDER BY created_at LIMIT ?`)
+    const rows = this.db.prepare(`SELECT event_id,context_id,user_text,assistant_text,core_status,skill_status,attempts,created_at FROM capture_events WHERE (core_status='pending' OR skill_status='pending') AND next_attempt_at<=? ORDER BY created_at LIMIT ?`)
       .all(Date.now(), limit) as unknown as CaptureRow[];
-    return rows.map((row) => ({ eventId: row.event_id, contextId: row.context_id, user: row.user_text, assistant: row.assistant_text, coreStatus: row.core_status, skillStatus: row.skill_status, attempts: row.attempts }));
+    return rows.map((row) => ({ eventId: row.event_id, contextId: row.context_id, user: row.user_text, assistant: row.assistant_text, coreStatus: row.core_status, skillStatus: row.skill_status, attempts: row.attempts, createdAt: row.created_at }));
   }
 
   markSink(eventId: string, sink: "core" | "skill"): void { this.db.prepare(`UPDATE capture_events SET ${sink}_status='done',updated_at=? WHERE event_id=?`).run(Date.now(), eventId); }
@@ -299,7 +300,7 @@ export class GatewayStore {
 }
 
 interface ContextRow { context_id:string;principal_id:string;team_id:string;user_id:string;user_key:string|null;agent_id:string;agent_name:string|null;host:string;session_id:string;workspace:string;created_at:number;expires_at:number }
-interface CaptureRow { event_id:string;context_id:string;user_text:string;assistant_text:string;core_status:"pending"|"done"|"dead";skill_status:"pending"|"done"|"dead";attempts:number }
+interface CaptureRow { event_id:string;context_id:string;user_text:string;assistant_text:string;core_status:"pending"|"done"|"dead";skill_status:"pending"|"done"|"dead";attempts:number;created_at:number }
 interface SkillExtractionRow { event_id:string;context_id:string;reason:string;attempts:number }
 interface WorkspaceBindingRow { principal_id:string;workspace_key:string;workspace_label:string;team_id:string;agent_id:string;agent_name:string|null;created_at:number;updated_at:number }
 interface WorkspaceBindingRequestRow { request_id:string;principal_id:string;workspace_key:string;workspace_label:string;host:string;session_id:string;workspace:string;created_at:number;expires_at:number }
