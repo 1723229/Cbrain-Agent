@@ -61,6 +61,64 @@ npx --yes --package "https://cbrain.example/downloads/cbrain-agent.tgz" cbrain-a
 安装包由当前 Cbrain 实例直接提供，不依赖 npm 发布或 GitHub/SSH。安装器会隐藏读取页面
 API Key、验证身份、安装离线内置插件并保存用户级配置。示例域名仅用于说明，请以页面命令为准。
 
+### Cbrain 平台使用流程
+
+#### 1. 登录与权限
+
+- 普通用户使用 LDAP 登录；浏览器凭证由 HttpOnly Web Session 保存。
+- 系统管理员 API Key 只用于 LDAP 故障时的应急登录，不是普通用户的后台登录凭证。
+- **只有系统管理员可以新建 Team**。
+- Team Owner / Team 管理员可以维护当前 Team、添加已有 LDAP 用户、调整成员角色，
+  并管理团队 Agent、默认 Agent 模板和团队资产。
+- 普通成员可以查看团队成员，创建并管理自己拥有的 Agent 与资产，不能新建 Team 或管理其他成员。
+
+#### 2. 新成员与默认 Agent
+
+用户被加入 Team 后，系统异步为该用户创建默认 Agent；系统管理员新建 Team 后，也会为
+Team Owner 创建默认 Agent。默认 Agent 模板可预设名称、描述、Prompt，以及默认绑定的
+Wiki、CodeGraph 和团队 Skill。每个 Agent 的 Chat Memory 由系统单独创建，不需要放入模板。
+
+没有配置模板时，系统仍会创建 `default-agent-{用户名}`，并安装公共 Core Skill。自动初始化
+只作用于后续 `team-member/add`、`team/create` 和新建 Agent 事件；已经在 Team 中但缺少
+默认 Agent 的成员不会自动补建。
+
+#### 3. 公共 Skill
+
+公共 Skill 仓库分为两层：
+
+- **Core 核心基础层**：每个新 Agent 自动安装当前发布的全部 Core Skill。
+- **业务扩展层**：进入 **Skill 技能 → 公共技能 → 业务扩展技能**，按扩展包或单个 Skill
+  配置 Team 默认策略。该策略只影响后续创建的 Agent。
+
+已有 Agent 不会因策略变化自动补装。需要在公共技能页选择具体 Agent，再单独安装 Skill
+或执行“整包安装”。同一公共来源重复安装会更新；与模板 Skill 同名时公共 Skill 优先，
+其他来源的同名 Skill 会报告冲突。
+
+#### 4. 四类 Agent 资产
+
+| 资产 | 创建与使用 |
+| :--- | :--- |
+| Wiki / RAG | 创建知识库，上传 Markdown/TXT，执行知识抽取后分配给 Agent，用于检索方案、制度和踩坑沉淀。 |
+| CodeGraph | 注册并同步 Git 仓库后分配给 Agent，用于符号定位、调用关系和代码上下文探索。 |
+| Skill | Skill 必须归属具体 Agent；支持目录导入、对话提炼、团队共享和公共目录安装。 |
+| Chat Memory | 每个 Agent 自动拥有独立记忆；可导入历史对话并沉淀 L0–L3，跨会话召回偏好、事实与决策。 |
+
+日常使用还需要注意：Wiki 抽取、CodeGraph 同步和公共 Skill 整包安装都是异步流程，
+应等待页面显示“就绪/完成”；部分失败时按页面提示重试。删除 Team 会级联移除成员关系、
+Agent 与团队资产且不可恢复；删除 Agent 也会清理其固定 Skill、Chat Memory 与绑定。
+
+只需要 Wiki/RAG 的外部 Agent 可以用普通 API Key 连接 Gateway 的 `/mcp/wiki`。系统会自动
+汇总该用户各 Agent 已绑定且可读的 Wiki，不需要调用方传 Team、Agent 或 `context_id`。
+
+#### 5. 插件安装、升级、卸载与工作区绑定
+
+- **首次安装**：在 API Key 页面创建普通 API Key，执行 Codex 或 Claude Code 安装命令，
+  按提示粘贴 API Key，完成后重启客户端。
+- **升级**：再次执行同一条安装命令；安装器备份旧缓存，并保留 API Key、工作区绑定和服务端数据。
+- **卸载**：执行页面提供的卸载命令，只移除本机插件；Cbrain 配置、绑定和服务端数据保留。
+- **绑定**：工作区只有一个候选时自动绑定；有多个候选时选择 Team 与 Agent；绑定成功后自动复用。
+  需要切换 Agent 时执行改绑，停止使用时可解绑，改绑和解绑都不会删除 Agent 或服务端资产。
+
 ### 从旧版本迁移数据
 
 如果你已经在用旧版（v1.x / v0.x），希望把存量数据迁到 v2.0.0+，我们提供了一个数据迁移工具：
@@ -125,7 +183,7 @@ API Key、验证身份、安装离线内置插件并保存用户级配置。示�
 - 在 Cbrain 里创建 Team 和 Agent，审核、分享并配装记忆资产。
 - 统一管理 Owner、版本、状态、可见性、使用次数与 Agent 绑定。
 - `private` 严格属于 Owner；`team` 面向全队；`restricted` 通过 User / Role / Agent ACL 精确授权。
-- 角色分两层：**全局 System Admin** 管理用户与团队（建团队、录入成员），也可使用 Wiki、CodeGraph、Skill 等资产管理功能；**Team 内角色** 分为 Admin（团队管理员）和 Member（普通成员），负责团队内的资产协作与权限控制。资产归属通过 Owner 标记，Owner 自动获得对应资产的管理权限。
+- 角色分两层：**全局 System Admin** 负责新建 Team、组织管理与应急登录；**Team 内角色** 分为 Owner / Admin（团队管理）和 Member（普通成员），负责团队内的成员协作、Agent 与资产。资产归属通过 Owner 标记，Owner 自动获得对应资产的管理权限。
 <img width="" src="assets/images/asset.cn.png" alt="image.png" />
 
 

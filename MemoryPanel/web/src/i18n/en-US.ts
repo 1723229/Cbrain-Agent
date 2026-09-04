@@ -1298,40 +1298,40 @@ export const enUS = {
   // Welcome (startContent, role-specific)
   'onboarding.guide.start.admin.title': 'Welcome to Cbrain',
   'onboarding.guide.start.admin.desc':
-    'You are an administrator: you manage teams and members. Let\'s walk through the core features — click "Next" to begin.',
+    'You are a system administrator: you create Teams, organize members, and handle emergency login. This guide covers the core platform workflow.',
   'onboarding.guide.start.member.title': 'Welcome to Cbrain',
   'onboarding.guide.start.member.desc':
     'You are a team member: you can manage Agents and assets within the team. Let\'s walk through the core features — click "Next" to begin.',
   // Login identity (shared by Admin / Member)
   'onboarding.guide.login.title': 'Your login identity',
   'onboarding.guide.login.desc':
-    'You are signed in with a user_key. Use the top-right menu to view your profile, switch language, or log out; ownership and permissions are based on your current identity.',
+    'Regular users sign in through LDAP and receive an HttpOnly Web Session. The system administrator API Key is only for emergency login when LDAP is unavailable.',
   // Admin: create / switch team
   'onboarding.guide.team.title': 'Create / switch team',
   'onboarding.guide.team.desc':
-    'Click the top-left corner to switch the active team. A team is the primary boundary of assets, Agents and Tasks; as an administrator you can create new teams here.',
+    'Use the top-left switcher to change the active Team. Teams isolate members, Agents, and assets; only system administrators can create Teams.',
   // Admin: create members and issue user_key (not available to member)
   'onboarding.guide.memberAdmin.title': 'Create members and issue user_key',
   'onboarding.guide.memberAdmin.desc':
-    'As an administrator you can create new user accounts in "Members" and issue a one-time user_key (shown only once), or invite existing users into the team. Regular members cannot create users — they can only invite existing ones.',
+    'System administrators create Teams. Team Owners and Team administrators can add existing LDAP users and manage their Team roles from Members.',
   // Member: invite teammates (cannot create users)
   'onboarding.guide.member.title': 'Invite team members',
   'onboarding.guide.member.desc':
-    'In "Members" you can invite existing users into the current team by user_id (you cannot create new user accounts — that requires an administrator). Ask them to copy their user_id from "My Profile".',
-  // Agent management (same for Admin and Member, both can edit)
+    'Regular members can view the Team and manage the Agents and assets they own. Team Owners or Team administrators add members and change roles.',
+  // Agent management (members manage owned Agents; Team administrators manage the Team)
   'onboarding.guide.agent.title': 'Create and edit Agents',
   'onboarding.guide.agent.desc':
-    'Click "Create Agent" to create an Agent. You can edit your own Agents and bind Wiki / Code / Skill / Chat Memory assets; Agents created by others are read-only. Admin and Member have the same capabilities.',
+    'Regular members create and edit their own Agents. Team Owners and Team administrators manage all Team Agents and the default Agent template.',
   // Click an Agent card to open the edit dialog and bind assets
   // (falls back to the "Create Agent" button when the user has none — copy covers both cases)
   'onboarding.guide.agentBind.title': 'Click an Agent card to bind team assets',
   'onboarding.guide.agentBind.desc':
     'Click an Agent card you own (or its name) to open the edit dialog: tick Wiki / CodeGraph / Chat Memory team assets in the "Capabilities" section and save — bindings take effect immediately. No Agent yet? Click "Create Agent" first, then come back and click it. Skills are bound by choosing the owning Agent when importing on the Skill page.',
   // Member: key management
-  'onboarding.guide.apikey.title': 'Manage your User_Keys',
+  'onboarding.guide.apikey.title': 'Manage plugin API Keys',
   'onboarding.guide.apikey.desc':
     'Create a credential for Codex / Claude Code Plugin on the API Key page and copy its one-command installer.',
-  // Create and allocate assets (same for Admin and Member; each asset page is visited.
+  // Create and allocate assets (authorized by ownership and Team role; each asset page is visited.
   // Each description follows "what it is → how to import → how to use" for first-time users)
   'onboarding.guide.asset.wiki.title': 'Wiki: team document assets',
   'onboarding.guide.asset.wiki.desc':
@@ -1341,7 +1341,7 @@ export const enUS = {
     'What: an index and call graph built over team code repositories. Import: click "Register repo" and paste a Git HTTPS URL — indexing runs automatically. Use: once allocated to an Agent, the Agent can search code and explore call chains in chat to answer repo-related questions.',
   'onboarding.guide.asset.skill.title': 'Skill: tell apart "Team assets" vs "Agent assets"',
   'onboarding.guide.asset.skill.desc':
-    'Ownership: this page has two tabs — "Team assets" (a shared pool every member can use and configure) and "Agent assets" (skills bound to a specific Agent, usable by that Agent). Import: click "Import Skill" (create an Agent first) — the skill is bound to the chosen Agent. Use: once bound, the Agent follows the SKILL.md playbook when a matching scenario arises; in "Agent assets" you can toggle "Shared / Private" for skills you own.',
+    'Team assets aggregate shared Skills, while every Skill is actually owned by a specific Agent. Import Team-authored Skills or install Core and business extensions from Public Skills; Team defaults affect only future Agents.',
   'onboarding.guide.asset.memory.title': 'Chat Memory: tell apart "Team assets" vs "Agent assets"',
   'onboarding.guide.asset.memory.desc':
     'Ownership: this page has two tabs — "Team assets" (a shared memory pool) and "Agent assets" (memory bound to a specific Agent, including each Agent\'s built-in private memory). Import: click "Import memory" to bring history in as L0; the system distills L1~L3 layers and attaches them to the chosen Agent. Use: bound Agents remember your preferences and conclusions across sessions; in "Agent assets" you can toggle "Shared / Private" for memory you imported.',
@@ -1391,12 +1391,50 @@ export const enUS = {
   'guide.platform.login.title': 'Sign in to Cbrain',
   'guide.platform.login.desc': 'Regular users sign in with LDAP and receive a Web Session. A system administrator API Key is only for emergency access when LDAP is unavailable.',
   'guide.platform.team.title': 'Manage Teams and members',
-  'guide.platform.team.desc': 'System administrators, Team Owners, and Team administrators can add LDAP users and assign Team roles.',
+  'guide.platform.team.desc': 'Only system administrators can create Teams. Team Owners and Team administrators can add existing LDAP users and change Team roles.',
   'guide.platform.agent.title': 'Create and manage Agents',
-  'guide.platform.agent.desc': 'Members manage their own Agents. Team administrators can manage all Team Agents and the default Agent template.',
+  'guide.platform.agent.desc': 'Members manage their own Agents. Team Owners and Team administrators can manage all Team Agents and the default Agent template.',
   'guide.platform.assets.title': 'Attach business assets',
   'guide.platform.assets.desc': 'Bind Wiki/RAG, CodeGraph, Skills, and Chat Memory to a selected Agent.',
   'guide.platform.assets.detailTitle': 'Four types of Agent assets',
+  'guide.roles.title': 'Roles and permission boundaries',
+  'guide.roles.systemAdmin.title': 'System administrator',
+  'guide.roles.systemAdmin.desc': 'Only system administrators can create Teams and use the administrator API Key for emergency login when LDAP is unavailable.',
+  'guide.roles.teamAdmin.title': 'Team Owner / administrator',
+  'guide.roles.teamAdmin.desc': 'Maintain the Team, add existing LDAP users, change roles, and manage Team Agents, the default Agent template, and Team assets.',
+  'guide.roles.member.title': 'Regular member',
+  'guide.roles.member.desc': 'View Team members and manage owned Agents and assets; cannot create Teams or manage other members.',
+  'guide.defaultAgent.title': 'New members and the default Agent',
+  'guide.defaultAgent.trigger.title': 'Creation triggers',
+  'guide.defaultAgent.trigger.desc': 'When a user joins a Team, or a system administrator creates a Team, Cbrain asynchronously creates a default Agent for the relevant member.',
+  'guide.defaultAgent.template.title': 'What the template controls',
+  'guide.defaultAgent.template.desc': 'Preset the name, description, prompts, Wiki, CodeGraph, and Team Skills. Chat Memory is created separately for every Agent.',
+  'guide.defaultAgent.fallback.title': 'Works without a template',
+  'guide.defaultAgent.fallback.desc': 'Without a template, Cbrain creates default-agent-{username} with empty prompts and template assets, while public Core Skills are still installed.',
+  'guide.defaultAgent.backfill.title': 'Existing members are not backfilled',
+  'guide.defaultAgent.backfill.desc': 'Templates and automatic initialization apply only to future events; existing Team members without a default Agent are not backfilled automatically.',
+  'guide.publicSkill.title': 'Public Skills: Core and business extensions',
+  'guide.publicSkill.core.title': 'Core auto-installation',
+  'guide.publicSkill.core.desc': 'Every new Agent receives the current 6 Core Skills: auto-fix, code-reviewer, grill-me, implementation-engineer, software-architect, and test-engineer.',
+  'guide.publicSkill.policy.title': 'Team default extensions',
+  'guide.publicSkill.policy.desc': 'Go to Skills → Public Skills → Business extensions. System administrators, Team Owners, or Team administrators can save defaults, which apply only to future Agents.',
+  'guide.publicSkill.existing.title': 'Install for existing Agents',
+  'guide.publicSkill.existing.desc': 'Existing Agents are not backfilled. Members install on owned Agents; Team administrators may select any Team Agent and install one Skill or a whole pack.',
+  'guide.publicSkill.conflict.title': 'Updates and name conflicts',
+  'guide.publicSkill.conflict.desc': 'Reinstalling one catalog item updates it. Public Skills win over template names, other same-name sources conflict, and partial pack failures can retry failed items only.',
+  'guide.assets.wiki': 'Create a Wiki, upload Markdown/TXT, run extraction, and allocate it to Agents for plans, policies, and lessons learned.',
+  'guide.assets.code': 'Register and synchronize a Git repository, then allocate it for symbol lookup, call relationships, and code context exploration.',
+  'guide.assets.skill': 'Every Skill belongs to an Agent. Import a directory, extract from conversations, share with the Team, or install from the public catalog.',
+  'guide.assets.memory': 'Every Agent receives independent Chat Memory. Import history and distill L0–L3 for cross-session preferences, facts, and decisions.',
+  'guide.operations.title': 'Daily operations and safety boundaries',
+  'guide.operations.apiKey.title': 'API Key lifecycle',
+  'guide.operations.apiKey.desc': 'Users create, view, and revoke their own plugin credentials on API Keys. The key determines accessible Teams and Agents and is not the normal web login.',
+  'guide.operations.async.title': 'Asynchronous jobs and status',
+  'guide.operations.async.desc': 'Wiki extraction, CodeGraph sync, and public Skill pack installation are asynchronous. Wait for Ready/Completed and retry failed items as prompted.',
+  'guide.operations.delete.title': 'Review scope before deletion',
+  'guide.operations.delete.desc': 'Deleting a Team irreversibly cascades through memberships, Agents, and Team assets. Deleting an Agent also removes its fixed Skills, Chat Memory, and bindings.',
+  'guide.operations.wikiMcp.title': 'Wiki/RAG-only access for external Agents',
+  'guide.operations.wikiMcp.desc': 'An external Agent connects a regular API Key to Gateway /mcp/wiki. Cbrain resolves readable Wikis bound to that user’s Agents without Team, Agent, or context_id parameters.',
   'guide.platform.memory': 'Retain conversational facts, preferences, scenarios, and durable decisions for cross-session recall.',
   'guide.platform.members': 'Members',
   'guide.client.title': 'Client Integration Guide',
@@ -1404,9 +1442,15 @@ export const enUS = {
   'guide.client.apiKey.title': 'Plugin API Key',
   'guide.client.apiKey.desc': 'After signing in with LDAP, create a credential for the plugin client on the API Key page. It is used only to connect to Cbrain Gateway.',
   'guide.client.install.title': 'Install the client plugin',
-  'guide.client.install.desc': 'Run the one-command installer for Codex or Claude Code, then restart the client after installation or update.',
+  'guide.client.install.desc': 'First install: copy the client command, paste the page API Key when prompted, then restart the client.',
+  'guide.client.upgrade.title': 'Upgrade the client plugin',
+  'guide.client.upgrade.desc': 'Run the install command again. The installer backs up the old cache and preserves the API Key, workspace bindings, and server-side data.',
+  'guide.client.uninstall.title': 'Uninstall the client plugin',
+  'guide.client.uninstall.desc': 'The uninstall command removes only the local plugin and preserves Cbrain configuration, workspace bindings, and server-side data.',
   'guide.client.binding.title': 'Bind the workspace',
   'guide.client.binding.desc': 'A single candidate auto-binds. With multiple candidates, choose a Team and Agent. Existing bindings are reused automatically.',
+  'guide.client.binding.reuse': 'After a workspace is bound, later Codex and Claude Code sessions reuse it automatically without another prompt.',
+  'guide.client.binding.change': 'Use rebind to select another Agent, or unbind to stop using Cbrain. Neither operation deletes the Agent or server assets.',
   'guide.cbrain.architecture': 'Architecture',
   'guide.cbrain.directModel': 'Model traffic stays on its original path. The plugin connects only to Cbrain Gateway and never proxies model calls.',
   'guide.cbrain.openApiKeys': 'Create or view an API Key',
@@ -1414,6 +1458,7 @@ export const enUS = {
   'guide.cbrain.installTitle': 'One-command install / update',
   'guide.cbrain.installHint': 'The installer asks for an API Key and preserves existing configuration, bindings, and server data.',
   'guide.cbrain.installOrUpdate': 'Install or update, then restart the client',
+  'guide.cbrain.uninstall': 'Uninstall the local plugin; preserve Cbrain data',
   'guide.cbrain.wiki': 'Retrieve existing designs, policies, and project documents.',
   'guide.cbrain.code': 'Query symbols, call relationships, and complete code context.',
   'guide.cbrain.skills': 'New Agents receive public Skills automatically and can also use team-specific Skills.',

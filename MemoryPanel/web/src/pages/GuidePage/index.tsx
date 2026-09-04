@@ -58,7 +58,17 @@ export function GuidePage() {
     { id: 'claude-code' as const, label: 'Claude Code' },
   ];
   const platformSteps = ['login', 'team', 'agent', 'assets'] as const;
-  const clientSteps = ['apiKey', 'install', 'binding'] as const;
+  const clientSteps = ['apiKey', 'install', 'upgrade', 'uninstall', 'binding'] as const;
+  const roleCards = ['systemAdmin', 'teamAdmin', 'member'] as const;
+  const defaultAgentCards = ['trigger', 'template', 'fallback', 'backfill'] as const;
+  const publicSkillCards = ['core', 'policy', 'existing', 'conflict'] as const;
+  const operationCards = ['apiKey', 'async', 'delete', 'wikiMcp'] as const;
+  const assetCards = [
+    { label: 'Wiki / RAG', key: 'wiki' },
+    { label: 'CodeGraph', key: 'code' },
+    { label: 'Skill', key: 'skill' },
+    { label: 'Chat Memory', key: 'memory' },
+  ] as const;
 
   return (
     <div className="guide-page">
@@ -96,24 +106,59 @@ export function GuidePage() {
           ))}
         </ol>
 
+        <h3 className="guide-subheading">{t('guide.roles.title')}</h3>
+        <div className="guide-practice-rules">
+          {roleCards.map((role) => (
+            <p key={role}>
+              <b>{t(`guide.roles.${role}.title`)}</b>
+              {t(`guide.roles.${role}.desc`)}
+            </p>
+          ))}
+        </div>
+
+        <h3 className="guide-subheading guide-subheading--spaced">
+          {t('guide.defaultAgent.title')}
+        </h3>
+        <div className="guide-practice-rules guide-practice-rules--four">
+          {defaultAgentCards.map((item) => (
+            <p key={item}>
+              <b>{t(`guide.defaultAgent.${item}.title`)}</b>
+              {t(`guide.defaultAgent.${item}.desc`)}
+            </p>
+          ))}
+        </div>
+
+        <h3 className="guide-subheading guide-subheading--spaced">
+          {t('guide.publicSkill.title')}
+        </h3>
+        <div className="guide-practice-rules guide-practice-rules--four">
+          {publicSkillCards.map((item) => (
+            <p key={item}>
+              <b>{t(`guide.publicSkill.${item}.title`)}</b>
+              {t(`guide.publicSkill.${item}.desc`)}
+            </p>
+          ))}
+        </div>
+
         <h3 className="guide-subheading">{t('guide.platform.assets.detailTitle')}</h3>
         <div className="guide-practice-rules guide-practice-rules--four">
-          <p>
-            <b>Wiki / RAG</b>
-            {t('guide.cbrain.wiki')}
-          </p>
-          <p>
-            <b>CodeGraph</b>
-            {t('guide.cbrain.code')}
-          </p>
-          <p>
-            <b>Skill</b>
-            {t('guide.cbrain.skills')}
-          </p>
-          <p>
-            <b>Chat Memory</b>
-            {t('guide.platform.memory')}
-          </p>
+          {assetCards.map((asset) => (
+            <p key={asset.key}>
+              <b>{asset.label}</b>
+              {t(`guide.assets.${asset.key}`)}
+            </p>
+          ))}
+        </div>
+        <h3 className="guide-subheading guide-subheading--spaced">
+          {t('guide.operations.title')}
+        </h3>
+        <div className="guide-practice-rules guide-practice-rules--four">
+          {operationCards.map((item) => (
+            <p key={item}>
+              <b>{t(`guide.operations.${item}.title`)}</b>
+              {t(`guide.operations.${item}.desc`)}
+            </p>
+          ))}
         </div>
         <div className="guide-practice-links">
           <span>{t('guide.cbrain.open')}</span>
@@ -170,7 +215,7 @@ export function GuidePage() {
           </div>
         </div>
 
-        <ol className="guide-stepper guide-stepper--three">
+        <ol className="guide-stepper guide-stepper--five">
           {clientSteps.map((step, index) => (
             <li key={step} className="done">
               <div className="guide-command secondary">
@@ -186,8 +231,8 @@ export function GuidePage() {
 
         <h2>{t('guide.cbrain.installTitle')}</h2>
         <p className="guide-run-hint">{t('guide.cbrain.installHint')}</p>
-        {clients.map((client) => {
-          const command = gatewayUrl
+        {clients.flatMap((client) => {
+          const installCommand = gatewayUrl
             ? buildCbrainAgentCommand({
                 action: 'install',
                 client: client.id,
@@ -195,19 +240,36 @@ export function GuidePage() {
                 gatewayUrl,
               })
             : '';
-          return (
-            <div key={client.id} className="guide-code-card" style={{ marginTop: 12 }}>
+          const uninstallCommand = buildCbrainAgentCommand({
+            action: 'uninstall',
+            client: client.id,
+            origin: window.location.origin,
+          });
+          return [
+            { key: `${client.id}-install`, command: installCommand, hint: 'guide.cbrain.installOrUpdate' },
+            { key: `${client.id}-uninstall`, command: uninstallCommand, hint: 'guide.cbrain.uninstall' },
+          ].map((item) => (
+            <div key={item.key} className="guide-code-card" style={{ marginTop: 12 }}>
               <header>
                 <div>
                   <h3>{client.label}</h3>
-                  <p>{t('guide.cbrain.installOrUpdate')}</p>
+                  <p>{t(item.hint)}</p>
                 </div>
-                {command ? <CopyButton value={command} /> : null}
+                {item.command ? <CopyButton value={item.command} /> : null}
               </header>
-              <pre>{command || t('guide.cbrain.gatewayLoading')}</pre>
+              <pre>{item.command || t('guide.cbrain.gatewayLoading')}</pre>
             </div>
-          );
+          ));
         })}
+
+        <h3 className="guide-subheading guide-subheading--spaced">
+          {t('guide.client.binding.title')}
+        </h3>
+        <div className="guide-practice-rules">
+          <p>{t('guide.client.binding.desc')}</p>
+          <p>{t('guide.client.binding.reuse')}</p>
+          <p>{t('guide.client.binding.change')}</p>
+        </div>
       </section>
 
       <section className="guide-replay">

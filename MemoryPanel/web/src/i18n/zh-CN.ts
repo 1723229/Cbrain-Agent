@@ -1259,39 +1259,39 @@ export const zhCN = {
   // 欢迎（startContent，按角色区分）
   'onboarding.guide.start.admin.title': '欢迎使用 Cbrain',
   'onboarding.guide.start.admin.desc':
-    '你是管理员：负责团队与成员的组织管理。接下来将带你了解面板核心能力，按「下一步」开始。',
+    '你是系统管理员：负责创建 Team、组织成员与处理应急登录。接下来将带你了解平台核心能力。',
   'onboarding.guide.start.member.title': '欢迎使用 Cbrain',
   'onboarding.guide.start.member.desc':
     '你是团队成员：可在团队内管理 Agent 与资产。接下来将带你了解面板核心能力，按「下一步」开始。',
   // 登录身份（Admin / Member 共有）
   'onboarding.guide.login.title': '你的登录身份',
   'onboarding.guide.login.desc':
-    '你已通过 user_key 登录。右上角可查看「我的资料」、切换语言或退出登录；资产归属与权限均以当前登录身份为准。',
+    '普通用户通过 LDAP 登录，浏览器使用 HttpOnly Web Session；系统管理员 API Key 仅用于 LDAP 故障时应急登录。',
   // Admin：新建/切换团队
   'onboarding.guide.team.title': '新建 / 切换团队',
   'onboarding.guide.team.desc':
-    '点击左上角切换当前团队。团队是资产、Agent 和 Task 的主要边界；作为管理员，你可以在这里新建团队。',
+    '点击左上角切换当前 Team。Team 是成员、Agent 和资产的隔离边界；只有系统管理员可以新建 Team。',
   // Admin：新建成员，发放 user key（member 无此权限）
   'onboarding.guide.memberAdmin.title': '新建成员，发放 user_key',
   'onboarding.guide.memberAdmin.desc':
-    '作为管理员，你可以在「成员管理」中新建用户账号并发放专属 user_key（仅展示一次），也可以把已有用户拉入团队。普通成员无法创建用户，只能邀请已有用户。',
+    '系统管理员负责创建 Team；Team Owner 和 Team 管理员可在「成员管理」中搜索并加入已有 LDAP 用户、调整团队角色。',
   // Member：邀请成员（不能创建用户）
   'onboarding.guide.member.title': '邀请团队成员',
   'onboarding.guide.member.desc':
-    '在「成员管理」中可按 user_id 邀请已有用户加入当前团队（你无法创建新用户账号，创建用户需管理员操作）。请让对方在「我的资料」里复制 user_id 发给你。',
-  // Agent 管理（Admin 与 Member 一致，均可编辑）
+    '普通成员可以查看当前 Team 成员并管理自己拥有的 Agent 与资产；添加成员和调整角色由 Team Owner 或 Team 管理员操作。',
+  // Agent 管理（普通成员管自己的，Team 管理员管团队全部）
   'onboarding.guide.agent.title': '创建并编辑 Agent',
   'onboarding.guide.agent.desc':
-    '点击「新建 Agent」创建 Agent，可编辑自己的 Agent 并为其绑定 Wiki / Code / Skill / Chat Memory 等资产；他人创建的 Agent 为只读。Admin 与 Member 的操作能力一致。',
+    '普通成员可创建和编辑自己的 Agent；Team Owner 或 Team 管理员可管理团队全部 Agent 和默认 Agent 模板。',
   // 点击 Agent 卡片进入编辑弹窗绑定资产（无 Agent 时回退到新建按钮，文案同步兼容）
   'onboarding.guide.agentBind.title': '点击 Agent 卡片，绑定团队资产',
   'onboarding.guide.agentBind.desc':
     '点击你自己创建的 Agent 卡片（或名称）打开编辑弹窗：在「资源能力」区勾选 Wiki / CodeGraph / Chat Memory 团队资产，保存后立即生效。还没有 Agent？先点「新建 Agent」创建一个，再回来点击它绑定资产。Skill 需在 Skill 页导入时指定归属 Agent。',
   // Member：key 管理
-  'onboarding.guide.apikey.title': '管理你的 User_Key',
+  'onboarding.guide.apikey.title': '管理插件 API Key',
   'onboarding.guide.apikey.desc':
     '在 API Key 页面创建供 Codex / Claude Code Plugin 使用的凭证，并复制对应的一键安装命令。',
-  // 资产创建与分配（Admin 与 Member 一致；每个资产页都跳入介绍。
+  // 资产创建与分配（按 Owner 与 Team 角色授权；每个资产页都跳入介绍。
   // 文案统一按「是什么 → 怎么导入 → 怎么使用」三段展开，帮首次用户建立完整心智）
   'onboarding.guide.asset.wiki.title': 'Wiki 知识库：团队文档资产',
   'onboarding.guide.asset.wiki.desc':
@@ -1301,7 +1301,7 @@ export const zhCN = {
     '是什么：对团队代码仓库建立的索引与调用关系图谱。怎么导入：点击「注册仓库」，粘贴 Git HTTPS 地址，系统自动完成索引构建。怎么用：「分配给 Agent」后，Agent 对话时可直接检索代码、探索调用链，回答仓库相关问题。',
   'onboarding.guide.asset.skill.title': 'Skill：先分清「团队资产」与「Agent 资产」',
   'onboarding.guide.asset.skill.desc':
-    '归属：本页有「团队资产」「Agent 资产」两个 tab。团队资产 = 团队共用池，成员都能使用和配置；Agent 资产 = 绑定给某个 Agent 的技能，随该 Agent 可用。导入：点「导入 Skill」（需先创建 Agent），技能默认归属选中的 Agent。使用：绑定后 Agent 命中技能场景即按 SKILL.md 执行；在「Agent 资产」里可对你自己 owner 的技能切换「共享 / 私密」。',
+    '团队资产是共享 Skill 的聚合视图，所有 Skill 实际归属具体 Agent。可导入团队自建 Skill，也可在「公共技能」安装 Core 或业务扩展；Team 默认扩展只影响后续创建的 Agent。',
   'onboarding.guide.asset.memory.title': 'Chat Memory：先分清「团队资产」与「Agent 资产」',
   'onboarding.guide.asset.memory.desc':
     '归属：本页同样分「团队资产」「Agent 资产」两个 tab。团队资产 = 团队共享的记忆池；Agent 资产 = 绑定给某个 Agent 的记忆，含每个 Agent 自带的私有记忆。导入：点「导入记忆」，把历史对话导入为 L0，系统自动蒸馏出 L1~L3 分层记忆并挂到指定 Agent。使用：绑定后 Agent 跨会话记住你的偏好与结论；在「Agent 资产」里可对你自己导入的记忆切换「共享 / 私密」。',
@@ -1351,12 +1351,50 @@ export const zhCN = {
   'guide.platform.login.title': '登录 Cbrain',
   'guide.platform.login.desc': '普通用户使用 LDAP 登录并由平台签发 Web Session；系统管理员 API Key 仅用于 LDAP 故障时的应急登录。',
   'guide.platform.team.title': '管理 Team 与成员',
-  'guide.platform.team.desc': '系统管理员、Team Owner 和 Team 管理员可以添加 LDAP 用户并分配团队角色。',
+  'guide.platform.team.desc': '只有系统管理员可以新建 Team；Team Owner 和 Team 管理员可添加已有 LDAP 用户并调整团队角色。',
   'guide.platform.agent.title': '创建与管理 Agent',
-  'guide.platform.agent.desc': '普通成员管理自己的 Agent；Team 管理员可管理团队全部 Agent 和默认 Agent 模板。',
+  'guide.platform.agent.desc': '普通成员管理自己的 Agent；Team Owner 和 Team 管理员可管理团队全部 Agent 和默认 Agent 模板。',
   'guide.platform.assets.title': '装配业务资产',
   'guide.platform.assets.desc': '把 Wiki/RAG、CodeGraph、Skill 和 Chat Memory 绑定到指定 Agent。',
   'guide.platform.assets.detailTitle': '平台提供的四类 Agent 资产',
+  'guide.roles.title': '角色与权限边界',
+  'guide.roles.systemAdmin.title': '系统管理员',
+  'guide.roles.systemAdmin.desc': '只有系统管理员可以新建 Team，并可在 LDAP 异常时使用管理员 API Key 应急登录。',
+  'guide.roles.teamAdmin.title': 'Team Owner / 管理员',
+  'guide.roles.teamAdmin.desc': '维护当前 Team 资料，添加已有 LDAP 用户、调整成员角色，管理团队 Agent、默认 Agent 模板与团队资产。',
+  'guide.roles.member.title': '普通成员',
+  'guide.roles.member.desc': '查看团队成员，创建和管理自己拥有的 Agent 与资产；不能新建 Team，也不能管理其他成员。',
+  'guide.defaultAgent.title': '新成员与默认 Agent',
+  'guide.defaultAgent.trigger.title': '什么时候创建',
+  'guide.defaultAgent.trigger.desc': '新用户加入 Team，或系统管理员新建 Team 后，系统异步为对应成员创建一个默认 Agent。',
+  'guide.defaultAgent.template.title': '模板控制什么',
+  'guide.defaultAgent.template.desc': '可预设名称、描述、Prompt、Wiki、CodeGraph 与团队 Skill；Chat Memory 由系统为每个 Agent 单独创建。',
+  'guide.defaultAgent.fallback.title': '没有模板也能创建',
+  'guide.defaultAgent.fallback.desc': '未配置模板时创建 default-agent-{用户名}，Prompt 与模板资产为空，公共 Core Skill 仍会安装。',
+  'guide.defaultAgent.backfill.title': '已有成员不自动补齐',
+  'guide.defaultAgent.backfill.desc': '模板和自动初始化只作用于后续事件；当前已在 Team 但没有默认 Agent 的成员不会自动补建。',
+  'guide.publicSkill.title': '公共 Skill：Core 与业务扩展',
+  'guide.publicSkill.core.title': 'Core 自动安装',
+  'guide.publicSkill.core.desc': '每个新 Agent 自动安装当前 6 个 Core Skill：auto-fix、code-reviewer、grill-me、implementation-engineer、software-architect、test-engineer。',
+  'guide.publicSkill.policy.title': 'Team 默认扩展',
+  'guide.publicSkill.policy.desc': '入口：Skill 技能 → 公共技能 → 业务扩展技能。系统管理员、Team Owner 或 Team 管理员可保存默认策略，只影响后续创建的 Agent。',
+  'guide.publicSkill.existing.title': '已有 Agent 手工安装',
+  'guide.publicSkill.existing.desc': '已有 Agent 不会自动补装；普通成员可给自己的 Agent 安装，Team 管理员可选择团队任意 Agent，再单独安装或整包安装。',
+  'guide.publicSkill.conflict.title': '更新与同名冲突',
+  'guide.publicSkill.conflict.desc': '同一公共来源重复安装会更新；模板同名时公共 Skill 优先，其他来源同名会冲突；整包部分失败可只重试失败项。',
+  'guide.assets.wiki': '创建知识库，上传 Markdown/TXT 并执行知识抽取，再分配给 Agent；适合检索方案、制度和踩坑沉淀。',
+  'guide.assets.code': '注册 Git 仓库并同步索引，再分配给 Agent；支持符号定位、调用关系和代码上下文探索。',
+  'guide.assets.skill': 'Skill 必须归属具体 Agent；可目录导入、对话提炼、团队共享或从公共目录安装。',
+  'guide.assets.memory': '每个 Agent 自动拥有独立 Chat Memory；可导入历史对话并沉淀 L0–L3，跨会话召回偏好、事实与决策。',
+  'guide.operations.title': '日常管理与安全边界',
+  'guide.operations.apiKey.title': 'API Key 生命周期',
+  'guide.operations.apiKey.desc': '用户在 API Key 页创建、查看和撤销自己的插件凭证；API Key 决定可访问的 Team 与 Agent，不用于网页常规登录。',
+  'guide.operations.async.title': '异步任务与状态',
+  'guide.operations.async.desc': 'Wiki 抽取、CodeGraph 同步和公共 Skill 整包安装均为异步流程；等待“就绪/完成”，部分失败时按页面提示重试。',
+  'guide.operations.delete.title': '删除前确认范围',
+  'guide.operations.delete.desc': '删除 Team 会级联移除成员关系、Agent 与团队资产且不可恢复；删除 Agent 也会清理其固定 Skill、Chat Memory 与绑定。',
+  'guide.operations.wikiMcp.title': '外部 Agent 只接 Wiki/RAG',
+  'guide.operations.wikiMcp.desc': '外部 Agent 使用普通 API Key 连接 Gateway 的 /mcp/wiki；系统自动汇总该用户 Agent 已绑定且可读的 Wiki，无需传 Team、Agent 或 context_id。',
   'guide.platform.memory': '沉淀对话事实、偏好、场景与长期决策，并支持跨会话召回。',
   'guide.platform.members': '成员管理',
   'guide.client.title': '客户端接入指南',
@@ -1364,9 +1402,15 @@ export const zhCN = {
   'guide.client.apiKey.title': '插件 API Key',
   'guide.client.apiKey.desc': 'LDAP 登录后台后，在 API Key 页创建供插件客户端使用的凭证，仅用于连接 Cbrain Gateway。',
   'guide.client.install.title': '安装客户端插件',
-  'guide.client.install.desc': '执行 Codex 或 Claude Code 的一键安装命令，安装或升级后重启客户端。',
+  'guide.client.install.desc': '首次安装：复制对应客户端的一键命令，按提示粘贴页面 API Key，安装完成后重启客户端。',
+  'guide.client.upgrade.title': '升级客户端插件',
+  'guide.client.upgrade.desc': '再次执行安装命令即可升级；安装器会备份旧缓存并保留 API Key、工作区绑定及服务端数据。',
+  'guide.client.uninstall.title': '卸载客户端插件',
+  'guide.client.uninstall.desc': '执行卸载命令只移除本机插件，保留 Cbrain 配置、工作区绑定和服务端数据。',
   'guide.client.binding.title': '绑定工作区',
   'guide.client.binding.desc': '唯一候选自动绑定；有多个候选时选择 Team 与 Agent；已有绑定后续自动复用。',
+  'guide.client.binding.reuse': '同一工作区绑定成功后，Codex 与 Claude Code 后续会话自动复用，不需要重复确认。',
+  'guide.client.binding.change': '需要切换 Agent 时使用改绑；不再使用 Cbrain 时可解绑，解绑不会删除 Agent 或服务端资产。',
   'guide.cbrain.architecture': '调用方式',
   'guide.cbrain.directModel': '模型请求保持原链路；插件仅连接 Cbrain Gateway，不代理模型流量。',
   'guide.cbrain.openApiKeys': '创建或查看 API Key',
@@ -1374,6 +1418,7 @@ export const zhCN = {
   'guide.cbrain.installTitle': '一键安装 / 升级',
   'guide.cbrain.installHint': '安装器会提示粘贴 API Key，并保留已有配置、绑定和服务端数据。',
   'guide.cbrain.installOrUpdate': '安装或升级；完成后重启客户端',
+  'guide.cbrain.uninstall': '卸载本机插件；保留 Cbrain 数据',
   'guide.cbrain.wiki': '检索已有方案、制度和项目文档。',
   'guide.cbrain.code': '查询代码符号、调用关系和完整上下文。',
   'guide.cbrain.skills': '新 Agent 自动安装公共 Skill，也可装配团队定制 Skill。',

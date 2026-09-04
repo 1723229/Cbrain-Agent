@@ -109,6 +109,10 @@
   margin: 4px 0 0;
 }
 
+.guide-subheading--spaced {
+  margin-top: 22px;
+}
+
 .guide-prepare {
   display: grid;
   gap: 10px;
@@ -146,6 +150,10 @@
 
 .guide-stepper--three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.guide-stepper--five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .guide-command {
@@ -279,6 +287,7 @@
 @media (max-width: 800px) {
   .guide-stepper,
   .guide-stepper--three,
+  .guide-stepper--five,
   .guide-practice-rules--four,
   .guide-practice-rules {
     grid-template-columns: 1fr;
