@@ -63,12 +63,12 @@ function errMsg(e: unknown): string {
 export default function TeamManagementPanel({
   currentUser,
   instanceId: _instanceId,
-  isAdmin: _isAdmin,
+  isSystemAdmin,
   section = 'all',
 }: {
   currentUser: string;
   instanceId: string;
-  isAdmin: boolean;
+  isSystemAdmin: boolean;
   /**
    * 控制本面板渲染哪一块内容（拆 tab 用，功能完全不变）：
    *   - 'members'：仅成员管理
@@ -86,7 +86,7 @@ export default function TeamManagementPanel({
   // Agent 可见性：
   //   - 全局 admin / 当前 team 的 admin(owner)：可见 team 内全部 agent
   //   - 普通成员：只能看到自己 owner（创建）的 agent
-  const canSeeAllAgents = !!activeTeam && (_isAdmin || isTeamAdmin(activeTeam, currentUser));
+  const canSeeAllAgents = !!activeTeam && (isSystemAdmin || isTeamAdmin(activeTeam, currentUser));
   const agents = useMemo(() => {
     if (!activeTeam || canSeeAllAgents) return allAgents;
     return allAgents.filter((a) => a.owner_user_id === currentUser);
@@ -247,7 +247,7 @@ export default function TeamManagementPanel({
           team={activeTeam}
           ops={
             <>
-              {_isAdmin && (
+              {isSystemAdmin && (
                 <Button onClick={() => setShowCreateTeam(true)} title={t('team.createTeam')}>
                   <AddIcon size={14} /> {t('team.createTeam')}
                 </Button>
@@ -274,7 +274,7 @@ export default function TeamManagementPanel({
         </div>
       ) : !activeTeam ? (
         <EmptyTeamState
-          onCreateTeam={_isAdmin ? () => setShowCreateTeam(true) : undefined}
+          onCreateTeam={isSystemAdmin ? () => setShowCreateTeam(true) : undefined}
         />
       ) : (
         <>
@@ -284,12 +284,12 @@ export default function TeamManagementPanel({
               team={activeTeam}
               currentUser={currentUser}
               onAdd={() => setShowAddMember(true)}
-              isAdmin={_isAdmin}
+              isAdmin={isSystemAdmin}
             />
           )}
 
           {/* === 默认 Agent 模板（system_admin / team admin / owner）=== */}
-          {showAgents && (_isAdmin || isTeamAdmin(activeTeam, currentUser)) && (
+          {showAgents && (isSystemAdmin || isTeamAdmin(activeTeam, currentUser)) && (
             <DefaultAgentTemplateSection
               teamId={activeTeam.team_id}
               teamName={activeTeam.name}
@@ -305,7 +305,7 @@ export default function TeamManagementPanel({
               countsLoading={countsLoading}
               mountedCounts={mountedCounts}
               currentUser={currentUser}
-              isAdmin={_isAdmin}
+              isAdmin={isSystemAdmin}
               canSeeAllAgents={canSeeAllAgents}
               onCreateAgent={() => setShowCreateAgent(true)}
               onEditAgent={setEditingAgent}
@@ -338,7 +338,7 @@ export default function TeamManagementPanel({
           onClose={() => setShowAddMember(false)}
           onCreatedUser={setCreatedUserKeyInfo}
           currentUser={currentUser}
-          isAdmin={_isAdmin}
+          isAdmin={isSystemAdmin}
         />
       )}
       {createdUserKeyInfo && (

@@ -19,7 +19,6 @@ import {
   isTeamAdmin,
 } from '@/services';
 import { useBackendStore } from '@/stores/backend';
-import { type TeamRole } from '@/services/useCurrentRole';
 import { teamsApi } from '@/lib/teamApi';
 import { getPanelSession } from '@/lib/panelSession';
 import { teamColor } from '@/utils/color';
@@ -28,7 +27,7 @@ import { getErrorMessage } from '@/lib/error-message';
 import EditTeamDialog from '@/components/team/EditTeamDialog';
 import './team-switcher.css';
 
-export function TeamSwitcher({ userRole }: { userRole: TeamRole | null }) {
+export function TeamSwitcher({ isSystemAdmin }: { isSystemAdmin: boolean }) {
   const { t } = useTranslation();
   const { teams, activeTeamId } = useTeams();
   const refreshTeams = useBackendStore((s) => s.refreshTeams);
@@ -44,10 +43,8 @@ export function TeamSwitcher({ userRole }: { userRole: TeamRole | null }) {
   // 当前用户 user_id（panelSession 同步可读）
   const currentUserId = getPanelSession()?.user?.user_id ?? '';
   // 团队管理员可编辑团队资料；删除团队仅 system_admin 或 owner 可执行。
-  const canManageActiveTeam =
-    !!active && (userRole === 'admin' || isTeamAdmin(active, currentUserId));
-  const canDeleteActiveTeam =
-    !!active && (userRole === 'admin' || active.owner_user_id === currentUserId);
+  const canManageActiveTeam = !!active && (isSystemAdmin || isTeamAdmin(active, currentUserId));
+  const canDeleteActiveTeam = !!active && (isSystemAdmin || active.owner_user_id === currentUserId);
 
   function resetCreateForm() {
     setShowCreateTeam(false);
@@ -171,7 +168,7 @@ export function TeamSwitcher({ userRole }: { userRole: TeamRole | null }) {
             <div className="_memory-team-switcher-list-wrap">
               {myTeams.length === 0 ? (
                 <div className="_memory-team-switcher-empty">
-                  {userRole === 'admin'
+                  {isSystemAdmin
                     ? t('teamSwitcher.empty.admin')
                     : t('teamSwitcher.empty.member')}
                 </div>
@@ -239,7 +236,7 @@ export function TeamSwitcher({ userRole }: { userRole: TeamRole | null }) {
             </div>
 
             <div className="_memory-team-switcher-footer">
-              {userRole !== 'admin' ? null : showCreateTeam ? (
+              {!isSystemAdmin ? null : showCreateTeam ? (
                 <div className="_memory-team-switcher-create-form">
                   <Input
                     autoFocus

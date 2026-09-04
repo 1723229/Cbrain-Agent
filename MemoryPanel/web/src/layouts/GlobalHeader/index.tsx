@@ -29,6 +29,7 @@ import './style.css';
 
 export function GlobalHeader({
   userRole,
+  isSystemAdmin,
   currentUser,
   currentUserId,
   instanceName,
@@ -36,6 +37,7 @@ export function GlobalHeader({
   onLogout,
 }: {
   userRole: TeamRole | null;
+  isSystemAdmin: boolean;
   currentUser: string;
   currentUserId?: string;
   /** 当前登录所在的 memory 实例名（来自 auth.instance_name），用于「我的资料」展示 */
@@ -61,7 +63,7 @@ export function GlobalHeader({
           <img src="/cbrain-mark.svg" alt="Cbrain" className="_memory-global-header-logo" />
           <span className="_memory-global-header-brand-text">{t('header.brand')}</span>
         </div>
-        <TeamSwitcher userRole={userRole} />
+        <TeamSwitcher isSystemAdmin={isSystemAdmin} />
       </div>
 
       {/* 右侧：同步状态 + 语言切换 + 用户菜单 */}

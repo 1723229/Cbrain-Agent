@@ -20,7 +20,7 @@ describe('default Agent administration permissions', () => {
     const owner = await service.createNormalUser({ username: 'owner' });
     const member = await service.createNormalUser({ username: 'member' });
     const ownerCtx = context(owner.user_id, owner.default_user_key);
-    const team = await service.createTeamForCaller({ name: 'Team', owner_user_id: owner.user_id }, ownerCtx);
+    const team = await service.createTeam({ name: 'Team', owner_user_id: owner.user_id });
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: member.user_id }, ownerCtx);
 
     const agent = await service.createAgentForCaller({
@@ -36,7 +36,7 @@ describe('default Agent administration permissions', () => {
     const owner = await service.createNormalUser({ username: 'owner' });
     const member = await service.createNormalUser({ username: 'member' });
     const ownerCtx = context(owner.user_id, owner.default_user_key);
-    const team = await service.createTeamForCaller({ name: 'Team', owner_user_id: owner.user_id }, ownerCtx);
+    const team = await service.createTeam({ name: 'Team', owner_user_id: owner.user_id });
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: member.user_id }, ownerCtx);
 
     await expect(service.createAgentForCaller({

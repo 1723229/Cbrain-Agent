@@ -1948,6 +1948,9 @@ export class MetadataService {
   // Caller-scoped mutations（L-12 / L-14）
   // ============================================================
   async createTeamForCaller(input: CreateTeamInput, ctx: V3AuthContext): Promise<TeamEntity> {
+    if (!ctx.isSystemAdmin) {
+      throw new MetadataError("permission_denied", "only system admin can create team");
+    }
     this.assertCallerIsResourceOwner(ctx, input.owner_user_id);
     return this.createTeam(input);
   }

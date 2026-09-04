@@ -36,7 +36,7 @@ describe("team member candidates", () => {
     });
 
     const ownerContext = context(owner.user_id, owner.default_user_key);
-    const team = await service.createTeamForCaller({ name: "test", owner_user_id: owner.user_id }, ownerContext);
+    const team = await service.createTeam({ name: "test", owner_user_id: owner.user_id });
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: alice.user_id }, ownerContext);
 
     const aliceAgents = await store.listAgentsByTeam(team.team_id, null, {
@@ -70,7 +70,7 @@ describe("team member candidates", () => {
     const owner = await service.createNormalUser({ username: "owner" });
     const member = await service.createNormalUser({ username: "member" });
     const ownerContext = context(owner.user_id, owner.default_user_key);
-    const team = await service.createTeamForCaller({ name: "test", owner_user_id: owner.user_id }, ownerContext);
+    const team = await service.createTeam({ name: "test", owner_user_id: owner.user_id });
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: member.user_id }, ownerContext);
 
     await expect(service.listTeamMemberCandidatesForCaller(

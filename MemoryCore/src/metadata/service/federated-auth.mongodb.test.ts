@@ -51,10 +51,10 @@ describe("federated auth on MongoDB", () => {
       isAdmin: false,
       isSystemAdmin: false,
     };
-    const team = await service.createTeamForCaller({
+    const team = await service.createTeam({
       name: "mongo-team",
       owner_user_id: owner.user_id,
-    }, ctx);
+    });
 
     const found = await service.listTeamMemberCandidatesForCaller(team.team_id, "candidate", ctx);
     expect(found.items.map((item) => item.user_id)).toEqual([candidate.user_id]);

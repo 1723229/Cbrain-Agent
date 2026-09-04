@@ -175,6 +175,7 @@ export function ConsoleLayout() {
       />
       <GlobalHeader
         userRole={userRole}
+        isSystemAdmin={auth?.isAdmin === true}
         currentUser={auth?.user ?? ''}
         currentUserId={auth?.user_id}
         instanceName={auth?.instance_name}

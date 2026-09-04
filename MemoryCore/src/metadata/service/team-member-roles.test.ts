@@ -21,12 +21,31 @@ describe("team member role management", () => {
     expect(V3_ROUTES).toContain("/v3/meta/team-member/role/update");
   });
 
+  it("only allows a system admin to create a Team", async () => {
+    const member = await service.createNormalUser({ username: "member" });
+    await expect(service.createTeamForCaller(
+      { name: "denied", owner_user_id: member.user_id },
+      context(member.user_id, member.default_user_key),
+    )).rejects.toMatchObject({ code: "permission_denied" });
+
+    const systemAdmin = await store.createUser({
+      username: "system-admin",
+      auth_provider: "local",
+      external_id: "system-admin",
+      user_type: "system_admin",
+    });
+    await expect(service.createTeamForCaller(
+      { name: "allowed", owner_user_id: systemAdmin.user_id },
+      context(systemAdmin.user_id, "system-admin-key", true),
+    )).resolves.toMatchObject({ name: "allowed", owner_user_id: systemAdmin.user_id });
+  });
+
   it("lets an existing team admin promote and demote another active member", async () => {
     const owner = await service.createNormalUser({ username: "owner" });
     const admin = await service.createNormalUser({ username: "admin" });
     const member = await service.createNormalUser({ username: "member" });
     const ownerCtx = context(owner.user_id, owner.default_user_key);
-    const team = await service.createTeamForCaller({ name: "test", owner_user_id: owner.user_id }, ownerCtx);
+    const team = await service.createTeam({ name: "test", owner_user_id: owner.user_id });
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: admin.user_id, role: "admin" }, ownerCtx);
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: member.user_id }, ownerCtx);
 
@@ -56,10 +75,7 @@ describe("team member role management", () => {
       external_id: "system-admin",
       user_type: "system_admin",
     });
-    const team = await service.createTeamForCaller(
-      { name: "test", owner_user_id: owner.user_id },
-      context(owner.user_id, owner.default_user_key),
-    );
+    const team = await service.createTeam({ name: "test", owner_user_id: owner.user_id });
     const systemCtx = context(systemAdmin.user_id, "system-admin-key", true);
 
     await expect(service.listTeamsForCaller(systemCtx)).resolves.toMatchObject({
@@ -91,7 +107,7 @@ describe("team member role management", () => {
     const admin = await service.createNormalUser({ username: "admin" });
     const member = await service.createNormalUser({ username: "member" });
     const ownerCtx = context(owner.user_id, owner.default_user_key);
-    const team = await service.createTeamForCaller({ name: "test", owner_user_id: owner.user_id }, ownerCtx);
+    const team = await service.createTeam({ name: "test", owner_user_id: owner.user_id });
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: admin.user_id, role: "admin" }, ownerCtx);
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: member.user_id }, ownerCtx);
 
@@ -114,7 +130,7 @@ describe("team member role management", () => {
     const owner = await service.createNormalUser({ username: "owner" });
     const member = await service.createNormalUser({ username: "member" });
     const ownerCtx = context(owner.user_id, owner.default_user_key);
-    const team = await service.createTeamForCaller({ name: "test", owner_user_id: owner.user_id }, ownerCtx);
+    const team = await service.createTeam({ name: "test", owner_user_id: owner.user_id });
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: member.user_id }, ownerCtx);
 
     await expect(service.addTeamMemberForCaller(
@@ -128,7 +144,7 @@ describe("team member role management", () => {
     const owner = await service.createNormalUser({ username: "owner" });
     const admin = await service.createNormalUser({ username: "admin" });
     const ownerCtx = context(owner.user_id, owner.default_user_key);
-    const team = await service.createTeamForCaller({ name: "test", owner_user_id: owner.user_id }, ownerCtx);
+    const team = await service.createTeam({ name: "test", owner_user_id: owner.user_id });
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: admin.user_id, role: "admin" }, ownerCtx);
 
     await expect(service.deleteTeamsForCaller(
@@ -146,7 +162,7 @@ describe("team member role management", () => {
     const admin = await service.createNormalUser({ username: "admin" });
     const member = await service.createNormalUser({ username: "member" });
     const ownerCtx = context(owner.user_id, owner.default_user_key);
-    const team = await service.createTeamForCaller({ name: "test", owner_user_id: owner.user_id }, ownerCtx);
+    const team = await service.createTeam({ name: "test", owner_user_id: owner.user_id });
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: admin.user_id, role: "admin" }, ownerCtx);
     await service.addTeamMemberForCaller({ team_id: team.team_id, user_id: member.user_id }, ownerCtx);
     const agent = await service.createAgentForCaller(
