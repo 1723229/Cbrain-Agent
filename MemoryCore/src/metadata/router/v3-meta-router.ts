@@ -338,6 +338,8 @@ function mapErrorCode(code: string): number {
     case "already_initialized":
     case "last_system_admin":
     case "member_already_exists":
+    case "team_managed_by_zentao":
+    case "member_managed_by_zentao":
       return 409;
     case "invalid_credentials":
     case "invalid_password":

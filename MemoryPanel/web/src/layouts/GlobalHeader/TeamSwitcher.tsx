@@ -181,7 +181,7 @@ export function TeamSwitcher({ isSystemAdmin }: { isSystemAdmin: boolean }) {
                   {myTeams.map((tm) => {
                     const isActive = tm.team_id === activeTeamId;
                     // 仅当前 active team 行显示操作；编辑与删除分别按上方权限拆分。
-                    const showOps = isActive && canManageActiveTeam;
+                    const showOps = isActive && canManageActiveTeam && tm.source_type !== 'zentao';
                     return (
                       <li key={tm.team_id} className="_memory-team-switcher-row">
                         <button

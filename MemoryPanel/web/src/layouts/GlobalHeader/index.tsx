@@ -148,7 +148,7 @@ export function GlobalHeader({
         />
       )}
 
-      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsDialog isSystemAdmin={isSystemAdmin} onClose={() => setSettingsOpen(false)} />}
     </header>
   );
 }

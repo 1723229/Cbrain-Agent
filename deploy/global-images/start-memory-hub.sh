@@ -73,6 +73,28 @@ if [[ "${CBRAIN_LDAP_ENABLED:-false}" == "true" ]]; then
   fi
 fi
 
+# 禅道同步凭据仅通过只读 secret 文件注入。同步默认关闭，首次应用仍需系统管理员在页面确认。
+if [[ "${CBRAIN_ZENTAO_SYNC_ENABLED:-false}" == "true" ]]; then
+  require_vars \
+    CBRAIN_ZENTAO_BASE_URL CBRAIN_ZENTAO_ACCOUNT CBRAIN_ZENTAO_PASSWORD_HOST_FILE \
+    CBRAIN_ZENTAO_IDENTITY_PROVIDER_ID
+  if [[ ! -f "$CBRAIN_ZENTAO_PASSWORD_HOST_FILE" ]]; then
+    die "禅道密码文件不存在: $CBRAIN_ZENTAO_PASSWORD_HOST_FILE"
+  fi
+  PANEL_AUTH_ARGS+=(
+    -e CBRAIN_ZENTAO_SYNC_ENABLED=true
+    -e "CBRAIN_ZENTAO_PROVIDER_ID=${CBRAIN_ZENTAO_PROVIDER_ID:-zentao:main}"
+    -e "CBRAIN_ZENTAO_BASE_URL=$CBRAIN_ZENTAO_BASE_URL"
+    -e "CBRAIN_ZENTAO_ACCOUNT=$CBRAIN_ZENTAO_ACCOUNT"
+    -e CBRAIN_ZENTAO_PASSWORD_FILE=/run/secrets/cbrain-zentao-password
+    -e "CBRAIN_ZENTAO_IDENTITY_PROVIDER_ID=$CBRAIN_ZENTAO_IDENTITY_PROVIDER_ID"
+    -e "CBRAIN_ZENTAO_REQUEST_TIMEOUT_MS=${CBRAIN_ZENTAO_REQUEST_TIMEOUT_MS:-20000}"
+    -e "CBRAIN_ZENTAO_MEMBER_CONCURRENCY=${CBRAIN_ZENTAO_MEMBER_CONCURRENCY:-5}"
+    -e "CBRAIN_ZENTAO_SYNC_INTERVAL_MS=${CBRAIN_ZENTAO_SYNC_INTERVAL_MS:-300000}"
+    -v "$CBRAIN_ZENTAO_PASSWORD_HOST_FILE:/run/secrets/cbrain-zentao-password:ro"
+  )
+fi
+
 # Panel UI "客户端接入地址"卡片显示的 base URL（供 CodeBuddy / ClaudeCode 拷贝使用）。
 # 开源本地部署 core 和 proxy 分开跑，客户端要接的是 proxy，不是 core/gateway。
 #

@@ -13,6 +13,7 @@ import type { KnowledgeClientPort } from './kernel/ports/knowledge-client-port.j
 import { HttpKnowledgeClient } from './kernel/adapters/http-knowledge-client.js';
 import { IngestProgressStore } from './state/ingest-progress-store.js';
 import { PanelAuthService } from './auth/panel-auth-service.js';
+import { ZentaoSyncService } from './services/zentao-sync-service.js';
 
 export interface PanelDeps {
   config: PanelConfig;
@@ -26,6 +27,7 @@ export interface PanelDeps {
   /** Wiki ingest 细粒度进度（KS ingest_progress 回调写入；wiki/get 聚合读出）。 */
   ingestProgressStore: IngestProgressStore;
   authService: PanelAuthService;
+  zentaoSyncService: ZentaoSyncService;
 }
 
 export function buildPanelDeps(config: PanelConfig): PanelDeps {
@@ -46,6 +48,7 @@ export function buildPanelDeps(config: PanelConfig): PanelDeps {
   const skillKernel = new FetchSkillKernelAdapter(kernelHttp, config.metadataRemoteTimeoutMs);
   const ingestProgressStore = new IngestProgressStore();
   const authService = new PanelAuthService(config, instanceRegistry, kernelHttp);
+  const zentaoSyncService = new ZentaoSyncService(config, instanceRegistry, kernelHttp, logger);
   return {
     config,
     logger,
@@ -56,6 +59,7 @@ export function buildPanelDeps(config: PanelConfig): PanelDeps {
     skillKernel,
     ingestProgressStore,
     authService,
+    zentaoSyncService,
   };
 }
 

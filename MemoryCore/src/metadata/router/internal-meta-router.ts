@@ -24,6 +24,12 @@ import {
   internalOwnedAssetEnsureSchema,
   webSessionIssueSchema,
   webSessionTokenSchema,
+  externalTeamSyncPreviewSchema,
+  externalTeamSyncApplySchema,
+  externalTeamSyncStateSchema,
+  externalTeamSyncFailureSchema,
+  externalMemberProvisioningSchema,
+  internalDefaultAgentEnsureSchema,
 } from "./v3-meta-schemas.js";
 import { toPublicUser } from "../service/user-visibility.js";
 import {
@@ -128,6 +134,24 @@ const routeTable: Record<string, InternalHandler> = {
   [`${V3_INTERNAL_PREFIX}/federated/sync`]: bind(federatedSyncSchema, (d, svc) =>
     svc.syncFederatedUsers(d.provider_id, d.users),
   ),
+  [`${V3_INTERNAL_PREFIX}/external-team-sync/preview`]: bind(externalTeamSyncPreviewSchema, (d, svc) =>
+    svc.previewExternalTeamSync(d.snapshot),
+  ),
+  [`${V3_INTERNAL_PREFIX}/external-team-sync/apply`]: bind(externalTeamSyncApplySchema, (d, svc) =>
+    svc.applyExternalTeamSync(d),
+  ),
+  [`${V3_INTERNAL_PREFIX}/external-team-sync/state`]: bind(externalTeamSyncStateSchema, (d, svc) =>
+    svc.getExternalSyncState(d.provider_id),
+  ),
+  [`${V3_INTERNAL_PREFIX}/external-team-sync/failure`]: bind(externalTeamSyncFailureSchema, (d, svc) =>
+    svc.recordExternalSyncFailure(d),
+  ),
+  [`${V3_INTERNAL_PREFIX}/external-team-sync/provisioning`]: bind(externalMemberProvisioningSchema, (d, svc) =>
+    svc.updateExternalMemberProvisioning(d),
+  ),
+  [`${V3_INTERNAL_PREFIX}/external-team-sync/default-agent/ensure`]: bind(internalDefaultAgentEnsureSchema, (d, svc) =>
+    svc.ensureDefaultAgentInternal(d),
+  ),
 };
 
 export const V3_INTERNAL_ROUTES = Object.keys(routeTable);
@@ -138,6 +162,7 @@ function mapErrorCode(code: string): number {
   if (code === "permission_denied") return 403;
   if (code === "missing_instance_id" || code === "invalid_instance_id") return 400;
   if (code === "already_initialized" || code === "last_system_admin" || code === "member_already_exists") return 409;
+  if (code === "preview_stale") return 409;
   if (code === "user_limit_exceeded" || code === "team_limit_exceeded") return 409;
   return 400;
 }

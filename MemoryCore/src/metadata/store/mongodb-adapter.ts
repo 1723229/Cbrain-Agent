@@ -64,6 +64,11 @@ import type {
   ConfigParamEntity,
   UpsertConfigParamInput,
   ListConfigParamsFilter,
+  TeamMemberSourceEntity,
+  ExternalSyncStateEntity,
+  ApplyExternalTeamSyncInput,
+  ExternalTeamSyncApplyResult,
+  ProvisioningStatus,
 } from "../types.js";
 import { DEFAULT_PAGINATION } from "../pagination.js";
 import { buildChatMemoryAssetId } from "../utils/chat-memory-asset.js";
@@ -203,11 +208,21 @@ export class MongoMetadataStore implements IMetadataStore {
     // ── meta_teams ──
     await this.ensureIndex("meta_teams", { team_id: 1 }, { unique: true });
     await this.ensureIndex("meta_teams", { created_at: -1 });
+    await this.ensureIndex("meta_teams", { source_type: 1, source_ref: 1 }, {
+      unique: true,
+      partialFilterExpression: { source_type: "zentao", source_ref: { $type: "string" } },
+    });
 
     // ── meta_team_members ──
     await this.ensureIndex("meta_team_members", { team_id: 1, user_id: 1 }, { unique: true });
     await this.ensureIndex("meta_team_members", { team_id: 1, status: 1, joined_at: -1 });
     await this.ensureIndex("meta_team_members", { user_id: 1, status: 1 });
+    await this.ensureIndex("meta_team_member_sources", { id: 1 }, { unique: true });
+    await this.ensureIndex("meta_team_member_sources", { team_id: 1, user_id: 1, source_type: 1, source_ref: 1 }, { unique: true });
+    await this.ensureIndex("meta_team_member_sources", { team_id: 1, status: 1 });
+    await this.ensureIndex("meta_external_sync_state", { provider_id: 1 }, { unique: true });
+    await this.ensureIndex("meta_external_sync_runs", { run_id: 1 }, { unique: true });
+    await this.ensureIndex("meta_external_sync_runs", { provider_id: 1, started_at: -1 });
 
     // ── meta_agents ──
     await this.ensureIndex("meta_agents", { agent_id: 1 }, { unique: true });
@@ -270,6 +285,35 @@ export class MongoMetadataStore implements IMetadataStore {
     );
 
     await this.migrateLegacyUserKeys();
+    await this.migrateLegacyTeamMemberSources();
+  }
+
+  private async migrateLegacyTeamMemberSources(): Promise<void> {
+    const members = await this.col<TeamMemberEntity>("meta_team_members").find({}, PROJECT_NO_ID).toArray();
+    const now = nowIso();
+    for (const member of members) {
+      const sourceCount = await this.col("meta_team_member_sources").countDocuments({
+        team_id: member.team_id,
+        user_id: member.user_id,
+      });
+      if (sourceCount > 0) continue;
+      await this.col("meta_team_member_sources").updateOne(
+        { team_id: member.team_id, user_id: member.user_id, source_type: "manual", source_ref: "manual" },
+        {
+          $setOnInsert: {
+            id: generateRelationId(), team_id: member.team_id, user_id: member.user_id,
+            source_type: "manual", source_ref: "manual", role: member.role, status: member.status,
+            last_seen_at: now, provisioning_status: "success", provisioning_error: null,
+            created_at: member.joined_at, updated_at: now, metadata_json: "{}",
+          },
+        },
+        { upsert: true },
+      );
+    }
+    await this.col("meta_teams").updateMany(
+      { source_type: { $exists: false } },
+      { $set: { source_type: "manual", source_ref: null, source_url: null } },
+    );
   }
 
   /**
@@ -776,6 +820,9 @@ export class MongoMetadataStore implements IMetadataStore {
         description: input.description ?? null,
         owner_user_id: input.owner_user_id,
         status: input.status ?? "active",
+        source_type: input.source_type ?? "manual",
+        source_ref: input.source_ref ?? null,
+        source_url: input.source_url ?? null,
         created_at: now,
         updated_at: now,
         metadata_json: input.metadata_json ?? "{}",
@@ -794,6 +841,15 @@ export class MongoMetadataStore implements IMetadataStore {
             },
             { session },
           );
+          await this.insertTeamMemberSource({
+            team_id: team.team_id,
+            user_id: team.owner_user_id,
+            source_type: "manual",
+            source_ref: "manual",
+            role: "admin",
+            status: "active",
+            provisioning_status: "success",
+          }, session);
         });
         return team;
       } catch (err) {
@@ -810,7 +866,7 @@ export class MongoMetadataStore implements IMetadataStore {
   }
 
   async updateTeam(teamId: string, patch: Partial<TeamEntity>): Promise<TeamEntity | null> {
-    await this.patchOne("meta_teams", { team_id: teamId }, patch, ["name", "description", "status", "metadata_json"], true);
+    await this.patchOne("meta_teams", { team_id: teamId }, patch, ["name", "description", "status", "source_type", "source_ref", "source_url", "metadata_json"], true);
     return this.getTeamById(teamId);
   }
 
@@ -818,6 +874,7 @@ export class MongoMetadataStore implements IMetadataStore {
     const result = await this.batchDelete("meta_teams", "team_id", teamIds);
     if (result.deleted_ids.length > 0) {
       await this.col("meta_team_members").deleteMany({ team_id: { $in: result.deleted_ids } } as Document);
+      await this.col("meta_team_member_sources").deleteMany({ team_id: { $in: result.deleted_ids } } as Document);
       await this.col("meta_agents").deleteMany({ team_id: { $in: result.deleted_ids } } as Document);
       await this.col("meta_tasks").deleteMany({ team_id: { $in: result.deleted_ids } } as Document);
       await this.col("meta_assets").deleteMany({ team_id: { $in: result.deleted_ids } } as Document);
@@ -856,22 +913,22 @@ export class MongoMetadataStore implements IMetadataStore {
   // TeamMember
   // ============================================================
   async addTeamMember(input: AddTeamMemberInput): Promise<TeamMemberEntity> {
-    const now = nowIso();
-    await runWithGeneratedRelationId(input.id, isMongoRelationIdCollision, async (id) => {
-      await this.col("meta_team_members").updateOne(
-        { team_id: input.team_id, user_id: input.user_id },
-        {
-          $set: { role: input.role ?? "member", status: input.status ?? "active" },
-          $setOnInsert: { id, team_id: input.team_id, user_id: input.user_id, joined_at: now },
-        },
-        { upsert: true },
-      );
+    await this.insertTeamMemberSource({
+      team_id: input.team_id,
+      user_id: input.user_id,
+      source_type: "manual",
+      source_ref: "manual",
+      role: input.role ?? "member",
+      status: input.status ?? "active",
+      provisioning_status: "success",
     });
+    await this.recomputeEffectiveMember(input.team_id, input.user_id, input.id);
     return (await this.getTeamMember(input.team_id, input.user_id))!;
   }
 
   async removeTeamMember(teamId: string, userId: string): Promise<void> {
-    await this.col("meta_team_members").deleteOne({ team_id: teamId, user_id: userId });
+    await this.col("meta_team_member_sources").deleteMany({ team_id: teamId, user_id: userId, source_type: "manual" });
+    await this.recomputeEffectiveMember(teamId, userId);
   }
 
   async listTeamMembers(teamId: string, pagination?: PaginationParams | null): Promise<ListPage<TeamMemberEntity>> {
@@ -891,6 +948,221 @@ export class MongoMetadataStore implements IMetadataStore {
     ) as Promise<TeamMemberEntity | null>;
   }
 
+  async listTeamMemberSources(filter: { team_id?: string; user_id?: string; source_type?: string } = {}): Promise<TeamMemberSourceEntity[]> {
+    return this.col<TeamMemberSourceEntity>("meta_team_member_sources")
+      .find(filter as Document, PROJECT_NO_ID)
+      .sort({ created_at: 1 })
+      .toArray();
+  }
+
+  async getExternalSyncState(providerId: string): Promise<ExternalSyncStateEntity | null> {
+    return this.col<ExternalSyncStateEntity>("meta_external_sync_state")
+      .findOne({ provider_id: providerId } as Document, PROJECT_NO_ID) as Promise<ExternalSyncStateEntity | null>;
+  }
+
+  async recordExternalSyncFailure(input: {
+    provider_id: string;
+    trigger: "initial" | "manual" | "scheduled";
+    error: string;
+    next_run_at?: string | null;
+  }): Promise<ExternalSyncStateEntity> {
+    const now = nowIso();
+    const existing = await this.getExternalSyncState(input.provider_id);
+    const state: ExternalSyncStateEntity = {
+      provider_id: input.provider_id,
+      initialized: existing?.initialized ?? false,
+      snapshot_hash: existing?.snapshot_hash ?? null,
+      status: "failed",
+      last_attempt_at: now,
+      last_success_at: existing?.last_success_at ?? null,
+      next_run_at: input.next_run_at ?? null,
+      counts_json: existing?.counts_json ?? "{}",
+      error: input.error,
+      updated_at: now,
+    };
+    await this.withTx(async (session) => {
+      await this.col("meta_external_sync_state").updateOne(
+        { provider_id: input.provider_id }, { $set: state }, { upsert: true, session },
+      );
+      await this.col("meta_external_sync_runs").insertOne({
+        run_id: generateRelationId(), provider_id: input.provider_id, trigger: input.trigger,
+        snapshot_hash: existing?.snapshot_hash ?? "", status: "failed", counts_json: "{}",
+        issues_json: "[]", error: input.error, started_at: now, finished_at: now,
+      }, { session });
+    });
+    return state;
+  }
+
+  async updateTeamMemberProvisioning(
+    teamId: string,
+    userId: string,
+    sourceType: string,
+    status: ProvisioningStatus,
+    error: string | null = null,
+  ): Promise<void> {
+    await this.col("meta_team_member_sources").updateMany(
+      { team_id: teamId, user_id: userId, source_type: sourceType },
+      { $set: { provisioning_status: status, provisioning_error: error, updated_at: nowIso() } },
+    );
+  }
+
+  async applyExternalTeamSync(input: ApplyExternalTeamSyncInput): Promise<ExternalTeamSyncApplyResult> {
+    const startedAt = nowIso();
+    return this.withTx(async (session) => {
+      const provisioning = new Map<string, { team_id: string; user_id: string }>();
+      const seenRefs = new Set<string>();
+      for (const project of input.projects) {
+        seenRefs.add(project.external_id);
+        let team = await this.col<TeamEntity>("meta_teams").findOne(
+          { source_type: "zentao", source_ref: project.external_id } as Document,
+          { ...PROJECT_NO_ID, session },
+        );
+        const now = nowIso();
+        if (!team) {
+          team = {
+            team_id: generateId(ID_PREFIX.team), name: project.name,
+            description: project.description ?? null, owner_user_id: input.owner_user_id,
+            status: project.active ? "active" : "archived", source_type: "zentao",
+            source_ref: project.external_id, source_url: input.source_url,
+            created_at: now, updated_at: now, metadata_json: project.metadata_json ?? "{}",
+          };
+          await this.col("meta_teams").insertOne({ ...team }, { session });
+          await this.col("meta_team_members").insertOne({
+            id: generateRelationId(), team_id: team.team_id, user_id: input.owner_user_id,
+            role: "admin", joined_at: now, status: "active",
+          }, { session });
+          await this.insertTeamMemberSource({
+            team_id: team.team_id, user_id: input.owner_user_id, source_type: "manual",
+            source_ref: "owner", role: "admin", status: "active", provisioning_status: "success",
+          }, session);
+        } else {
+          await this.col("meta_teams").updateOne(
+            { team_id: team.team_id },
+            { $set: {
+              name: project.name, description: project.description ?? null,
+              status: project.active ? "active" : "archived", source_url: input.source_url,
+              metadata_json: project.metadata_json ?? "{}", updated_at: now,
+            } },
+            { session },
+          );
+        }
+
+        const oldEffective = new Set(
+          (await this.col<TeamMemberEntity>("meta_team_members")
+            .find({ team_id: team.team_id, status: "active" }, { ...PROJECT_NO_ID, session })
+            .toArray()).map((member) => member.user_id),
+        );
+        const oldRows = await this.col<TeamMemberSourceEntity>("meta_team_member_sources")
+          .find({ team_id: team.team_id, source_type: "zentao" }, { ...PROJECT_NO_ID, session })
+          .toArray();
+        const oldSources = new Map(oldRows.map((source) => [source.user_id, source]));
+        await this.col("meta_team_member_sources").deleteMany({ team_id: team.team_id, source_type: "zentao" }, { session });
+        const affected = new Set(oldSources.keys());
+        for (const member of project.members) {
+          affected.add(member.user_id);
+          const prior = oldSources.get(member.user_id);
+          await this.insertTeamMemberSource({
+            team_id: team.team_id, user_id: member.user_id, source_type: "zentao",
+            source_ref: member.external_id, role: member.role, status: "active",
+            provisioning_status: prior?.provisioning_status ?? "pending",
+            provisioning_error: prior?.provisioning_error ?? null,
+            last_seen_at: input.captured_at,
+          }, session);
+          if (!oldEffective.has(member.user_id) || prior?.provisioning_status !== "success") {
+            provisioning.set(`${team.team_id}:${member.user_id}`, { team_id: team.team_id, user_id: member.user_id });
+          }
+        }
+        for (const userId of affected) await this.recomputeEffectiveMember(team.team_id, userId, undefined, session);
+      }
+
+      const linked = await this.col<TeamEntity>("meta_teams")
+        .find({ source_type: "zentao" }, { ...PROJECT_NO_ID, session }).toArray();
+      for (const team of linked) {
+        if (team.source_ref && seenRefs.has(team.source_ref)) continue;
+        await this.col("meta_teams").updateOne(
+          { team_id: team.team_id },
+          { $set: { status: "archived", updated_at: nowIso() } },
+          { session },
+        );
+        const sources = await this.col<TeamMemberSourceEntity>("meta_team_member_sources")
+          .find({ team_id: team.team_id, source_type: "zentao" }, { ...PROJECT_NO_ID, session }).toArray();
+        await this.col("meta_team_member_sources").deleteMany({ team_id: team.team_id, source_type: "zentao" }, { session });
+        for (const source of sources) await this.recomputeEffectiveMember(team.team_id, source.user_id, undefined, session);
+      }
+
+      const finishedAt = nowIso();
+      const countsJson = JSON.stringify(input.counts);
+      const state: ExternalSyncStateEntity = {
+        provider_id: input.provider_id, initialized: true, snapshot_hash: input.snapshot_hash,
+        status: "success", last_attempt_at: startedAt, last_success_at: finishedAt,
+        next_run_at: input.next_run_at ?? null, counts_json: countsJson, error: null, updated_at: finishedAt,
+      };
+      await this.col("meta_external_sync_state").updateOne(
+        { provider_id: input.provider_id }, { $set: state }, { upsert: true, session },
+      );
+      const run = {
+        run_id: generateRelationId(), provider_id: input.provider_id, trigger: input.trigger,
+        snapshot_hash: input.snapshot_hash, status: "success" as const, counts_json: countsJson,
+        issues_json: JSON.stringify(input.issues), error: null, started_at: startedAt, finished_at: finishedAt,
+      };
+      await this.col("meta_external_sync_runs").insertOne(run, { session });
+      return { state, run, provisioning_candidates: [...provisioning.values()] };
+    });
+  }
+
+  private async insertTeamMemberSource(input: {
+    team_id: string;
+    user_id: string;
+    source_type: string;
+    source_ref: string;
+    role: TeamMemberEntity["role"];
+    status: TeamMemberEntity["status"];
+    provisioning_status: ProvisioningStatus;
+    provisioning_error?: string | null;
+    last_seen_at?: string;
+  }, session?: ClientSession): Promise<void> {
+    const now = nowIso();
+    await this.col("meta_team_member_sources").updateOne(
+      { team_id: input.team_id, user_id: input.user_id, source_type: input.source_type, source_ref: input.source_ref },
+      {
+        $set: {
+          role: input.role, status: input.status, last_seen_at: input.last_seen_at ?? now,
+          provisioning_status: input.provisioning_status, provisioning_error: input.provisioning_error ?? null,
+          updated_at: now,
+        },
+        $setOnInsert: {
+          id: generateRelationId(), team_id: input.team_id, user_id: input.user_id,
+          source_type: input.source_type, source_ref: input.source_ref, created_at: now, metadata_json: "{}",
+        },
+      },
+      { upsert: true, session },
+    );
+  }
+
+  private async recomputeEffectiveMember(
+    teamId: string,
+    userId: string,
+    preferredId?: string,
+    session?: ClientSession,
+  ): Promise<void> {
+    const sources = await this.col<TeamMemberSourceEntity>("meta_team_member_sources")
+      .find({ team_id: teamId, user_id: userId, status: "active" }, { ...PROJECT_NO_ID, session }).toArray();
+    if (sources.length === 0) {
+      await this.col("meta_team_members").deleteOne({ team_id: teamId, user_id: userId }, { session });
+      return;
+    }
+    const rank = { reviewer: 0, member: 1, admin: 2 } as const;
+    const role = sources.reduce((best, source) => rank[source.role] > rank[best] ? source.role : best, "reviewer" as TeamMemberEntity["role"]);
+    await this.col("meta_team_members").updateOne(
+      { team_id: teamId, user_id: userId },
+      {
+        $set: { role, status: "active" },
+        $setOnInsert: { id: preferredId ?? generateRelationId(), team_id: teamId, user_id: userId, joined_at: nowIso() },
+      },
+      { upsert: true, session },
+    );
+  }
+
   async listTeamMembersWithProfile(
     teamId: string,
     pagination?: PaginationParams | null,
@@ -904,25 +1176,40 @@ export class MongoMetadataStore implements IMetadataStore {
       .aggregate([
         { $match: match },
         { $lookup: { from: "meta_users", localField: "user_id", foreignField: "user_id", as: "_user" } },
+        { $lookup: {
+          from: "meta_team_member_sources",
+          let: { teamId: "$team_id", userId: "$user_id" },
+          pipeline: [
+            { $match: { $expr: { $and: [
+              { $eq: ["$team_id", "$$teamId"] },
+              { $eq: ["$user_id", "$$userId"] },
+              { $eq: ["$status", "active"] },
+            ] } } },
+            { $group: { _id: "$source_type" } },
+          ],
+          as: "_sources",
+        } },
         {
           $addFields: {
             username: { $ifNull: [{ $arrayElemAt: ["$_user.username", 0] }, ""] },
+            source_types: { $map: { input: "$_sources", as: "source", in: "$$source._id" } },
           },
         },
-        { $project: { _id: 0, _user: 0 } },
+        { $project: { _id: 0, _user: 0, _sources: 0 } },
         { $sort: { joined_at: -1 } },
         { $skip: p.offset },
         { $limit: p.limit },
       ])
       .toArray();
-    return { items: docs.map((d) => mapTeamMemberWithProfile(d as TeamMemberEntity & { username?: string })), total };
+    return { items: docs.map((d) => mapTeamMemberWithProfile(d as TeamMemberEntity & { username?: string; source_types?: string[] })), total };
   }
 
   async getTeamMemberWithProfile(teamId: string, userId: string): Promise<TeamMemberView | null> {
     const member = await this.getTeamMember(teamId, userId);
     if (!member) return null;
     const user = await this.getUserById(userId);
-    return mapTeamMemberWithProfile({ ...member, username: user?.username ?? "" });
+    const sources = await this.listTeamMemberSources({ team_id: teamId, user_id: userId });
+    return mapTeamMemberWithProfile({ ...member, username: user?.username ?? "", source_types: sources.filter((source) => source.status === "active").map((source) => source.source_type) });
   }
 
   // ============================================================

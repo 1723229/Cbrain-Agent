@@ -89,8 +89,10 @@ export function MemberSection({
       <div className="_memory-member-grid" data-guide="members-list">
         {team.members.map((m) => {
           const isOwner = team.owner_user_id === m.user_id;
-          const canRemove = canRemoveMember(team, m.user_id, currentUser, _globalAdmin);
-          const canChangeRole = canChangeMemberRole(team, m.user_id, currentUser, _globalAdmin);
+          const managedByZentao = m.source_types?.includes('zentao') === true;
+          const canRemove = !managedByZentao && canRemoveMember(team, m.user_id, currentUser, _globalAdmin);
+          const canChangeRole = !(managedByZentao && m.role === 'admin')
+            && canChangeMemberRole(team, m.user_id, currentUser, _globalAdmin);
           return (
             <MemberCard
               key={m.user_id}
@@ -99,6 +101,7 @@ export function MemberSection({
               role={m.role}
               isOwner={isOwner}
               isMe={m.user_id === currentUser}
+              managedByZentao={managedByZentao}
               canRemove={canRemove}
               canChangeRole={canChangeRole}
               changingRole={changingRole === m.user_id}
@@ -119,6 +122,7 @@ function MemberCard({
   role,
   isOwner,
   isMe,
+  managedByZentao,
   canRemove,
   canChangeRole,
   changingRole,
@@ -131,6 +135,7 @@ function MemberCard({
   role: 'admin' | 'member' | 'reviewer';
   isOwner: boolean;
   isMe: boolean;
+  managedByZentao: boolean;
   canRemove: boolean;
   canChangeRole: boolean;
   changingRole: boolean;
@@ -151,6 +156,7 @@ function MemberCard({
         <div className="_memory-member-id">
           {displayName}
           {isMe && <span className="_memory-member-me-tag">{t('member.me')}</span>}
+          {managedByZentao && <Tag size="sm" theme="primary">{t('team.source.zentao')}</Tag>}
         </div>
         {hasUsername && (
           <div className="_memory-member-role" style={{ fontSize: '10px', color: 'var(--tea-color-text-tertiary)' }}>

@@ -49,6 +49,11 @@ import type {
   PaginationParams,
   InstanceUserListFilter,
   TeamRole,
+  TeamMemberSourceEntity,
+  ExternalSyncStateEntity,
+  ApplyExternalTeamSyncInput,
+  ExternalTeamSyncApplyResult,
+  ProvisioningStatus,
   ConfigParamEntity,
   UpsertConfigParamInput,
   ListConfigParamsFilter,
@@ -143,6 +148,26 @@ export interface IMetadataStore {
     pagination?: PaginationParams | null,
   ): MaybePromise<ListPage<TeamMemberView>>;
   getTeamMemberWithProfile(teamId: string, userId: string): MaybePromise<TeamMemberView | null>;
+  listTeamMemberSources(filter?: {
+    team_id?: string;
+    user_id?: string;
+    source_type?: string;
+  }): MaybePromise<TeamMemberSourceEntity[]>;
+  getExternalSyncState(providerId: string): MaybePromise<ExternalSyncStateEntity | null>;
+  applyExternalTeamSync(input: ApplyExternalTeamSyncInput): MaybePromise<ExternalTeamSyncApplyResult>;
+  recordExternalSyncFailure(input: {
+    provider_id: string;
+    trigger: "initial" | "manual" | "scheduled";
+    error: string;
+    next_run_at?: string | null;
+  }): MaybePromise<ExternalSyncStateEntity>;
+  updateTeamMemberProvisioning(
+    teamId: string,
+    userId: string,
+    sourceType: string,
+    status: ProvisioningStatus,
+    error?: string | null,
+  ): MaybePromise<void>;
 
   // ── Agent ──
   createAgent(input: CreateAgentInput): MaybePromise<AgentEntity>;

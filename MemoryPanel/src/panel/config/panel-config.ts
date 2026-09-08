@@ -46,6 +46,17 @@ export interface PanelConfig {
     operationTimeoutMs: number;
     syncIntervalMs: number;
   };
+  zentao: {
+    enabled: boolean;
+    providerId: string;
+    baseUrl: string;
+    account: string;
+    passwordFile: string;
+    identityProviderId: string;
+    requestTimeoutMs: number;
+    memberConcurrency: number;
+    syncIntervalMs: number;
+  };
   session: {
     cookieName: string;
     secure: boolean;
@@ -111,6 +122,17 @@ export function loadPanelConfig(): PanelConfig {
       connectTimeoutMs: envInt("CBRAIN_LDAP_CONNECT_TIMEOUT_MS", 3_000),
       operationTimeoutMs: envInt("CBRAIN_LDAP_OPERATION_TIMEOUT_MS", 5_000),
       syncIntervalMs: envInt("CBRAIN_LDAP_SYNC_INTERVAL_MS", 5 * 60_000),
+    },
+    zentao: {
+      enabled: envBool("CBRAIN_ZENTAO_SYNC_ENABLED", false),
+      providerId: env("CBRAIN_ZENTAO_PROVIDER_ID", "zentao:main"),
+      baseUrl: env("CBRAIN_ZENTAO_BASE_URL", "https://z.agentworld.cn"),
+      account: env("CBRAIN_ZENTAO_ACCOUNT", "admin"),
+      passwordFile: env("CBRAIN_ZENTAO_PASSWORD_FILE", ""),
+      identityProviderId: env("CBRAIN_ZENTAO_IDENTITY_PROVIDER_ID", env("CBRAIN_LDAP_PROVIDER_ID", "ldap:giga")),
+      requestTimeoutMs: envInt("CBRAIN_ZENTAO_REQUEST_TIMEOUT_MS", 20_000),
+      memberConcurrency: envInt("CBRAIN_ZENTAO_MEMBER_CONCURRENCY", 5),
+      syncIntervalMs: envInt("CBRAIN_ZENTAO_SYNC_INTERVAL_MS", 5 * 60_000),
     },
     session: {
       cookieName: env("CBRAIN_SESSION_COOKIE_NAME", "cbrain_session"),

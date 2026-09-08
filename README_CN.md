@@ -79,10 +79,20 @@ Team Owner 创建默认 Agent。默认 Agent 模板可预设名称、描述、Pr
 Wiki、CodeGraph 和团队 Skill。每个 Agent 的 Chat Memory 由系统单独创建，不需要放入模板。
 
 没有配置模板时，系统仍会创建 `default-agent-{用户名}`，并安装公共 Core Skill。自动初始化
-只作用于后续 `team-member/add`、`team/create` 和新建 Agent 事件；已经在 Team 中但缺少
+只作用于后续 `team-member/add`、`team/create`、禅道同步新增成员和新建 Agent 事件；已经在 Team 中但缺少
 默认 Agent 的成员不会自动补建。
 
-#### 3. 公共 Skill
+#### 3. 从禅道同步项目与成员
+
+系统管理员可在“设置 → 禅道同步”中把禅道项目同步为独立 Team：先刷新预览，核对 Team 变化、成员变化和未匹配账号，再确认首次导入。初始化完成后系统每 5 分钟自动同步，也可手动立即同步。
+
+- 未关闭项目创建/更新 Team；项目关闭时仅归档 Team，重新打开后恢复，不删除 Agent 或知识资产。
+- 禅道 PM 成为 Team 管理员，其他项目成员成为普通成员。
+- 禅道账号只与同名的有效 LDAP 用户精确匹配；未匹配、停用或重名账号不会自动绑定。
+- 禅道来源与手工来源合并，手工添加的 Team 成员不会因禅道撤员而被误删。
+- 禅道同步 Team 的基础资料和禅道来源成员由禅道维护；需要变更时应先在禅道修改，再执行同步。
+
+#### 4. 公共 Skill
 
 公共 Skill 仓库分为两层：
 
@@ -94,7 +104,7 @@ Wiki、CodeGraph 和团队 Skill。每个 Agent 的 Chat Memory 由系统单独�
 或执行“整包安装”。同一公共来源重复安装会更新；与模板 Skill 同名时公共 Skill 优先，
 其他来源的同名 Skill 会报告冲突。
 
-#### 4. 四类 Agent 资产
+#### 5. 四类 Agent 资产
 
 | 资产 | 创建与使用 |
 | :--- | :--- |
@@ -110,7 +120,7 @@ Agent 与团队资产且不可恢复；删除 Agent 也会清理其固定 Skill�
 只需要 Wiki/RAG 的外部 Agent 可以用普通 API Key 连接 Gateway 的 `/mcp/wiki`。系统会自动
 汇总该用户各 Agent 已绑定且可读的 Wiki，不需要调用方传 Team、Agent 或 `context_id`。
 
-#### 5. 插件安装、升级、卸载与工作区绑定
+#### 6. 插件安装、升级、卸载与工作区绑定
 
 - **首次安装**：在 API Key 页面创建普通 API Key，执行 Codex 或 Claude Code 安装命令，
   按提示粘贴 API Key，完成后重启客户端。

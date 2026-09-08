@@ -23,6 +23,8 @@ export function TeamHeaderCard({ team, ops }: { team: Team; ops?: ReactNode }) {
             <div className="_memory-team-header-meta-row">
               <span className="_memory-team-header-name">{team.name}</span>
               <Tag size="sm">{team.team_id}</Tag>
+              {team.source_type === 'zentao' && <Tag size="sm" theme="primary">{t('team.source.zentao')}</Tag>}
+              {team.status === 'archived' && <Tag size="sm" theme="warning">{t('team.status.archived')}</Tag>}
               <span className="_memory-team-header-count">
                 {t('team.memberCount', { count: team.members.length })}
               </span>

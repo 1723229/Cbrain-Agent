@@ -5,6 +5,7 @@ import { buildPanelDeps } from './panel-deps.js';
 import { ensureKnowledgeLlmBindings } from './startup/ensure-knowledge-llm-binding.js';
 import { startLdapSync } from './startup/ldap-sync.js';
 import { startPublicSkillBootstrapWorker } from './startup/public-skill-bootstrap-worker.js';
+import { startZentaoSync } from './startup/zentao-sync.js';
 
 export function main(): void {
   const config = loadPanelConfig();
@@ -12,6 +13,7 @@ export function main(): void {
   const app = buildPanelApp(deps);
   const stopLdapSync = startLdapSync(deps);
   const stopPublicSkillBootstrap = startPublicSkillBootstrapWorker(deps);
+  const stopZentaoSync = startZentaoSync(deps);
 
   serve(
     { fetch: app.fetch, hostname: config.server.host, port: config.server.port },
@@ -43,6 +45,7 @@ export function main(): void {
   const shutdown = (): void => {
     stopLdapSync();
     stopPublicSkillBootstrap();
+    stopZentaoSync();
     deps.logger.info('panel shutting down');
     process.exit(0);
   };

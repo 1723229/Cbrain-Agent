@@ -17,6 +17,10 @@ export type UserType = "normal" | "system_admin";
 export type TeamStatus = "active" | "archived";
 export type TeamRole = "admin" | "member" | "reviewer";
 export type MemberStatus = "active" | "removed";
+export type TeamSourceType = "manual" | "zentao";
+export type TeamMemberSourceType = "manual" | "zentao";
+export type ExternalSyncStatus = "never" | "running" | "success" | "failed";
+export type ProvisioningStatus = "pending" | "success" | "failed";
 export type AgentStatus = "active" | "inactive";
 export type TaskStatus = "running" | "completed";
 export type TaskSourceType = "manual" | "tapd" | "github" | "other";
@@ -101,6 +105,9 @@ export interface TeamEntity {
   description?: string | null;
   owner_user_id: string;
   status: TeamStatus;
+  source_type: TeamSourceType;
+  source_ref?: string | null;
+  source_url?: string | null;
   created_at: string;
   updated_at: string;
   metadata_json: string;
@@ -118,6 +125,133 @@ export interface TeamMemberEntity {
 /** team-member/list · get 响应：成员关系 + 读时 JOIN 的 username（不落库）。 */
 export interface TeamMemberView extends TeamMemberEntity {
   username: string;
+  source_types?: TeamMemberSourceType[];
+}
+
+/** Team 成员的授权来源。有效成员关系由全部 active 来源投影而来。 */
+export interface TeamMemberSourceEntity {
+  id: string;
+  team_id: string;
+  user_id: string;
+  source_type: TeamMemberSourceType;
+  source_ref: string;
+  role: TeamRole;
+  status: MemberStatus;
+  last_seen_at: string;
+  provisioning_status: ProvisioningStatus;
+  provisioning_error?: string | null;
+  created_at: string;
+  updated_at: string;
+  metadata_json: string;
+}
+
+export interface ExternalSyncStateEntity {
+  provider_id: string;
+  initialized: boolean;
+  snapshot_hash?: string | null;
+  status: ExternalSyncStatus;
+  last_attempt_at?: string | null;
+  last_success_at?: string | null;
+  next_run_at?: string | null;
+  counts_json: string;
+  error?: string | null;
+  updated_at: string;
+}
+
+export interface ExternalSyncRunEntity {
+  run_id: string;
+  provider_id: string;
+  trigger: "initial" | "manual" | "scheduled";
+  snapshot_hash: string;
+  status: "success" | "failed";
+  counts_json: string;
+  issues_json: string;
+  error?: string | null;
+  started_at: string;
+  finished_at: string;
+}
+
+export interface ExternalTeamSyncMember {
+  external_id: string;
+  account: string;
+  role: TeamRole;
+}
+
+export interface ExternalTeamSyncProject {
+  external_id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  status: string;
+  pm_account?: string | null;
+  members: ExternalTeamSyncMember[];
+  metadata_json?: string;
+}
+
+export interface ExternalTeamSyncSnapshot {
+  provider_id: string;
+  identity_provider_id: string;
+  source_url: string;
+  captured_at: string;
+  complete: true;
+  projects: ExternalTeamSyncProject[];
+}
+
+export interface ExternalTeamSyncIssue {
+  code: "USER_NOT_FOUND" | "USER_INACTIVE" | "USER_AMBIGUOUS";
+  project_ref: string;
+  account: string;
+}
+
+export interface ExternalTeamSyncResolvedMember {
+  user_id: string;
+  account: string;
+  external_id: string;
+  role: TeamRole;
+}
+
+export interface ExternalTeamSyncResolvedProject extends Omit<ExternalTeamSyncProject, "members"> {
+  team_id?: string;
+  active: boolean;
+  members: ExternalTeamSyncResolvedMember[];
+}
+
+export interface ExternalTeamSyncCounts {
+  teams_create: number;
+  teams_update: number;
+  teams_inactivate: number;
+  teams_reactivate: number;
+  members_add: number;
+  members_remove: number;
+  members_role_change: number;
+  unresolved_users: number;
+}
+
+export interface ExternalTeamSyncPreview {
+  provider_id: string;
+  snapshot_hash: string;
+  counts: ExternalTeamSyncCounts;
+  issues: ExternalTeamSyncIssue[];
+  projects: ExternalTeamSyncResolvedProject[];
+}
+
+export interface ApplyExternalTeamSyncInput {
+  provider_id: string;
+  source_url: string;
+  owner_user_id: string;
+  snapshot_hash: string;
+  captured_at: string;
+  trigger: ExternalSyncRunEntity["trigger"];
+  projects: ExternalTeamSyncResolvedProject[];
+  counts: ExternalTeamSyncCounts;
+  issues: ExternalTeamSyncIssue[];
+  next_run_at?: string | null;
+}
+
+export interface ExternalTeamSyncApplyResult {
+  state: ExternalSyncStateEntity;
+  run: ExternalSyncRunEntity;
+  provisioning_candidates: Array<{ team_id: string; user_id: string }>;
 }
 
 export interface AgentEntity {
@@ -418,6 +552,9 @@ export interface CreateTeamInput {
   description?: string | null;
   owner_user_id: string;
   status?: TeamStatus;
+  source_type?: TeamSourceType;
+  source_ref?: string | null;
+  source_url?: string | null;
   metadata_json?: string;
 }
 

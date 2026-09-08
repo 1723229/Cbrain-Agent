@@ -89,10 +89,16 @@ import type {
   PaginationParams,
   InstanceUserListFilter,
   UserListFilter,
+  ExternalTeamSyncSnapshot,
+  ExternalTeamSyncPreview,
+  ExternalTeamSyncApplyResult,
+  ExternalSyncStateEntity,
+  ProvisioningStatus,
 } from "../types.js";
 import { formatListResult, paginateArray, resolvePagination, wrapPaginated, DEFAULT_PAGINATION } from "../pagination.js";
 import { generateId, ID_PREFIX } from "../utils/id-generator.js";
 import { buildChatMemoryAssetId, resolveChatMemoryAgentId } from "../utils/chat-memory-asset.js";
+import { buildExternalTeamSyncPreview } from "./external-team-sync.js";
 
 // ── 默认 Agent / Team 常量 ──
 
@@ -369,14 +375,18 @@ export class MetadataService {
   }
 
   private async assertTeamQuota(): Promise<void> {
+    return this.assertTeamQuotaFor(1);
+  }
+
+  private async assertTeamQuotaFor(additional: number): Promise<void> {
     const count = await this.store.countTeams();
     const limit = this._configParams
       ? await this._configParams.getEffectiveInt("quota", "max_teams_per_instance")
       : this.quota.maxTeamsPerInstance;
-    if (count >= limit) {
+    if (additional > 0 && count + additional > limit) {
       throw new MetadataError(
         "team_limit_exceeded",
-        `team limit ${limit} reached for instance ${this.instanceId} (current: ${count})`,
+        `team limit ${limit} reached for instance ${this.instanceId} (current: ${count}, requested: ${additional})`,
       );
     }
   }
@@ -1068,6 +1078,112 @@ export class MetadataService {
 
   async getTeamMember(teamId: string, userId: string): Promise<TeamMemberEntity | null> {
     return this.store.getTeamMember(teamId, userId);
+  }
+
+  async previewExternalTeamSync(snapshot: ExternalTeamSyncSnapshot): Promise<ExternalTeamSyncPreview> {
+    const [users, teams, memberSources] = await Promise.all([
+      this.store.listUsers({ limit: 100_000, offset: 0 }),
+      this.store.listTeams({ limit: 100_000, offset: 0 }),
+      this.store.listTeamMemberSources({ source_type: "zentao" }),
+    ]);
+    return buildExternalTeamSyncPreview({
+      snapshot,
+      users: users.items,
+      teams: teams.items,
+      memberSources,
+    });
+  }
+
+  async applyExternalTeamSync(input: {
+    snapshot: ExternalTeamSyncSnapshot;
+    expected_snapshot_hash: string;
+    owner_user_id: string;
+    trigger: "initial" | "manual" | "scheduled";
+    next_run_at?: string | null;
+  }): Promise<ExternalTeamSyncApplyResult> {
+    const owner = await this.store.getUserById(input.owner_user_id);
+    if (!owner || owner.user_type !== "system_admin" || owner.status !== "active") {
+      throw new MetadataError("permission_denied", "external team sync owner must be an active system admin");
+    }
+    const preview = await this.previewExternalTeamSync(input.snapshot);
+    if (preview.snapshot_hash !== input.expected_snapshot_hash) {
+      throw new MetadataError("preview_stale", "external snapshot changed after preview");
+    }
+    await this.assertTeamQuotaFor(preview.counts.teams_create);
+    return this.store.applyExternalTeamSync({
+      provider_id: input.snapshot.provider_id,
+      source_url: input.snapshot.source_url,
+      owner_user_id: input.owner_user_id,
+      snapshot_hash: preview.snapshot_hash,
+      captured_at: input.snapshot.captured_at,
+      trigger: input.trigger,
+      projects: preview.projects,
+      counts: preview.counts,
+      issues: preview.issues,
+      next_run_at: input.next_run_at ?? null,
+    });
+  }
+
+  getExternalSyncState(providerId: string): Promise<ExternalSyncStateEntity | null> {
+    return Promise.resolve(this.store.getExternalSyncState(providerId));
+  }
+
+  recordExternalSyncFailure(input: {
+    provider_id: string;
+    trigger: "initial" | "manual" | "scheduled";
+    error: string;
+    next_run_at?: string | null;
+  }): Promise<ExternalSyncStateEntity> {
+    return Promise.resolve(this.store.recordExternalSyncFailure(input));
+  }
+
+  async updateExternalMemberProvisioning(input: {
+    team_id: string;
+    user_id: string;
+    source_type: string;
+    status: ProvisioningStatus;
+    error?: string | null;
+  }): Promise<{ ok: true }> {
+    await this.store.updateTeamMemberProvisioning(
+      input.team_id,
+      input.user_id,
+      input.source_type,
+      input.status,
+      input.error ?? null,
+    );
+    return { ok: true };
+  }
+
+  async ensureDefaultAgentInternal(input: {
+    team_id: string;
+    user_id: string;
+    name: string;
+    description?: string | null;
+    prompt?: string | null;
+    visibility: AssetVisibility;
+    metadata_json: string;
+  }): Promise<AgentEntity> {
+    const member = await this.store.getTeamMember(input.team_id, input.user_id);
+    if (!member || member.status !== "active") {
+      throw new MetadataError("member_not_found", `member not found: ${input.team_id}/${input.user_id}`);
+    }
+    const existing = await this.store.listAgentsByTeam(
+      input.team_id,
+      { limit: 100_000, offset: 0 },
+      { owner_user_id: input.user_id, status: "active", name: input.name },
+    );
+    const sameName = existing.items.find((agent) => agent.name === input.name);
+    if (sameName) return sameName;
+    return this.createAgent({
+      team_id: input.team_id,
+      owner_user_id: input.user_id,
+      name: input.name,
+      description: input.description ?? null,
+      prompt: input.prompt ?? null,
+      visibility: input.visibility,
+      metadata_json: input.metadata_json,
+      status: "active",
+    });
   }
 
   // ============================================================
@@ -1960,7 +2076,10 @@ export class MetadataService {
     patch: Partial<TeamEntity>,
     ctx: V3AuthContext,
   ): Promise<TeamEntity> {
-    await this.assertCallerIsTeamOwnerOrAdmin(ctx, teamId);
+    const team = await this.assertCallerIsTeamOwnerOrAdmin(ctx, teamId);
+    if (team.source_type === "zentao") {
+      throw new MetadataError("team_managed_by_zentao", "team basic fields are managed by ZenTao sync");
+    }
     return this.updateTeam(teamId, patch);
   }
 
@@ -1969,6 +2088,9 @@ export class MetadataService {
       const callerId = this.requireCallerId(ctx);
       const team = await this.getTeamById(teamId);
       if (!team) continue;
+      if (team.source_type === "zentao" && team.status === "active") {
+        throw new MetadataError("team_managed_by_zentao", "active ZenTao team cannot be deleted");
+      }
       if (!ctx.isSystemAdmin && team.owner_user_id !== callerId) {
         throw new MetadataError("permission_denied", "only team owner or system admin can delete team");
       }
@@ -1992,6 +2114,10 @@ export class MetadataService {
     if (!team) throw new MetadataError("team_not_found", `team not found: ${teamId}`);
     if (userId === team.owner_user_id) {
       throw new MetadataError("permission_denied", "cannot remove team owner");
+    }
+    const sources = await this.store.listTeamMemberSources({ team_id: teamId, user_id: userId, source_type: "zentao" });
+    if (sources.some((source) => source.status === "active")) {
+      throw new MetadataError("member_managed_by_zentao", "member is managed by ZenTao sync");
     }
     return this.removeTeamMember(teamId, userId);
   }
@@ -2022,6 +2148,10 @@ export class MetadataService {
       throw new MetadataError("member_not_found", `member not found: ${teamId}/${userId}`);
     }
     if (member.role === role) return member;
+    const externalSources = await this.store.listTeamMemberSources({ team_id: teamId, user_id: userId, source_type: "zentao" });
+    if (role !== "admin" && externalSources.some((source) => source.status === "active" && source.role === "admin")) {
+      throw new MetadataError("member_managed_by_zentao", "ZenTao project manager must remain team admin");
+    }
     return this.store.addTeamMember({
       id: member.id,
       team_id: teamId,

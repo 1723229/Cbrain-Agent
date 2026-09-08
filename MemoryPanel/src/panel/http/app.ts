@@ -13,6 +13,7 @@ import { registerKnowledgeRoutes } from './routes/knowledge/index.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerPluginDownloadRoutes } from './routes/plugin-downloads.js';
 import { registerPublicSkillRoutes } from './routes/public-skills.js';
+import { registerZentaoSyncRoutes } from './routes/zentao-sync.js';
 
 const API_PREFIX = '/api/v1';
 
@@ -37,6 +38,7 @@ export function buildPanelApp(deps: PanelDeps): Hono {
   registerAgentLifecycleRoutes(api, deps);
   registerKnowledgeRoutes(api, deps);
   registerPublicSkillRoutes(api, deps);
+  registerZentaoSyncRoutes(api, deps);
   app.route(API_PREFIX, api);
 
   app.onError((err, c) => {

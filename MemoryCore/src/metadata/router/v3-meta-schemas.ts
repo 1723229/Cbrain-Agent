@@ -96,6 +96,60 @@ export const federatedSyncSchema = z.object({
     raw_profile_json: z.string().max(65_536).default("{}"),
   })).max(5_000),
 });
+const externalTeamSyncMemberSchema = z.object({
+  external_id: nonEmpty.max(512),
+  account: nonEmpty.max(256),
+  role: teamRole,
+});
+const externalTeamSyncProjectSchema = z.object({
+  external_id: nonEmpty.max(512),
+  name: nonEmpty.max(512),
+  code: z.string().max(256),
+  description: z.string().max(65_536).nullable().optional(),
+  status: nonEmpty.max(64),
+  pm_account: z.string().max(256).nullable().optional(),
+  members: z.array(externalTeamSyncMemberSchema).max(10_000),
+  metadata_json: z.string().max(65_536).optional(),
+});
+export const externalTeamSyncSnapshotSchema = z.object({
+  provider_id: nonEmpty.max(128),
+  identity_provider_id: nonEmpty.max(128),
+  source_url: z.string().url().max(2_048),
+  captured_at: z.string().datetime(),
+  complete: z.literal(true),
+  projects: z.array(externalTeamSyncProjectSchema).max(10_000),
+});
+export const externalTeamSyncPreviewSchema = z.object({ snapshot: externalTeamSyncSnapshotSchema });
+export const externalTeamSyncApplySchema = z.object({
+  snapshot: externalTeamSyncSnapshotSchema,
+  expected_snapshot_hash: z.string().length(64),
+  owner_user_id: nonEmpty,
+  trigger: z.enum(["initial", "manual", "scheduled"]),
+  next_run_at: z.string().datetime().nullable().optional(),
+});
+export const externalTeamSyncStateSchema = z.object({ provider_id: nonEmpty.max(128) });
+export const externalTeamSyncFailureSchema = z.object({
+  provider_id: nonEmpty.max(128),
+  trigger: z.enum(["initial", "manual", "scheduled"]),
+  error: nonEmpty.max(4_096),
+  next_run_at: z.string().datetime().nullable().optional(),
+});
+export const externalMemberProvisioningSchema = z.object({
+  team_id: nonEmpty,
+  user_id: nonEmpty,
+  source_type: z.literal("zentao"),
+  status: z.enum(["pending", "success", "failed"]),
+  error: z.string().max(4_096).nullable().optional(),
+});
+export const internalDefaultAgentEnsureSchema = z.object({
+  team_id: nonEmpty,
+  user_id: nonEmpty,
+  name: nonEmpty.max(512),
+  description: z.string().max(4_096).nullable().optional(),
+  prompt: z.string().max(65_536).nullable().optional(),
+  visibility: visibility.default("team"),
+  metadata_json: z.string().max(65_536).default("{}"),
+});
 export const userGetSchema = userIdOrKeySchema;
 export const userDeleteSchema = z.object({ user_ids: idList });
 export const userListSchema = z

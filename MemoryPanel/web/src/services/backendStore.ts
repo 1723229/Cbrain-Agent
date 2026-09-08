@@ -29,6 +29,7 @@ export interface TeamMember {
   role: 'admin' | 'member' | 'reviewer';
   joined_at_ms: number;
   username?: string;
+  source_types?: Array<'manual' | 'zentao'>;
 }
 
 export interface Team {
@@ -36,6 +37,10 @@ export interface Team {
   name: string;
   description: string;
   owner_user_id: string;
+  status: 'active' | 'archived';
+  source_type: 'manual' | 'zentao';
+  source_ref?: string | null;
+  source_url?: string | null;
   created_at_ms: number;
   members: TeamMember[];
 }
@@ -128,6 +133,10 @@ export function adaptTeam(bt: BackendTeam, members: TeamMember[]): Team {
     name: bt.name,
     description: bt.description ?? '',
     owner_user_id: bt.owner_user_id,
+    status: bt.status,
+    source_type: bt.source_type ?? 'manual',
+    source_ref: bt.source_ref,
+    source_url: bt.source_url,
     created_at_ms: new Date(bt.created_at).getTime(),
     members,
   };
@@ -139,6 +148,7 @@ export function adaptMember(bm: BackendMember): TeamMember {
     role: bm.role,
     joined_at_ms: new Date(bm.joined_at).getTime(),
     username: bm.username,
+    source_types: bm.source_types,
   };
 }
 

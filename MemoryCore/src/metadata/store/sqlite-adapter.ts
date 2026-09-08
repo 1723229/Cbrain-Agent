@@ -60,6 +60,11 @@ import type {
   ConfigParamEntity,
   UpsertConfigParamInput,
   ListConfigParamsFilter,
+  TeamMemberSourceEntity,
+  ExternalSyncStateEntity,
+  ApplyExternalTeamSyncInput,
+  ExternalTeamSyncApplyResult,
+  ProvisioningStatus,
 } from "../types.js";
 import { DEFAULT_PAGINATION } from "../pagination.js";
 import { buildChatMemoryAssetId } from "../utils/chat-memory-asset.js";
@@ -191,6 +196,9 @@ export class SqliteMetadataStore implements IMetadataStore {
         description TEXT,
         owner_user_id TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'active',
+        source_type TEXT NOT NULL DEFAULT 'manual',
+        source_ref TEXT,
+        source_url TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         metadata_json TEXT NOT NULL DEFAULT '{}'
@@ -204,6 +212,49 @@ export class SqliteMetadataStore implements IMetadataStore {
         status TEXT NOT NULL DEFAULT 'active',
         UNIQUE(team_id, user_id)
       );
+      CREATE TABLE IF NOT EXISTS meta_team_member_sources (
+        id TEXT PRIMARY KEY,
+        team_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        source_ref TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        status TEXT NOT NULL DEFAULT 'active',
+        last_seen_at TEXT NOT NULL,
+        provisioning_status TEXT NOT NULL DEFAULT 'pending',
+        provisioning_error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        UNIQUE(team_id, user_id, source_type, source_ref)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_member_sources_team ON meta_team_member_sources(team_id, status);
+      CREATE INDEX IF NOT EXISTS idx_meta_member_sources_user ON meta_team_member_sources(user_id, status);
+      CREATE TABLE IF NOT EXISTS meta_external_sync_state (
+        provider_id TEXT PRIMARY KEY,
+        initialized INTEGER NOT NULL DEFAULT 0,
+        snapshot_hash TEXT,
+        status TEXT NOT NULL DEFAULT 'never',
+        last_attempt_at TEXT,
+        last_success_at TEXT,
+        next_run_at TEXT,
+        counts_json TEXT NOT NULL DEFAULT '{}',
+        error TEXT,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS meta_external_sync_runs (
+        run_id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        trigger TEXT NOT NULL,
+        snapshot_hash TEXT NOT NULL,
+        status TEXT NOT NULL,
+        counts_json TEXT NOT NULL DEFAULT '{}',
+        issues_json TEXT NOT NULL DEFAULT '[]',
+        error TEXT,
+        started_at TEXT NOT NULL,
+        finished_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_meta_external_sync_runs_provider ON meta_external_sync_runs(provider_id, started_at DESC);
       CREATE TABLE IF NOT EXISTS meta_agents (
         agent_id TEXT PRIMARY KEY,
         team_id TEXT NOT NULL,
@@ -339,6 +390,42 @@ export class SqliteMetadataStore implements IMetadataStore {
     `);
     this.migrateUserTypeColumn();
     this.migrateLegacyUserKeys();
+    this.migrateTeamSourceColumns();
+    this.migrateLegacyTeamMemberSources();
+  }
+
+  private migrateTeamSourceColumns(): void {
+    const columns = new Set(this.all<{ name: string }>("SELECT name FROM pragma_table_info('meta_teams')").map((row) => row.name));
+    const additions = [
+      ["source_type", "TEXT NOT NULL DEFAULT 'manual'"],
+      ["source_ref", "TEXT"],
+      ["source_url", "TEXT"],
+    ] as const;
+    for (const [name, definition] of additions) {
+      if (!columns.has(name)) this.db.exec(`ALTER TABLE meta_teams ADD COLUMN ${name} ${definition}`);
+    }
+    this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_meta_teams_source ON meta_teams(source_type, source_ref) WHERE source_type != 'manual' AND source_ref IS NOT NULL");
+  }
+
+  private migrateLegacyTeamMemberSources(): void {
+    const rows = this.all<TeamMemberEntity>(
+      `SELECT m.* FROM meta_team_members m
+       WHERE NOT EXISTS (
+         SELECT 1 FROM meta_team_member_sources s
+         WHERE s.team_id = m.team_id AND s.user_id = m.user_id
+       )`,
+    );
+    const now = nowIso();
+    for (const row of rows) {
+      this.run(
+        `INSERT INTO meta_team_member_sources
+          (id, team_id, user_id, source_type, source_ref, role, status, last_seen_at,
+           provisioning_status, provisioning_error, created_at, updated_at, metadata_json)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        generateRelationId(), row.team_id, row.user_id, "manual", "manual", row.role,
+        row.status, now, "success", null, row.joined_at, now, "{}",
+      );
+    }
   }
 
   private migrateUserTypeColumn(): void {
@@ -895,13 +982,16 @@ export class SqliteMetadataStore implements IMetadataStore {
         return this.tx(() => {
           this.run(
             `INSERT INTO meta_teams
-              (team_id, name, description, owner_user_id, status, created_at, updated_at, metadata_json)
-             VALUES (?,?,?,?,?,?,?,?)`,
+              (team_id, name, description, owner_user_id, status, source_type, source_ref, source_url, created_at, updated_at, metadata_json)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
             teamId,
             input.name,
             input.description ?? null,
             input.owner_user_id,
             input.status ?? "active",
+            input.source_type ?? "manual",
+            input.source_ref ?? null,
+            input.source_url ?? null,
             now,
             now,
             input.metadata_json ?? "{}",
@@ -916,6 +1006,15 @@ export class SqliteMetadataStore implements IMetadataStore {
             now,
             "active",
           );
+          this.insertTeamMemberSource({
+            team_id: teamId,
+            user_id: input.owner_user_id,
+            source_type: "manual",
+            source_ref: "manual",
+            role: "admin",
+            status: "active",
+            provisioning_status: "success",
+          });
           return this.getTeamById(teamId)!;
         });
       } catch (err) {
@@ -932,7 +1031,7 @@ export class SqliteMetadataStore implements IMetadataStore {
   }
 
   updateTeam(teamId: string, patch: Partial<TeamEntity>): TeamEntity | null {
-    const allowed = ["name", "description", "status", "metadata_json"] as const;
+    const allowed = ["name", "description", "status", "source_type", "source_ref", "source_url", "metadata_json"] as const;
     this.applyUpdate("meta_teams", "team_id", teamId, allowed, patch);
     return this.getTeamById(teamId);
   }
@@ -942,6 +1041,7 @@ export class SqliteMetadataStore implements IMetadataStore {
     if (result.deleted_ids.length > 0) {
       const ph = result.deleted_ids.map(() => "?").join(",");
       this.run(`DELETE FROM meta_team_members WHERE team_id IN (${ph})`, ...result.deleted_ids);
+      this.run(`DELETE FROM meta_team_member_sources WHERE team_id IN (${ph})`, ...result.deleted_ids);
       this.run(`DELETE FROM meta_agents WHERE team_id IN (${ph})`, ...result.deleted_ids);
       this.run(`DELETE FROM meta_tasks WHERE team_id IN (${ph})`, ...result.deleted_ids);
       this.run(`DELETE FROM meta_assets WHERE team_id IN (${ph})`, ...result.deleted_ids);
@@ -988,25 +1088,26 @@ export class SqliteMetadataStore implements IMetadataStore {
   // TeamMember
   // ============================================================
   addTeamMember(input: AddTeamMemberInput): TeamMemberEntity {
-    const now = nowIso();
-    runWithGeneratedRelationId(input.id, isSqliteRelationIdCollision, (id) => {
-      this.run(
-        `INSERT INTO meta_team_members (id, team_id, user_id, role, joined_at, status)
-       VALUES (?,?,?,?,?,?)
-       ON CONFLICT(team_id, user_id) DO UPDATE SET role = excluded.role, status = excluded.status`,
-        id,
-        input.team_id,
-        input.user_id,
-        input.role ?? "member",
-        now,
-        input.status ?? "active",
-      );
+    this.insertTeamMemberSource({
+      team_id: input.team_id,
+      user_id: input.user_id,
+      source_type: "manual",
+      source_ref: "manual",
+      role: input.role ?? "member",
+      status: input.status ?? "active",
+      provisioning_status: "success",
     });
+    this.recomputeEffectiveMember(input.team_id, input.user_id, input.id);
     return this.getTeamMember(input.team_id, input.user_id)!;
   }
 
   removeTeamMember(teamId: string, userId: string): void {
-    this.run("DELETE FROM meta_team_members WHERE team_id = ? AND user_id = ?", teamId, userId);
+    this.run(
+      "DELETE FROM meta_team_member_sources WHERE team_id = ? AND user_id = ? AND source_type = 'manual'",
+      teamId,
+      userId,
+    );
+    this.recomputeEffectiveMember(teamId, userId);
   }
 
   listTeamMembers(teamId: string, pagination?: PaginationParams | null): ListPage<TeamMemberEntity> {
@@ -1035,7 +1136,10 @@ export class SqliteMetadataStore implements IMetadataStore {
     return this.selectList(
       `SELECT COUNT(*) AS c ${base}`,
       [teamId],
-      `SELECT m.id, m.team_id, m.user_id, m.role, m.joined_at, m.status, COALESCE(u.username, '') AS username ${base} ORDER BY m.joined_at DESC`,
+      `SELECT m.id, m.team_id, m.user_id, m.role, m.joined_at, m.status, COALESCE(u.username, '') AS username,
+        (SELECT group_concat(DISTINCT s.source_type) FROM meta_team_member_sources s
+         WHERE s.team_id = m.team_id AND s.user_id = m.user_id AND s.status = 'active') AS source_types
+       ${base} ORDER BY m.joined_at DESC`,
       [teamId],
       pagination,
       (r) => mapTeamMemberWithProfile(r as unknown as TeamMemberEntity & { username?: string }),
@@ -1044,7 +1148,9 @@ export class SqliteMetadataStore implements IMetadataStore {
 
   getTeamMemberWithProfile(teamId: string, userId: string): TeamMemberView | null {
     const row = this.get<TeamMemberEntity & { username?: string }>(
-      `SELECT m.id, m.team_id, m.user_id, m.role, m.joined_at, m.status, COALESCE(u.username, '') AS username
+      `SELECT m.id, m.team_id, m.user_id, m.role, m.joined_at, m.status, COALESCE(u.username, '') AS username,
+        (SELECT group_concat(DISTINCT s.source_type) FROM meta_team_member_sources s
+         WHERE s.team_id = m.team_id AND s.user_id = m.user_id AND s.status = 'active') AS source_types
        FROM meta_team_members m
        LEFT JOIN meta_users u ON u.user_id = m.user_id
        WHERE m.team_id = ? AND m.user_id = ?`,
@@ -1052,6 +1158,236 @@ export class SqliteMetadataStore implements IMetadataStore {
       userId,
     );
     return row ? mapTeamMemberWithProfile(row) : null;
+  }
+
+  listTeamMemberSources(filter: { team_id?: string; user_id?: string; source_type?: string } = {}): TeamMemberSourceEntity[] {
+    const clauses: string[] = [];
+    const params: SQLInputValue[] = [];
+    for (const [column, value] of Object.entries(filter)) {
+      if (!value) continue;
+      clauses.push(`${column} = ?`);
+      params.push(value);
+    }
+    const where = clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
+    return this.all<TeamMemberSourceEntity>(`SELECT * FROM meta_team_member_sources${where} ORDER BY created_at`, ...params);
+  }
+
+  getExternalSyncState(providerId: string): ExternalSyncStateEntity | null {
+    const row = this.get<Record<string, unknown>>("SELECT * FROM meta_external_sync_state WHERE provider_id = ?", providerId);
+    if (!row) return null;
+    return {
+      ...row,
+      initialized: Number(row.initialized) === 1,
+    } as unknown as ExternalSyncStateEntity;
+  }
+
+  recordExternalSyncFailure(input: {
+    provider_id: string;
+    trigger: "initial" | "manual" | "scheduled";
+    error: string;
+    next_run_at?: string | null;
+  }): ExternalSyncStateEntity {
+    const now = nowIso();
+    const existing = this.getExternalSyncState(input.provider_id);
+    this.tx(() => {
+      this.run(
+        `INSERT INTO meta_external_sync_state
+          (provider_id, initialized, snapshot_hash, status, last_attempt_at, last_success_at, next_run_at, counts_json, error, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)
+         ON CONFLICT(provider_id) DO UPDATE SET status=excluded.status,
+           last_attempt_at=excluded.last_attempt_at, next_run_at=excluded.next_run_at,
+           error=excluded.error, updated_at=excluded.updated_at`,
+        input.provider_id, existing?.initialized ? 1 : 0, existing?.snapshot_hash ?? null,
+        "failed", now, existing?.last_success_at ?? null, input.next_run_at ?? null,
+        existing?.counts_json ?? "{}", input.error, now,
+      );
+      this.run(
+        `INSERT INTO meta_external_sync_runs
+          (run_id, provider_id, trigger, snapshot_hash, status, counts_json, issues_json, error, started_at, finished_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        generateRelationId(), input.provider_id, input.trigger, existing?.snapshot_hash ?? "",
+        "failed", "{}", "[]", input.error, now, now,
+      );
+    });
+    return this.getExternalSyncState(input.provider_id)!;
+  }
+
+  updateTeamMemberProvisioning(
+    teamId: string,
+    userId: string,
+    sourceType: string,
+    status: ProvisioningStatus,
+    error: string | null = null,
+  ): void {
+    this.run(
+      `UPDATE meta_team_member_sources
+       SET provisioning_status = ?, provisioning_error = ?, updated_at = ?
+       WHERE team_id = ? AND user_id = ? AND source_type = ?`,
+      status, error, nowIso(), teamId, userId, sourceType,
+    );
+  }
+
+  applyExternalTeamSync(input: ApplyExternalTeamSyncInput): ExternalTeamSyncApplyResult {
+    const startedAt = nowIso();
+    return this.tx(() => {
+      const provisioning = new Map<string, { team_id: string; user_id: string }>();
+      const seenRefs = new Set<string>();
+      for (const project of input.projects) {
+        seenRefs.add(project.external_id);
+        let team = this.get<TeamEntity>(
+          "SELECT * FROM meta_teams WHERE source_type = 'zentao' AND source_ref = ?",
+          project.external_id,
+        );
+        const now = nowIso();
+        if (!team) {
+          const teamId = generateId(ID_PREFIX.team);
+          this.run(
+            `INSERT INTO meta_teams
+              (team_id, name, description, owner_user_id, status, source_type, source_ref, source_url, created_at, updated_at, metadata_json)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            teamId, project.name, project.description ?? null, input.owner_user_id,
+            project.active ? "active" : "archived", "zentao", project.external_id,
+            input.source_url, now, now, project.metadata_json ?? "{}",
+          );
+          this.run(
+            `INSERT INTO meta_team_members (id, team_id, user_id, role, joined_at, status)
+             VALUES (?,?,?,?,?,?)`,
+            generateRelationId(), teamId, input.owner_user_id, "admin", now, "active",
+          );
+          this.insertTeamMemberSource({
+            team_id: teamId, user_id: input.owner_user_id, source_type: "manual",
+            source_ref: "owner", role: "admin", status: "active", provisioning_status: "success",
+          });
+          team = this.get<TeamEntity>("SELECT * FROM meta_teams WHERE team_id = ?", teamId)!;
+        } else {
+          this.run(
+            `UPDATE meta_teams SET name = ?, description = ?, status = ?, source_url = ?, metadata_json = ?, updated_at = ?
+             WHERE team_id = ?`,
+            project.name, project.description ?? null, project.active ? "active" : "archived",
+            input.source_url, project.metadata_json ?? "{}", now, team.team_id,
+          );
+        }
+
+        const oldEffective = new Set(
+          this.all<{ user_id: string }>(
+            "SELECT user_id FROM meta_team_members WHERE team_id = ? AND status = 'active'",
+            team.team_id,
+          ).map((row) => row.user_id),
+        );
+        const oldSources = new Map(
+          this.listTeamMemberSources({ team_id: team.team_id, source_type: "zentao" })
+            .map((source) => [source.user_id, source]),
+        );
+        this.run("DELETE FROM meta_team_member_sources WHERE team_id = ? AND source_type = 'zentao'", team.team_id);
+        const affected = new Set(oldSources.keys());
+        for (const member of project.members) {
+          affected.add(member.user_id);
+          const prior = oldSources.get(member.user_id);
+          this.insertTeamMemberSource({
+            team_id: team.team_id,
+            user_id: member.user_id,
+            source_type: "zentao",
+            source_ref: member.external_id,
+            role: member.role,
+            status: "active",
+            provisioning_status: prior?.provisioning_status ?? "pending",
+            provisioning_error: prior?.provisioning_error ?? null,
+            last_seen_at: input.captured_at,
+          });
+          if (!oldEffective.has(member.user_id) || prior?.provisioning_status !== "success") {
+            provisioning.set(`${team.team_id}:${member.user_id}`, { team_id: team.team_id, user_id: member.user_id });
+          }
+        }
+        for (const userId of affected) this.recomputeEffectiveMember(team.team_id, userId);
+      }
+
+      const linked = this.all<{ team_id: string; source_ref: string }>(
+        "SELECT team_id, source_ref FROM meta_teams WHERE source_type = 'zentao'",
+      );
+      for (const row of linked) {
+        if (seenRefs.has(row.source_ref)) continue;
+        this.run("UPDATE meta_teams SET status = 'archived', updated_at = ? WHERE team_id = ?", nowIso(), row.team_id);
+        const users = this.listTeamMemberSources({ team_id: row.team_id, source_type: "zentao" }).map((source) => source.user_id);
+        this.run("DELETE FROM meta_team_member_sources WHERE team_id = ? AND source_type = 'zentao'", row.team_id);
+        for (const userId of users) this.recomputeEffectiveMember(row.team_id, userId);
+      }
+
+      const finishedAt = nowIso();
+      const countsJson = JSON.stringify(input.counts);
+      this.run(
+        `INSERT INTO meta_external_sync_state
+          (provider_id, initialized, snapshot_hash, status, last_attempt_at, last_success_at, next_run_at, counts_json, error, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)
+         ON CONFLICT(provider_id) DO UPDATE SET initialized=excluded.initialized,
+           snapshot_hash=excluded.snapshot_hash, status=excluded.status,
+           last_attempt_at=excluded.last_attempt_at, last_success_at=excluded.last_success_at,
+           next_run_at=excluded.next_run_at, counts_json=excluded.counts_json,
+           error=excluded.error, updated_at=excluded.updated_at`,
+        input.provider_id, 1, input.snapshot_hash, "success", startedAt, finishedAt,
+        input.next_run_at ?? null, countsJson, null, finishedAt,
+      );
+      const runId = generateRelationId();
+      this.run(
+        `INSERT INTO meta_external_sync_runs
+          (run_id, provider_id, trigger, snapshot_hash, status, counts_json, issues_json, error, started_at, finished_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        runId, input.provider_id, input.trigger, input.snapshot_hash, "success", countsJson,
+        JSON.stringify(input.issues), null, startedAt, finishedAt,
+      );
+      return {
+        state: this.getExternalSyncState(input.provider_id)!,
+        run: this.get("SELECT * FROM meta_external_sync_runs WHERE run_id = ?", runId) as ExternalTeamSyncApplyResult["run"],
+        provisioning_candidates: [...provisioning.values()],
+      };
+    });
+  }
+
+  private insertTeamMemberSource(input: {
+    team_id: string;
+    user_id: string;
+    source_type: string;
+    source_ref: string;
+    role: TeamMemberEntity["role"];
+    status: TeamMemberEntity["status"];
+    provisioning_status: ProvisioningStatus;
+    provisioning_error?: string | null;
+    last_seen_at?: string;
+  }): void {
+    const now = nowIso();
+    this.run(
+      `INSERT INTO meta_team_member_sources
+        (id, team_id, user_id, source_type, source_ref, role, status, last_seen_at,
+         provisioning_status, provisioning_error, created_at, updated_at, metadata_json)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+       ON CONFLICT(team_id, user_id, source_type, source_ref) DO UPDATE SET
+         role=excluded.role, status=excluded.status, last_seen_at=excluded.last_seen_at,
+         provisioning_status=excluded.provisioning_status,
+         provisioning_error=excluded.provisioning_error, updated_at=excluded.updated_at`,
+      generateRelationId(), input.team_id, input.user_id, input.source_type, input.source_ref,
+      input.role, input.status, input.last_seen_at ?? now, input.provisioning_status,
+      input.provisioning_error ?? null, now, now, "{}",
+    );
+  }
+
+  private recomputeEffectiveMember(teamId: string, userId: string, preferredId?: string): void {
+    const sources = this.all<TeamMemberSourceEntity>(
+      "SELECT * FROM meta_team_member_sources WHERE team_id = ? AND user_id = ? AND status = 'active'",
+      teamId,
+      userId,
+    );
+    if (sources.length === 0) {
+      this.run("DELETE FROM meta_team_members WHERE team_id = ? AND user_id = ?", teamId, userId);
+      return;
+    }
+    const rank = { reviewer: 0, member: 1, admin: 2 } as const;
+    const role = sources.reduce((best, source) => rank[source.role] > rank[best] ? source.role : best, "reviewer" as TeamMemberEntity["role"]);
+    const now = nowIso();
+    this.run(
+      `INSERT INTO meta_team_members (id, team_id, user_id, role, joined_at, status)
+       VALUES (?,?,?,?,?,?)
+       ON CONFLICT(team_id, user_id) DO UPDATE SET role=excluded.role, status='active'`,
+      preferredId ?? generateRelationId(), teamId, userId, role, now, "active",
+    );
   }
 
   // ============================================================
@@ -1838,6 +2174,9 @@ export class SqliteMetadataStore implements IMetadataStore {
       description: r.description != null ? String(r.description) : null,
       owner_user_id: String(r.owner_user_id),
       status: String(r.status) as TeamEntity["status"],
+      source_type: String(r.source_type ?? "manual") as TeamEntity["source_type"],
+      source_ref: r.source_ref != null ? String(r.source_ref) : null,
+      source_url: r.source_url != null ? String(r.source_url) : null,
       created_at: String(r.created_at),
       updated_at: String(r.updated_at),
       metadata_json: String(r.metadata_json ?? "{}"),

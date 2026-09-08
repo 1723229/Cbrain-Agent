@@ -48,6 +48,9 @@ export interface Team {
   description?: string;
   owner_user_id: string;
   status: 'active' | 'archived';
+  source_type: 'manual' | 'zentao';
+  source_ref?: string | null;
+  source_url?: string | null;
   created_at: string;
   updated_at: string;
   metadata_json: string;
@@ -62,6 +65,7 @@ export interface TeamMember {
   status: 'active' | 'removed';
   /** team-member/list · get 响应附带（读时 JOIN） */
   username?: string;
+  source_types?: Array<'manual' | 'zentao'>;
 }
 
 export interface Agent {

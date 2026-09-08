@@ -140,6 +140,12 @@ LDAP 是后台普通用户的主登录方式。Web 登录成功后使用 HttpOnl
 
 管理员应急登录只接受有效、未过期、未吊销且归属 `system_admin` 的 API Key；普通用户 API Key 会被拒绝。隔离内网 POC 若暂时没有 TLS，必须显式设置 `CBRAIN_LDAP_ALLOW_INSECURE_POC=true` 和 `CBRAIN_SESSION_COOKIE_SECURE=false`，且只能使用一次性测试账号。
 
+### 禅道项目与成员同步
+
+在 `.env` 中配置 `CBRAIN_ZENTAO_*`，将禅道密码写入 `CBRAIN_ZENTAO_PASSWORD_HOST_FILE` 指向的宿主机文件并设置为 `0600`。启动脚本会把它只读挂载到容器；密码不会进入镜像或环境变量。
+
+同步启用后，以系统管理员登录 Cbrain，打开“设置 → 禅道同步”，先执行“刷新预览”，核对 Team、成员和未匹配账号数量，再确认首次导入。首次导入完成前，五分钟定时同步不会写入数据。详细规则见 [禅道同步架构设计](../../docs/architecture/zentao-team-sync/architecture-design.md)。
+
 ## 独立使用每个组件
 
 三个脚本可以单独执行，方便调试或只需要部分能力时：
