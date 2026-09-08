@@ -29,6 +29,7 @@ import type { BM25LocalEncoder } from "./bm25-local.js";
 import type { VdbConfig } from "../instance-config-provider.js";
 import type { ISkillStore } from "../skill/skill-store.interface.js";
 import { metricProducer } from "../report/kafka-metric-producer.js";
+import { toOpenAIEmbeddingConfig } from "./embedding-config.js";
 
 const TAG = "[store-pool]";
 
@@ -374,14 +375,10 @@ export class StorePool {
     let embeddingService: EmbeddingService | undefined;
     const embCfg = this.memoryCfg.embedding;
     if (embCfg.enabled && embCfg.provider !== "local" && embCfg.provider !== "none" && embCfg.apiKey) {
-      embeddingService = createEmbeddingService({
-        provider: embCfg.provider,
-        baseUrl: embCfg.baseUrl,
-        apiKey: embCfg.apiKey,
-        model: embCfg.model,
-        dimensions: embCfg.dimensions,
-        maxInputChars: embCfg.maxInputChars,
-      }, this.logger as StoreLogger);
+      embeddingService = createEmbeddingService(
+        toOpenAIEmbeddingConfig(embCfg),
+        this.logger as StoreLogger,
+      );
     }
 
     const dims = embCfg.dimensions ?? 0;

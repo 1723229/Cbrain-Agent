@@ -20,6 +20,7 @@ import { createEmbeddingService, NoopEmbeddingService } from "./embedding.js";
 import type { EmbeddingService } from "./embedding.js";
 import { createBM25Encoder } from "./bm25-local.js";
 import type { BM25LocalEncoder } from "./bm25-local.js";
+import { toOpenAIEmbeddingConfig } from "./embedding-config.js";
 
 // Re-export for convenience
 export type { IMemoryStore, IEmbeddingService, StoreLogger, BM25LocalEncoder };
@@ -99,15 +100,10 @@ export function createStoreBundle(
       // ── Embedding service (only when enabled) ──
       let embeddingService: EmbeddingService | undefined;
       if (config.embedding.enabled && config.embedding.provider !== "local" && config.embedding.apiKey) {
-        embeddingService = createEmbeddingService({
-          provider: config.embedding.provider,
-          baseUrl: config.embedding.baseUrl,
-          apiKey: config.embedding.apiKey,
-          model: config.embedding.model,
-          dimensions: config.embedding.dimensions,
-          sendDimensions: config.embedding.sendDimensions,
-          maxInputChars: config.embedding.maxInputChars,
-        }, logger);
+        embeddingService = createEmbeddingService(
+          toOpenAIEmbeddingConfig(config.embedding),
+          logger,
+        );
       }
 
       // dimensions from config (0 when provider="none" → vec0 deferred)
