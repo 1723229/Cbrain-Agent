@@ -148,6 +148,26 @@ describe("buildExternalTeamSyncPreview", () => {
     ]));
   });
 
+  it("同名旧身份 inactive、新身份 active 时选择唯一 active 用户", () => {
+    const preview = buildExternalTeamSyncPreview({
+      snapshot: snapshot(),
+      users: [
+        user("usr-dev-old", "dev", "inactive"),
+        user("usr-dev-new", "dev", "active"),
+        user("usr-pm", "pm"),
+      ],
+      teams: [],
+      memberSources: [],
+    });
+
+    expect(preview.projects[0]?.members).toContainEqual(
+      expect.objectContaining({ user_id: "usr-dev-new", account: "dev" }),
+    );
+    expect(preview.issues).not.toContainEqual(
+      expect.objectContaining({ account: "dev" }),
+    );
+  });
+
   it("完整快照中消失的已同步项目会进入停用预览", () => {
     const existing: TeamEntity = {
       team_id: "team-missing", name: "Missing", owner_user_id: "usr-admin",

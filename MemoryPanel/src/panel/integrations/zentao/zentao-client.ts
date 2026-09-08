@@ -102,12 +102,26 @@ export class ZentaoClient {
 
     const active = projects.filter((project) => project.status !== "closed");
     await this.mapConcurrent(active, async (project) => {
-      const data = await this.requestJson<{ members?: MemberRow[] }>(`/api.php/v2/projects/${encodeURIComponent(project.external_id)}/members`);
+      const [data, detail] = await Promise.all([
+        this.requestJson<{ members?: MemberRow[] }>(
+          `/api.php/v2/projects/${encodeURIComponent(project.external_id)}/members`,
+        ),
+        project.pm_account
+          ? this.requestJson<{ project?: ProjectRow }>(
+            `/api.php/v2/projects/${encodeURIComponent(project.external_id)}`,
+          )
+          : Promise.resolve(null),
+      ]);
       if (!Array.isArray(data.members)) throw new Error(`invalid ZenTao response: projects/${project.external_id}/members`);
       project.members = data.members.flatMap((member) => {
         const account = member.account?.trim();
         return account ? [{ external_id: `${project.external_id}:${account}`, account, role: "member" as const }] : [];
       });
+      if (detail) {
+        const account = detail.project?.PM?.trim();
+        if (!account) throw new Error(`invalid ZenTao response: projects/${project.external_id}`);
+        project.pm_account = account;
+      }
     });
 
     return {

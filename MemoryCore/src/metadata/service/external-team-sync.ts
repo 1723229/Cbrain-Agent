@@ -63,9 +63,10 @@ function resolveAccount(
     candidate.auth_provider === providerId && candidate.username === account,
   );
   if (matches.length === 0) return { issue: "USER_NOT_FOUND" };
-  if (matches.length > 1) return { issue: "USER_AMBIGUOUS" };
-  if (matches[0]!.status !== "active") return { issue: "USER_INACTIVE" };
-  return { user: matches[0] };
+  const activeMatches = matches.filter((candidate) => candidate.status === "active");
+  if (activeMatches.length === 1) return { user: activeMatches[0] };
+  if (activeMatches.length > 1) return { issue: "USER_AMBIGUOUS" };
+  return { issue: "USER_INACTIVE" };
 }
 
 function projectIsActive(status: string): boolean {

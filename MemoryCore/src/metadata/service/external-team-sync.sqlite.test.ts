@@ -109,4 +109,41 @@ describe("external team sync on SQLite", () => {
     await expect(service.ensureDefaultAgentInternal({ ...input, user_id: "usr-missing" }))
       .rejects.toMatchObject({ code: "member_not_found" });
   });
+
+  it("LDAP 用户重建后把唯一 active 身份作为禅道 PM 同步为 admin", async () => {
+    await store.createUser({
+      username: "weixl", auth_provider: "ldap:zjyj", external_id: "old-weixl",
+      status: "inactive", create_default_key: false,
+    });
+    const active = await store.createUser({
+      username: "weixl", auth_provider: "ldap:zjyj", external_id: "new-weixl",
+      status: "active", create_default_key: false,
+    });
+    const input: ExternalTeamSyncSnapshot = {
+      provider_id: "zentao:main",
+      identity_provider_id: "ldap:zjyj",
+      source_url: "https://zentao.example.test",
+      captured_at: new Date().toISOString(),
+      complete: true,
+      projects: [{
+        external_id: "302", name: "亚通MES", code: "", status: "doing",
+        pm_account: "weixl",
+        members: [{ external_id: "302:weixl", account: "weixl", role: "member" }],
+      }],
+    };
+
+    const preview = await service.previewExternalTeamSync(input);
+    expect(preview.issues).toEqual([]);
+    expect(preview.projects[0]?.members).toEqual([
+      expect.objectContaining({ user_id: active.user_id, account: "weixl", role: "admin" }),
+    ]);
+    await service.applyExternalTeamSync({
+      snapshot: input,
+      expected_snapshot_hash: preview.snapshot_hash,
+      owner_user_id: adminId,
+      trigger: "initial",
+    });
+    const team = (await store.listTeams({ limit: 10, offset: 0 })).items.find((item) => item.source_ref === "302")!;
+    expect(await store.getTeamMember(team.team_id, active.user_id)).toMatchObject({ role: "admin", status: "active" });
+  });
 });
