@@ -110,6 +110,26 @@ proxy 接到用户请求后转发到这组端点。
 > memory 与 proxy 两组可以填相同值，也可以完全不同。Embedding 通过独立的
 > `MEMORY_EMBEDDING_*` 参数配置，不复用对话模型地址；未配置时继续使用 BM25。
 
+OpenAI-compatible BGE-M3 服务应配置到 `/v1`，由 Core 自动追加
+`/embeddings`。固定 1024 维的 BGE-M3 必须设置
+`MEMORY_EMBEDDING_SEND_DIMENSIONS=false`。建议用户检索超时为 3 秒、后台写入
+超时为 10 秒，避免向量服务异常时阻塞 MCP 正常对话：
+
+```dotenv
+MEMORY_EMBEDDING_PROVIDER=openai
+MEMORY_EMBEDDING_BASE_URL=http://<trusted-embedding-host>:8080/v1
+MEMORY_EMBEDDING_API_KEY=local-no-auth
+MEMORY_EMBEDDING_MODEL=bge-m3
+MEMORY_EMBEDDING_DIMENSIONS=1024
+MEMORY_EMBEDDING_SEND_DIMENSIONS=false
+MEMORY_EMBEDDING_TIMEOUT_MS=3000
+MEMORY_EMBEDDING_RECALL_TIMEOUT_MS=3000
+MEMORY_EMBEDDING_CAPTURE_TIMEOUT_MS=10000
+```
+
+无鉴权 Embedding 服务只能通过网络白名单或受信代理接入，不应把真实地址写入
+公开仓库或直接暴露给不可信网络。
+
 参数缺失时脚本会**在启动前一次性列出所有缺失项**并 `exit 1`，不会跑到一半才失败。
 
 ## 内部凭据（生产环境必看）
